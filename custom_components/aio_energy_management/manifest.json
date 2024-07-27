@@ -1,0 +1,11 @@
+{
+  "codeowners": ["@kotope"],
+  "config_flow": false,
+  "dependencies": [],
+  "documentation": "https://github.com/kotope/aio_energy_management",
+  "domain": "aio_energy_management",
+  "iot_class": "calculated",
+  "name": "AIO Energy Management",
+  "requirements": [],
+  "version": "0.1.0"
+}

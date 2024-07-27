@@ -1,0 +1,73 @@
+"""Data coordinator. Owns all the data."""
+
+from datetime import datetime
+import logging
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
+
+from .helpers import convert_datetime, from_str_to_datetime
+
+STORAGE_VERSION = 1
+STORAGE_KEY = "aio_energy_management.storage"
+_LOGGER = logging.getLogger(__name__)
+
+
+class EnergyManagementCoordinator:
+    """Common coordinator for Energy Management component. Owner of the data."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Init persistent store."""
+        self._store = Store[dict[str, any]](hass, STORAGE_VERSION, STORAGE_KEY)
+        self.listeners = []
+        self.data = {}
+
+    async def _async_save_data(self) -> None:
+        """Save data to store."""
+        _LOGGER.debug("Request to save data: %s", self.data)
+        await self._store.async_save(self.data)
+
+    async def async_clear_store(self) -> None:
+        """Clear store."""
+        _LOGGER.debug("Request to clear all values from the store")
+        await self._store.async_save({})
+
+    async def async_load_data(self):
+        """Load data from store."""
+        stored = await self._store.async_load()
+        if stored:
+            _LOGGER.debug("Load data from store: %s", stored)
+            self.data = self._convert_datetimes(stored)
+
+    async def async_set_data(
+        self, entity_id: str, name: str, module: str, dict: dict
+    ) -> None:
+        """Set entity data."""
+        self.data[entity_id] = dict
+        self.data[entity_id]["name"] = name
+        self.data[entity_id]["type"] = module
+        await self._async_save_data()
+
+    def get_data(self, entity_id: str) -> dict | None:
+        """Get entity data."""
+        _LOGGER.debug("Query data from store for %s", entity_id)
+        return self.data.get(entity_id)
+
+    def _convert_datetimes(self, dictionary: dict) -> dict | None:
+        for k, v in dictionary.items():
+            dictionary[k] = self._convert_datetimes_of_item(v)
+        return dictionary
+
+    def _convert_datetimes_of_item(self, dictionary: dict) -> dict:
+        expires = dictionary.get("expiration")
+        if expires is not None:
+            if expires is not datetime:
+                dictionary["expiration"] = from_str_to_datetime(
+                    dictionary.get("expiration")
+                )
+            else:
+                dictionary["expiration"] = expires
+        data_list = dictionary.get("list")
+        if data_list is not None:
+            dictionary["list"] = convert_datetime(data_list)
+        return dictionary
