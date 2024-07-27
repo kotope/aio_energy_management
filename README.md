@@ -21,7 +21,11 @@ Read more detailed information at the [creatingsmarthome.com](https://www.creati
 - Restart Home Assistant
 
 ### Option 2: Manual
-TODO
+SSH into Home assistant and write the following:
+```
+cd /config/custom_components
+wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/install_to_home_assistant.sh | bash
+```
 
 ## Features
 * Nord Pool Cheapest Hours (or most expensive)
