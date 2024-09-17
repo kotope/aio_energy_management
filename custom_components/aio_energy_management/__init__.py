@@ -25,7 +25,6 @@ async def async_setup(hass: core.HomeAssistant, config: dict) -> bool:
     """Set up the Energy Management component."""
     # Set level to debug for dev time (debug purposes only)
     # _LOGGER.setLevel(logging.DEBUG)
-
     coordinator = EnergyManagementCoordinator(hass)
 
     # Clear store (debug purposes only)

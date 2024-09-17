@@ -1,6 +1,6 @@
 """Nord pool cheapet hours binary sensor."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
@@ -102,27 +102,24 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         return False
 
     async def _async_operate(self) -> None:
+        if self._data is None:
+            self._data = self._coordinator.get_data(self._attr_unique_id)
+
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
             return None
 
-        # Check if our local data is still valid
-        if self._is_expired(self._data) is False:
+        # Check if our data is valid and we do not need to do anything
+        if self._is_fetched_today():  # Data valid for today
             _LOGGER.debug(
                 "Local entity data is still valid for %s", self._attr_unique_id
             )
-            return None  # Our local data is still valid
+            if self._is_expired() is False:
+                return None
 
-        # Check if cached data from stole is still valid
-        data = self._coordinator.get_data(self._attr_unique_id)
-        if self._is_expired(data) is False:
-            _LOGGER.debug("Stored value is still valid for %s", self._attr_unique_id)
-            self._data = data
-            return None
-
-        # Data is invalid, try to get new data from nordpool
+        # No valid data found from store either, try get new
         _LOGGER.debug(
-            "No stored value found for %s or value is expired. Request new data from nord pool integration",
+            "No today fetch done for %s or value is expired. Request new data from nord pool integration",
             self._attr_unique_id,
         )
 
@@ -132,15 +129,15 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         except InvalidEntityState:
             return None
 
-        # Init new data values
-        self._data["list"] = {}
+        self._swap_list_if_needed()
         self._data["failsafe"] = self._create_failsafe()
 
         try:
             self._update_from_nordpool()
         except ValueNotFound:
             _LOGGER.debug("Could not get the latest data from nordpool integration")
-            self._data.pop("list", None)
+            if self._is_expired():
+                self._data.pop("list", None)
             return None
 
         cheapest = None
@@ -170,9 +167,19 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         except InvalidInput:
             return None
 
-        self._data["list"] = cheapest
-        self._data["updated_at"] = dt_util.now()
-        self._data["expiration"] = self._create_expiration()
+        # Construct new data from calculated hours
+        if self._is_expired():
+            self._set_list(cheapest)
+            self._data["updated_at"] = dt_util.now()
+            self._data["expiration"] = self._create_expiration()
+        elif (
+            self._data["list"] != cheapest
+        ):  # Not expired, but data is not the same. Set to list_next
+            # Data is not the same, set the next
+            self._data["list_next"] = cheapest
+
+        self._data["fetch_date"] = self._create_fetch_date()
+
         await self._coordinator.async_set_data(
             self._attr_unique_id,
             self._attr_name,
@@ -180,20 +187,46 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
             self._data,
         )
 
-    def _is_expired(self, data: dict) -> bool:
+    def _swap_list_if_needed(self) -> bool:
+        """Swap the list_next to list if needed. Returns true if list was swapped."""
+        if self._is_expired():  # Data is expired
+            if list_next := self._data.get("list_next"):
+                self._set_list(list_next)
+                self._data.pop("list_next", None)
+                self._data["expiration"] = self._create_expiration()
+                return True
+            self._data.pop("list", None)
+
+        return False
+
+    def _set_list(self, list: dict) -> None:
+        """Set list data."""
+        self._data["list"] = list
+        self._data["updated_at"] = dt_util.now()
+
+    def _is_expired(self) -> bool:
         """Check if data is expired."""
-        if data is not None:
-            if data.get("list") is None or {}:
+        if self._data is not None:
+            if self._data.get("list") is None or {}:
                 return True
 
-            if data.get("expiration") is None:
+            if self._data.get("expiration") is None:
                 return True
 
-            expires = dt_util.as_local(data.get("expiration"))
+            expires = dt_util.as_local(self._data.get("expiration"))
             if expires is not None:
                 if expires > dt_util.now():
                     return False
         return True
+
+    def _is_fetched_today(self) -> bool:
+        if self._data is None:
+            return False
+
+        fetch_date = self._data.get("fetch_date")
+        if fetch_date is not None and fetch_date == dt_util.start_of_local_day().date():
+            return True
+        return False
 
     def _create_failsafe(self) -> dict | None:
         """Construct failsafe dictionary."""
@@ -208,7 +241,21 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
 
     def _create_expiration(self) -> datetime:
         """Calculate value expiration."""
-        return dt_util.start_of_local_day() + timedelta(hours=24 + 1 + self._last_hour)
+        if items := self._data.get("list"):
+            values = convert_datetime(items)
+            if len(values) > 0:
+                if last_start := values[-1].get("start"):
+                    return (last_start.replace(hour=self._last_hour)) + timedelta(
+                        hours=1
+                    )
+            return None
+
+        # No list, data should expire immediately
+        return dt_util.start_of_local_day()
+
+    def _create_fetch_date(self) -> date:
+        """Return fetch date."""
+        return dt_util.start_of_local_day().date()
 
     def _update_from_nordpool(self) -> None:
         np = self.hass.states.get(self._nordpool_entity)
@@ -238,11 +285,15 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         self._nordpool = np
 
     def _is_failsafe(self) -> bool:
-        if self._is_expired(self._data) is False:
+        if (
+            self._data is None
+        ):  # TODO: If data is none, we most probably need to check the failsafe value instead of just returning false!
+            return False
+
+        if self._is_expired() is False:
             return False  # Data not expired yet.
 
-        failsafe = self._data.get("failsafe")
-        if failsafe is not None:
+        if failsafe := self._data.get("failsafe"):
             start = from_str_to_time(failsafe.get("start"))
             end = from_str_to_time(failsafe.get("end"))
 

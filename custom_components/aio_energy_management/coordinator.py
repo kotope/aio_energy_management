@@ -2,9 +2,11 @@
 
 from datetime import datetime
 import logging
+import zoneinfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
+import homeassistant.util.dt as dt_util
 
 from .helpers import convert_datetime, from_str_to_datetime
 
@@ -12,7 +14,7 @@ STORAGE_VERSION = 1
 STORAGE_KEY = "aio_energy_management.storage"
 _LOGGER = logging.getLogger(__name__)
 
-
+# TODO: .. version migration
 class EnergyManagementCoordinator:
     """Common coordinator for Energy Management component. Owner of the data."""
 
@@ -35,6 +37,7 @@ class EnergyManagementCoordinator:
     async def async_load_data(self):
         """Load data from store."""
         stored = await self._store.async_load()
+        print(f"ZZZZ: stored = {stored}")
         if stored:
             _LOGGER.debug("Load data from store: %s", stored)
             self.data = self._convert_datetimes(stored)
@@ -51,6 +54,7 @@ class EnergyManagementCoordinator:
     def get_data(self, entity_id: str) -> dict | None:
         """Get entity data."""
         _LOGGER.debug("Query data from store for %s", entity_id)
+        print(f"data = {self.data.get(entity_id)}")
         return self.data.get(entity_id)
 
     def _convert_datetimes(self, dictionary: dict) -> dict | None:
@@ -59,15 +63,21 @@ class EnergyManagementCoordinator:
         return dictionary
 
     def _convert_datetimes_of_item(self, dictionary: dict) -> dict:
-        expires = dictionary.get("expiration")
-        if expires is not None:
+        if expires := dictionary.get("expiration"):
             if expires is not datetime:
                 dictionary["expiration"] = from_str_to_datetime(
                     dictionary.get("expiration")
                 )
             else:
                 dictionary["expiration"] = expires
-        data_list = dictionary.get("list")
-        if data_list is not None:
+
+        if fetch_date := dictionary.get("fetch_date"):
+            if isinstance(fetch_date, str):
+                dictionary["fetch_date"] = dt_util.parse_date(fetch_date)
+
+        if data_list := dictionary.get("list"):
             dictionary["list"] = convert_datetime(data_list)
+        if data_list_next := dictionary.get("list_next"):
+            dictionary["list_next"] = convert_datetime(data_list_next)
+
         return dictionary
