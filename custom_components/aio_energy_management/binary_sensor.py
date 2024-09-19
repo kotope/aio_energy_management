@@ -10,8 +10,10 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
+from .cheapest_hours_binary_sensor import CheapestHoursBinarySensor
 from .const import (
     CONF_ENTITY_CHEAPEST_HOURS,
+    CONF_ENTSOE_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
     CONF_INVERSED,
@@ -25,13 +27,13 @@ from .const import (
     COORDINATOR,
     DOMAIN,
 )
-from .nordpool_binary_sensor import NordPoolCheapestHoursBinarySensor
 
 _LOGGER = logging.getLogger(__name__)
 
 CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
     {
-        vol.Required(CONF_NORDPOOL_ENTITY): cv.entity_id,
+        vol.Optional(CONF_NORDPOOL_ENTITY): cv.entity_id,
+        vol.Optional(CONF_ENTSOE_ENTITY): cv.entity_id,
         vol.Required(CONF_UNIQUE_ID): vol.All(vol.Coerce(str)),
         vol.Required(CONF_NAME): vol.All(vol.Coerce(str)),
         vol.Required(CONF_STARTING_TODAY): bool,
@@ -60,7 +62,7 @@ async def async_setup_platform(
     if entry_type == CONF_ENTITY_CHEAPEST_HOURS:
         try:
             CHEAPEST_HOURS_PLATFORM_SCHEMA(discovery_info)
-            entities.append(_create_nordpool_entity(hass, discovery_info))
+            entities.append(_create_cheapest_hours_entity(hass, discovery_info))
         except Invalid as e:
             _LOGGER.error(
                 "Configuration validation error for nord pool cheapest hours sensor: %s",
@@ -70,10 +72,11 @@ async def async_setup_platform(
     async_add_entities(entities)
 
 
-def _create_nordpool_entity(
+def _create_cheapest_hours_entity(
     hass: HomeAssistant, discovery_info: DiscoveryInfoType | None = None
-) -> NordPoolCheapestHoursBinarySensor:
-    nordpool_entity = discovery_info[CONF_NORDPOOL_ENTITY]
+) -> CheapestHoursBinarySensor:
+    nordpool_entity = discovery_info.get(CONF_NORDPOOL_ENTITY)
+    entsoe_entity = discovery_info.get(CONF_ENTSOE_ENTITY)
     unique_id = discovery_info[CONF_UNIQUE_ID]
     name = discovery_info[CONF_NAME]
     first_hour = discovery_info[CONF_FIRST_HOUR]
@@ -84,8 +87,9 @@ def _create_nordpool_entity(
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
 
-    return NordPoolCheapestHoursBinarySensor(
+    return CheapestHoursBinarySensor(
         hass=hass,
+        entsoe_entity=entsoe_entity,
         nordpool_entity=nordpool_entity,
         unique_id=unique_id,
         name=name,

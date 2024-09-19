@@ -105,7 +105,6 @@ class EnergyManagementCalendar(CalendarEntity):
         """Get calendar events within a datetime range."""
         events: list[CalendarEvent] = []
 
-        # TODO: Do we want to mark the failsafe ?
         for k, v in self._coordinator.data.items():
             if d := v.get("list"):
                 for value in d:

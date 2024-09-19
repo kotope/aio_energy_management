@@ -5,11 +5,16 @@ import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 import homeassistant.util.dt as dt_util
 
 from .coordinator import EnergyManagementCoordinator
-from .exceptions import InvalidEntityState, InvalidInput, ValueNotFound
+from .exceptions import (
+    InvalidEntityState,
+    InvalidInput,
+    SystemConfigurationError,
+    ValueNotFound,
+)
 from .helpers import (
     convert_datetime,
     from_str_to_time,
@@ -24,13 +29,12 @@ from .math import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
+class CheapestHoursBinarySensor(BinarySensorEntity):
     """Cheapest hours sensor."""
 
     def __init__(
         self,
         hass: HomeAssistant,
-        nordpool_entity,
         unique_id,
         name,
         first_hour,
@@ -41,9 +45,12 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         coordinator: EnergyManagementCoordinator,
         failsafe_starting_hour=None,
         inversed=False,
+        entsoe_entity=None,
+        nordpool_entity=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
+        self._entsoe_entity = entsoe_entity
         self._attr_unique_id = unique_id.replace(" ", "_")
         self._attr_name = name
         self._attr_icon = "mdi:clock"
@@ -62,7 +69,6 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         self._data = self._coordinator.get_data("binary_sensor." + self._attr_unique_id)
         if self._data is None:
             self._data = {}
-        self._nordpool = None
 
     async def async_update(self) -> None:
         """Update sensor."""
@@ -132,13 +138,42 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         self._swap_list_if_needed()
         self._data["failsafe"] = self._create_failsafe()
 
-        try:
-            self._update_from_nordpool()
-        except ValueNotFound:
-            _LOGGER.debug("Could not get the latest data from nordpool integration")
-            if self._is_expired():
-                self._data.pop("list", None)
-            return None
+        # Price array from integrations
+        today: list = None
+        tomorrow: list = None
+
+        if self._nordpool_entity is not None:
+            # Update from nordpool
+            try:
+                nordpool = self._update_from_nordpool()
+                today = nordpool.attributes["today"]
+                tomorrow = nordpool.attributes["tomorrow"]
+            except ValueNotFound:
+                _LOGGER.debug("Could not get the latest data from nordpool integration")
+                if self._is_expired():
+                    self._data.pop("list", None)
+                return None
+        elif self._entsoe_entity is not None:
+            # Update from entsoe
+            try:
+                entsoe = self._update_from_entsoe()
+                today = [item["price"] for item in entsoe.attributes["prices_today"]]
+                tomorrow = [
+                    item["price"] for item in entsoe.attributes["prices_tomorrow"]
+                ]
+            except ValueNotFound:
+                _LOGGER.debug("Could not get the latest data from entsoe integration")
+                if self._is_expired():
+                    self._data.pop("list", None)
+                return None
+            except SystemConfigurationError:
+                _LOGGER.error(
+                    "Failed to get enough data from Entso-e integration using %s. Ensure your system timezone and Entso-e integration region is correct!",
+                    self._entsoe_entity,
+                )
+                if self._is_expired():
+                    self._data.pop("list", None)
+                return None
 
         cheapest = None
 
@@ -146,8 +181,8 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         try:
             if self._sequential:
                 cheapest = calculate_sequential_cheapest_hours(
-                    self._nordpool.attributes["today"],
-                    self._nordpool.attributes["tomorrow"],
+                    today,
+                    tomorrow,
                     self._data["active_number_of_hours"],
                     self._starting_today,
                     self._first_hour,
@@ -156,8 +191,8 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
-                    self._nordpool.attributes["today"],
-                    self._nordpool.attributes["tomorrow"],
+                    today,
+                    tomorrow,
                     self._data["active_number_of_hours"],
                     self._starting_today,
                     self._first_hour,
@@ -257,7 +292,7 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
         """Return fetch date."""
         return dt_util.start_of_local_day().date()
 
-    def _update_from_nordpool(self) -> None:
+    def _update_from_nordpool(self) -> State:
         np = self.hass.states.get(self._nordpool_entity)
 
         if np is None:
@@ -282,7 +317,38 @@ class NordPoolCheapestHoursBinarySensor(BinarySensorEntity):
             )
             raise ValueNotFound
 
-        self._nordpool = np
+        return np
+
+    def _update_from_entsoe(self) -> State:
+        """Update from entsoe integration."""
+        entsoe = self.hass.states.get(self._entsoe_entity)
+        if entsoe is None:
+            _LOGGER.debug("Got empty data from Entso-e entity %s ", self._entsoe_entity)
+            raise ValueNotFound
+
+        if entsoe.attributes.get("prices") is None:
+            _LOGGER.debug(
+                "No values for today in Entso-e entity %s ", self._entsoe_entity
+            )
+
+        if tomorrow := entsoe.attributes.get("prices_tomorrow"):
+            if len(tomorrow) < 10:
+                _LOGGER.warning(
+                    "Not enough values for tomorrow in Entso-e entity %s (probably prices not yet published) ",
+                    self._entsoe_entity,
+                )
+                raise ValueNotFound
+        else:
+            _LOGGER.warning(
+                "No values for tomorrow in Entso-e entity %s", self._entsoe_entity
+            )
+            raise ValueNotFound
+
+        if len(tomorrow) < 24:
+            # TODO: Summer time saving support for this check aswell
+            raise SystemConfigurationError
+
+        return entsoe
 
     def _is_failsafe(self) -> bool:
         if (
