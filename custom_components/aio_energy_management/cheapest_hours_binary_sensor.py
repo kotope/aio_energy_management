@@ -204,14 +204,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Construct new data from calculated hours
         if self._is_expired():
-            self._set_list(cheapest)
-            self._data["updated_at"] = dt_util.now()
-            self._data["expiration"] = self._create_expiration()
+            self._set_list(cheapest, self._create_expiration())
         elif (
             self._data["list"] != cheapest
         ):  # Not expired, but data is not the same. Set to list_next
             # Data is not the same, set the next
             self._data["list_next"] = cheapest
+            self._data["list_next_expiration"] = self._create_expiration()
 
         self._data["fetch_date"] = self._create_fetch_date()
 
@@ -226,17 +225,18 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         """Swap the list_next to list if needed. Returns true if list was swapped."""
         if self._is_expired():  # Data is expired
             if list_next := self._data.get("list_next"):
-                self._set_list(list_next)
+                self._set_list(list_next, self._data.get("list_next_expiration"))
                 self._data.pop("list_next", None)
-                self._data["expiration"] = self._create_expiration()
+                self._data.pop("list_next_expiration", None)
                 return True
             self._data.pop("list", None)
 
         return False
 
-    def _set_list(self, list: dict) -> None:
+    def _set_list(self, list: dict, expiration: datetime) -> None:
         """Set list data."""
         self._data["list"] = list
+        self._data["expiration"] = expiration
         self._data["updated_at"] = dt_util.now()
 
     def _is_expired(self) -> bool:
@@ -276,17 +276,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _create_expiration(self) -> datetime:
         """Calculate value expiration."""
-        if items := self._data.get("list"):
-            values = convert_datetime(items)
-            if len(values) > 0:
-                if last_start := values[-1].get("start"):
-                    return (last_start.replace(hour=self._last_hour)) + timedelta(
-                        hours=1
-                    )
-            return None
-
-        # No list, data should expire immediately
-        return dt_util.start_of_local_day()
+        return dt_util.start_of_local_day() + timedelta(hours=24 + 1 + self._last_hour)
 
     def _create_fetch_date(self) -> date:
         """Return fetch date."""
