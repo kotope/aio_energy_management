@@ -323,7 +323,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         if tomorrow := entsoe.attributes.get("prices_tomorrow"):
             if len(tomorrow) < 10:
-                _LOGGER.warning(
+                _LOGGER.debug(
                     "Not enough values for tomorrow in Entso-e entity %s (probably prices not yet published) ",
                     self._entsoe_entity,
                 )
