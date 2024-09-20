@@ -15,7 +15,7 @@ STORAGE_KEY = "aio_energy_management.storage"
 _LOGGER = logging.getLogger(__name__)
 
 
-# TODO: version migration when required
+# TODO: .. version migration
 class EnergyManagementCoordinator:
     """Common coordinator for Energy Management component. Owner of the data."""
 

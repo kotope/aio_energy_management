@@ -457,3 +457,43 @@ async def test_cheapest_hours_entsoe(
     assert sensor.is_on is True
     freezer.move_to("2024-09-19 16:01+03:00")
     assert sensor.is_on is False
+
+async def test_cheapest_hours_entsoe_over_night(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors failsafe."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2024-09-18 14:30+03:00")
+    _setup_entsoe_mock(hass, "entsoe_happy_20240918.json")
+
+    # Create sensor to test
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        entsoe_entity="sensor.entsoe",
+        nordpool_entity=None,
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=19,
+        last_hour=8,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=19,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+    assert sensor.extra_state_attributes.get("list") is not None
+
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2024, 9, 18, 22, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2024, 9, 19, 1, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["expiration"] == datetime(2024, 9, 19, 9, 0, tzinfo=tzinfo)
+
+    freezer.move_to("2024-09-19 00:01+03:00")
+    _setup_entsoe_mock(hass, "entsoe_tomorrow_not_valid_20240919.json")
+    await sensor.async_update()
