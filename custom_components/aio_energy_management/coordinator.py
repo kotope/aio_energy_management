@@ -14,6 +14,7 @@ STORAGE_VERSION = 1
 STORAGE_KEY = "aio_energy_management.storage"
 _LOGGER = logging.getLogger(__name__)
 
+
 # TODO: .. version migration
 class EnergyManagementCoordinator:
     """Common coordinator for Energy Management component. Owner of the data."""
@@ -37,7 +38,6 @@ class EnergyManagementCoordinator:
     async def async_load_data(self):
         """Load data from store."""
         stored = await self._store.async_load()
-        print(f"ZZZZ: stored = {stored}")
         if stored:
             _LOGGER.debug("Load data from store: %s", stored)
             self.data = self._convert_datetimes(stored)
@@ -54,7 +54,6 @@ class EnergyManagementCoordinator:
     def get_data(self, entity_id: str) -> dict | None:
         """Get entity data."""
         _LOGGER.debug("Query data from store for %s", entity_id)
-        print(f"data = {self.data.get(entity_id)}")
         return self.data.get(entity_id)
 
     def _convert_datetimes(self, dictionary: dict) -> dict | None:

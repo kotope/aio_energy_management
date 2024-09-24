@@ -4,6 +4,7 @@ DOMAIN = "aio_energy_management"
 
 # Parameters:
 # Chepest hours sensor
+CONF_ENTSOE_ENTITY = "entsoe_entity"
 CONF_NORDPOOL_ENTITY = "nordpool_entity"
 CONF_FIRST_HOUR = "first_hour"
 CONF_LAST_HOUR = "last_hour"

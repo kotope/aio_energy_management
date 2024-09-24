@@ -69,6 +69,7 @@ def calculate_sequential_cheapest_hours(
     ]
 
 
+# TODO: Support for daylight saving days.. e.g. not hard coded 24h
 def calculate_non_sequential_cheapest_hours(
     today: list,
     tomorrow: list,

@@ -28,26 +28,32 @@ wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/
 ```
 
 ## Features
-* Nord Pool Cheapest Hours (or most expensive)
+* Cheapest Hours (or most expensive) - Nord Pool and Entso-E integration support
 * Event Calendar
 
-## Nord Pool cheapest hours
+## Cheapest hours sensor (supports nord pool and entso-e integrations)
 The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the chepeast hours per day.<br>
-The sensor uses [nord pool integration](https://github.com/custom-components/nordpool) for price data.<br>
 Binary sensor will have the state 'on' when cheapest hours is active.<br>
-Automations can them be set to follow this sensor 'on' state.v
+Automations can them be set to follow this sensor 'on' state.
 The feature supports failsafe to ensure critical devices to run if for some reason Nord Pool price fetch has failed!
 
-### Prerequisites
+### Nord Pool Prerequisites (if using nord pool)
 Installed and configured [Nord Pool integration](https://github.com/custom-components/nordpool)
+
+### Entso-E Prerequisites (if using entso-e)
+Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-entso-e)
 
 ### Configuration
 Configuration is done through configuration.yaml.<br>
+
+Either nordpool_entity or entsoe_entity must be set depending of which integration you want to use.
+
 Configuration parameters are shown below:
 
 | Configuration    | Mandatory | Description |
 |------------------|-----------|-------------|
-| nordpool_entity  | yes       | Entity id of the nord pool integration |(get nord pool integration from here)
+| nordpool_entity  | no       | Entity id of the nord pool integration |
+| entsoe_entity    | no       | Entity id of the entso-e integration. This is entso-e **average_price** sensor that provides all extra attributes |
 | unique_id        | yes       | Unique id to identify newly created entity |
 | name             | yes       | Friendly name of the created entity |
 | number_of_hours  | yes       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number |
@@ -59,7 +65,8 @@ Configuration parameters are shown below:
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 
 ### Example configuration
-The example configuration presents creation of two sensors: one for cheapest three hours and one for most expensive prices. The expensive sensor uses external input_number to get number of hours requested.
+The example configuration presents creation of three sensors: one for **nord pool cheapest three hours**, one for **nord pool most expensive prices** and final one for **entso-e cheapest hours**.
+The expensive sensor uses external input_number to get number of hours requested.
 
 ```
 aio_energy_management:
@@ -83,6 +90,14 @@ aio_energy_management:
         sequential: false
         failsafe_starting_hour: 1
         inversed: true
+      - entsoe_entity: sensor.entsoe_average_price
+        unqiue_id: my_entsoe_cheapest_hours
+        name: My Entso-E Cheapest Hours
+        first_hour: 21
+        last_hour: 10
+        starting_today: true
+        number_of_hours: 5
+        sequential: false
 ```
 ## Calendar
 Calendar feature will create a new calendar entity to display all upcoming scheduled energy management events.

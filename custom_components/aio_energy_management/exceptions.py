@@ -13,3 +13,7 @@ class InvalidInput(exceptions.HomeAssistantError):
 
 class InvalidEntityState(exceptions.HomeAssistantError):
     """Error to indicate invalid external entity state."""
+
+
+class SystemConfigurationError(exceptions.HomeAssistantError):
+    """Error to indicate invalid system configuration."""
