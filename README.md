@@ -48,7 +48,7 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 ### Configuration
 Configuration is done through configuration.yaml.<br>
 
-Either nordpool_entity or entsoe_e entity must be set depending of which integration you want to use.
+Either nordpool_entity or entsoe_entity must be set depending of which integration you want to use.
 
 Configuration parameters are shown below:
 
