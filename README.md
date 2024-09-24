@@ -37,13 +37,11 @@ Binary sensor will have the state 'on' when cheapest hours is active.<br>
 Automations can them be set to follow this sensor 'on' state.
 The feature supports failsafe to ensure critical devices to run if for some reason Nord Pool price fetch has failed!
 
-### Nord Pool Prerequisites
+### Nord Pool Prerequisites (if using nord pool)
 Installed and configured [Nord Pool integration](https://github.com/custom-components/nordpool)
 
-### Entso-E Prerequisites
+### Entso-E Prerequisites (if using entso-e)
 Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-entso-e)
-
-### Prerequisites
 
 ### Configuration
 Configuration is done through configuration.yaml.<br>
@@ -55,7 +53,7 @@ Configuration parameters are shown below:
 | Configuration    | Mandatory | Description |
 |------------------|-----------|-------------|
 | nordpool_entity  | no       | Entity id of the nord pool integration |
-| entsoe_entity  | no       | Entity id of the entso-e integration. This is entso-e **average_price** sensor that provides all extra attributes |
+| entsoe_entity    | no       | Entity id of the entso-e integration. This is entso-e **average_price** sensor that provides all extra attributes |
 | unique_id        | yes       | Unique id to identify newly created entity |
 | name             | yes       | Friendly name of the created entity |
 | number_of_hours  | yes       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number |
