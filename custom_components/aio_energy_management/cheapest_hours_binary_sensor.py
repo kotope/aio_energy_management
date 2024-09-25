@@ -66,7 +66,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         self.hass = hass
         # Data
-        self._data = self._coordinator.get_data("binary_sensor." + self._attr_unique_id)
+        self._data = self._coordinator.get_data(self._attr_unique_id)
         if self._data is None:
             self._data = {}
 
