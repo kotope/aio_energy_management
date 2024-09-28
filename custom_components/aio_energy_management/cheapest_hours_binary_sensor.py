@@ -213,7 +213,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["list_next_expiration"] = self._create_expiration()
 
         self._data["fetch_date"] = self._create_fetch_date()
+        self._store_data()
 
+    def _store_data(self) -> None:
         await self._coordinator.async_set_data(
             self._attr_unique_id,
             self._attr_name,
@@ -228,6 +230,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._set_list(list_next, self._data.get("list_next_expiration"))
                 self._data.pop("list_next", None)
                 self._data.pop("list_next_expiration", None)
+                self._store_data()
                 return True
             self._data.pop("list", None)
 
