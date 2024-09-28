@@ -2,7 +2,6 @@
 
 from datetime import datetime
 import logging
-import zoneinfo
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -64,9 +63,7 @@ class EnergyManagementCoordinator:
     def _convert_datetimes_of_item(self, dictionary: dict) -> dict:
         if expires := dictionary.get("expiration"):
             if expires is not datetime:
-                dictionary["expiration"] = from_str_to_datetime(
-                    dictionary.get("expiration")
-                )
+                dictionary["expiration"] = from_str_to_datetime(expires)
             else:
                 dictionary["expiration"] = expires
 
@@ -78,5 +75,12 @@ class EnergyManagementCoordinator:
             dictionary["list"] = convert_datetime(data_list)
         if data_list_next := dictionary.get("list_next"):
             dictionary["list_next"] = convert_datetime(data_list_next)
+        if data_expiration_next := dictionary.get("list_next_expiration"):
+            if expires is not datetime:
+                dictionary["list_next_expiration"] = from_str_to_datetime(
+                    data_expiration_next
+                )
+            else:
+                dictionary["list_next_expiration"] = expires
 
         return dictionary
