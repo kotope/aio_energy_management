@@ -135,7 +135,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         except InvalidEntityState:
             return None
 
-        self._swap_list_if_needed()
+        await self._swap_list_if_needed()
         self._data["failsafe"] = self._create_failsafe()
 
         # Price array from integrations
@@ -213,7 +213,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["list_next_expiration"] = self._create_expiration()
 
         self._data["fetch_date"] = self._create_fetch_date()
+        await self._store_data()
 
+    async def _store_data(self) -> None:
         await self._coordinator.async_set_data(
             self._attr_unique_id,
             self._attr_name,
@@ -221,13 +223,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data,
         )
 
-    def _swap_list_if_needed(self) -> bool:
+    async def _swap_list_if_needed(self) -> bool:
         """Swap the list_next to list if needed. Returns true if list was swapped."""
         if self._is_expired():  # Data is expired
             if list_next := self._data.get("list_next"):
                 self._set_list(list_next, self._data.get("list_next_expiration"))
                 self._data.pop("list_next", None)
                 self._data.pop("list_next_expiration", None)
+                await self._store_data()
                 return True
             self._data.pop("list", None)
 
