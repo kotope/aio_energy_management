@@ -91,7 +91,7 @@ aio_energy_management:
         failsafe_starting_hour: 1
         inversed: true
       - entsoe_entity: sensor.entsoe_average_price
-        unqiue_id: my_entsoe_cheapest_hours
+        unique_id: my_entsoe_cheapest_hours
         name: My Entso-E Cheapest Hours
         first_hour: 21
         last_hour: 10
