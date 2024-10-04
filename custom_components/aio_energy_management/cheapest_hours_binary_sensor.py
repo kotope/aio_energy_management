@@ -47,6 +47,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         inversed=False,
         entsoe_entity=None,
         nordpool_entity=None,
+        trigger_time=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -63,6 +64,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._failsafe_starting_hour = failsafe_starting_hour
         self._number_of_hours = number_of_hours
         self._inversed = inversed
+        self._trigger_time = None
+
+        if trigger_time is not None:
+            self._trigger_time = from_str_to_time(trigger_time)
 
         self.hass = hass
         # Data
@@ -122,6 +127,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             if self._is_expired() is False:
                 return None
+
+        if self._is_allowed_to_update() is False:
+            _LOGGER.debug("Update not allowed by rules: trigger_time")
+            return None
 
         # No valid data found from store either, try get new
         _LOGGER.debug(
@@ -255,6 +264,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if expires is not None:
                 if expires > dt_util.now():
                     return False
+        return True
+
+    def _is_allowed_to_update(self) -> bool:
+        """Check if update is allowed by local rules."""
+        if self._trigger_time is not None:
+            return dt_util.now().time() >= self._trigger_time
+
         return True
 
     def _is_fetched_today(self) -> bool:

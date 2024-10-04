@@ -13,6 +13,7 @@ CONF_STARTING_TODAY = "starting_today"
 CONF_NUMBER_OF_HOURS = "number_of_hours"
 CONF_FAILSAFE_STARTING_HOUR = "failsafe_starting_hour"
 CONF_INVERSED = "inversed"
+CONF_TRIGGER_TIME = "trigger_time"
 
 # Entities
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"
