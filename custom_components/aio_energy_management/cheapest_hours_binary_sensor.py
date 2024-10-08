@@ -48,6 +48,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         entsoe_entity=None,
         nordpool_entity=None,
         trigger_time=None,
+        max_price=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -65,15 +66,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._number_of_hours = number_of_hours
         self._inversed = inversed
         self._trigger_time = None
+        self._max_price = max_price
 
         if trigger_time is not None:
             self._trigger_time = from_str_to_time(trigger_time)
 
         self.hass = hass
-        # Data
         self._data = self._coordinator.get_data(self._attr_unique_id)
-        if self._data is None:
-            self._data = {}
 
     async def async_update(self) -> None:
         """Update sensor."""
@@ -91,7 +90,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return False
 
         items = self._data.get("list")
-        if items is None or len(items) == 0:
+        if items is None:
             # No valid data, check failsafe
             _LOGGER.debug("No valid data found. Check failsafe")
             return self._is_failsafe()
@@ -197,6 +196,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
+                    self._max_price,
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -207,6 +207,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
+                    self._max_price,
                 )
         except InvalidInput:
             return None
@@ -386,6 +387,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
             "inversed": self._inversed,
+            "max_price": self._max_price,
         }
 
     def _update_number_of_hours(self) -> None:

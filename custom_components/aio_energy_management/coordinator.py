@@ -53,7 +53,10 @@ class EnergyManagementCoordinator:
     def get_data(self, entity_id: str) -> dict | None:
         """Get entity data."""
         _LOGGER.debug("Query data from store for %s", entity_id)
-        return self.data.get(entity_id)
+        data = self.data.get(entity_id)
+        if data is None:
+            data = {}
+        return data
 
     def _convert_datetimes(self, dictionary: dict) -> dict | None:
         for k, v in dictionary.items():
