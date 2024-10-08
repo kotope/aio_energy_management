@@ -238,6 +238,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if self._is_expired():  # Data is expired
             if list_next := self._data.get("list_next"):
                 self._set_list(list_next, self._data.get("list_next_expiration"))
+
+                # Clear old data
                 self._data.pop("list_next", None)
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
