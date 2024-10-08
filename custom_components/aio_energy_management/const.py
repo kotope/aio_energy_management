@@ -14,6 +14,7 @@ CONF_NUMBER_OF_HOURS = "number_of_hours"
 CONF_FAILSAFE_STARTING_HOUR = "failsafe_starting_hour"
 CONF_INVERSED = "inversed"
 CONF_TRIGGER_TIME = "trigger_time"
+CONF_MAX_PRICE = "max_price"
 
 # Entities
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"
