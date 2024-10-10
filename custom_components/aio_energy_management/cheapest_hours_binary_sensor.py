@@ -47,6 +47,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         inversed=False,
         entsoe_entity=None,
         nordpool_entity=None,
+        trigger_time=None,
+        max_price=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -63,12 +65,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._failsafe_starting_hour = failsafe_starting_hour
         self._number_of_hours = number_of_hours
         self._inversed = inversed
+        self._trigger_time = None
+        self._max_price = max_price
+
+        if trigger_time is not None:
+            self._trigger_time = from_str_to_time(trigger_time)
 
         self.hass = hass
-        # Data
         self._data = self._coordinator.get_data(self._attr_unique_id)
-        if self._data is None:
-            self._data = {}
 
     async def async_update(self) -> None:
         """Update sensor."""
@@ -86,7 +90,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return False
 
         items = self._data.get("list")
-        if items is None or len(items) == 0:
+        if items is None:
             # No valid data, check failsafe
             _LOGGER.debug("No valid data found. Check failsafe")
             return self._is_failsafe()
@@ -122,6 +126,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             if self._is_expired() is False:
                 return None
+
+        if self._is_allowed_to_update() is False:
+            _LOGGER.debug("Update not allowed by rules: trigger_time")
+            return None
 
         # No valid data found from store either, try get new
         _LOGGER.debug(
@@ -188,6 +196,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
+                    self._max_price,
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -198,6 +207,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
+                    self._max_price,
                 )
         except InvalidInput:
             return None
@@ -228,6 +238,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if self._is_expired():  # Data is expired
             if list_next := self._data.get("list_next"):
                 self._set_list(list_next, self._data.get("list_next_expiration"))
+
+                # Clear old data
                 self._data.pop("list_next", None)
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
@@ -255,6 +267,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if expires is not None:
                 if expires > dt_util.now():
                     return False
+        return True
+
+    def _is_allowed_to_update(self) -> bool:
+        """Check if update is allowed by local rules."""
+        if self._trigger_time is not None:
+            return dt_util.now().time() >= self._trigger_time
+
         return True
 
     def _is_fetched_today(self) -> bool:
@@ -370,6 +389,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
             "inversed": self._inversed,
+            "max_price": self._max_price,
         }
 
     def _update_number_of_hours(self) -> None:

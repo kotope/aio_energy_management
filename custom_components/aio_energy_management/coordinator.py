@@ -39,7 +39,7 @@ class EnergyManagementCoordinator:
         stored = await self._store.async_load()
         if stored:
             _LOGGER.debug("Load data from store: %s", stored)
-            self.data = self._convert_datetimes(stored)
+            self.data = self.convert_datetimes(stored)
 
     async def async_set_data(
         self, entity_id: str, name: str, module: str, dict: dict
@@ -53,9 +53,13 @@ class EnergyManagementCoordinator:
     def get_data(self, entity_id: str) -> dict | None:
         """Get entity data."""
         _LOGGER.debug("Query data from store for %s", entity_id)
-        return self.data.get(entity_id)
+        data = self.data.get(entity_id)
+        if data is None:
+            data = {}
+        return data
 
-    def _convert_datetimes(self, dictionary: dict) -> dict | None:
+    def convert_datetimes(self, dictionary: dict) -> dict | None:
+        """Convert stored datetime items back to data."""
         for k, v in dictionary.items():
             dictionary[k] = self._convert_datetimes_of_item(v)
         return dictionary
@@ -70,17 +74,21 @@ class EnergyManagementCoordinator:
         if fetch_date := dictionary.get("fetch_date"):
             if isinstance(fetch_date, str):
                 dictionary["fetch_date"] = dt_util.parse_date(fetch_date)
-
+        if updated_at := dictionary.get("updated_at"):
+            if updated_at is not datetime:
+                dictionary["updated_at"] = from_str_to_datetime(updated_at)
+            else:
+                dictionary["updated_at"] = updated_at
         if data_list := dictionary.get("list"):
             dictionary["list"] = convert_datetime(data_list)
         if data_list_next := dictionary.get("list_next"):
             dictionary["list_next"] = convert_datetime(data_list_next)
         if data_expiration_next := dictionary.get("list_next_expiration"):
-            if expires is not datetime:
+            if data_expiration_next is not datetime:
                 dictionary["list_next_expiration"] = from_str_to_datetime(
                     data_expiration_next
                 )
             else:
-                dictionary["list_next_expiration"] = expires
+                dictionary["list_next_expiration"] = data_expiration_next
 
         return dictionary
