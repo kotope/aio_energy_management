@@ -64,7 +64,7 @@ Configuration parameters are shown below:
 | failsafe_starting_hour | no        | If for some reason nord pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' |
-| max_price        | no        | Only accept prices less than given float value. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours |
+| max_price        | no        | Only accept prices less than given float value (use decimal number as parameter, not int). *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours. Example: max_price: 5.0 |
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **nord pool cheapest three hours**, one for **nord pool most expensive prices** and final one for **entso-e cheapest hours**.
