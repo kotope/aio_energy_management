@@ -90,7 +90,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return False
 
         items = self._data.get("list")
-        if items is None:
+        if items is None or items == []:
             # No valid data, check failsafe
             _LOGGER.debug("No valid data found. Check failsafe")
             return self._is_failsafe()
@@ -159,7 +159,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from nordpool integration")
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
         elif self._entsoe_entity is not None:
             # Update from entsoe
@@ -172,7 +172,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from entsoe integration")
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
             except SystemConfigurationError:
                 _LOGGER.error(
@@ -180,7 +180,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._entsoe_entity,
                 )
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
 
         cheapest = None
@@ -244,7 +244,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
                 return True
-            self._data.pop("list", None)
+            self._data["list"] = []
 
         return False
 

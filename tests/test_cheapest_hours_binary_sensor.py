@@ -20,7 +20,7 @@ import homeassistant.util.dt as dt_util
 
 def _setup_coordinator_mock() -> AsyncMock:
     mock = AsyncMock()
-    mock.get_data = PropertyMock(return_value={})
+    mock.get_data = PropertyMock(return_value={"list": []})
     mock.set_data = PropertyMock()
 
     return mock
@@ -311,7 +311,7 @@ async def test_cheapest_hours_failsafe_binary_sensors(
     )
     await sensor.async_update()
     attributes = sensor.extra_state_attributes
-    assert attributes.get("list") is None
+    assert attributes.get("list") == []
     assert (
         attributes["failsafe"]["start"]
         == dt_util.now().replace(hour=19, minute=0).time()
@@ -424,7 +424,7 @@ async def test_cheapest_hours_entsoe(
     )
     await sensor.async_update()
 
-    assert sensor.extra_state_attributes.get("list") is None
+    assert sensor.extra_state_attributes.get("list") == []
     assert (
         sensor.extra_state_attributes["failsafe"]["start"]
         == dt_util.now().replace(hour=19, minute=0).time()
@@ -463,7 +463,7 @@ async def test_cheapest_hours_entsoe(
 async def test_cheapest_hours_entsoe_over_night(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
-    """Test cheapest binary sensors failsafe."""
+    """Test cheapest binary sensors over night."""
     coordinator_mock = _setup_coordinator_mock()
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
 
@@ -529,7 +529,7 @@ async def test_trigger_time(
     )
 
     await sensor.async_update()
-    assert sensor.extra_state_attributes.get("list") is None
+    assert sensor.extra_state_attributes.get("list") == []  # TODO:..
 
     freezer.move_to("2024-07-13 17:00+03:00")
     await sensor.async_update()
@@ -601,5 +601,48 @@ async def test_max_price_no_matches(
     await sensor.async_update()
 
     # Only one hour should be found that is less than -0.7 max price value
-    assert sensor.extra_state_attributes.get("list") is not None
+    assert (
+        sensor.extra_state_attributes.get("list") is not None
+    )  # TODO: Fix these get(list) is not None to contain numpy check over zero
     assert np.size(sensor.extra_state_attributes["list"]) == 0
+
+
+async def test_failsafe(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
+    """Test cheapest binary sensors failsafe functionality."""
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240714.json")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=22,
+        last_hour=8,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2024-07-14 23:01+03:00")
+    await sensor.async_update()
+
+    assert sensor.is_on is False
+    assert sensor.extra_state_attributes.get("list") == []
+
+    # Failsafe should be running
+    freezer.move_to("2024-07-15 00:00+03:00")
+    await sensor.async_update()
+    assert sensor.is_on is True
+    assert sensor.extra_state_attributes.get("list") == []
+    freezer.move_to("2024-07-15 02:59+03:00")
+    await sensor.async_update()
+    assert sensor.is_on is True
+
+    # Failsafe should be ended
+    freezer.move_to("2024-07-15 03:00+03:00")
+    await sensor.async_update()
+    assert sensor.is_on is False
+    assert sensor.extra_state_attributes.get("list") == []
