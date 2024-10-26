@@ -17,9 +17,11 @@ from .exceptions import (
 )
 from .helpers import (
     convert_datetime,
+    from_str_to_datetime,
     from_str_to_time,
     merge_two_dicts,
     time_in_between,
+    get_first
 )
 from .math import (
     calculate_non_sequential_cheapest_hours,
@@ -99,6 +101,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         values = convert_datetime(items)
 
         if values is None:
+            _LOGGER.error(
+                "No values found! This is a bug, please report to https://github.com/kotope/aio_energy_management/issues"
+            )
             return False
 
         for value in values:
@@ -211,7 +216,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 )
         except InvalidInput:
             return None
-
         # Construct new data from calculated hours
         if self._is_expired():
             self._set_list(cheapest, self._create_expiration())
@@ -244,7 +248,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
                 return True
-            self._data["list"] = []
+            else:
+                self._data["list"] = []
 
         return False
 
@@ -323,6 +328,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._nordpool_entity,
             )
             raise ValueNotFound
+
+        # Ensure raw_today first value is actually today as we might get old values
+        # if Home Assistant event loop has not reached nord pool yet
+        if raw_today := np.attributes.get("raw_today"):
+            if first := from_str_to_datetime(get_first(raw_today).get("start")):
+                if first.date() != dt_util.start_of_local_day().date():
+                    _LOGGER.debug("Nord pool provided old data. Ignore.")
+                    raise ValueNotFound
+
         if np.attributes.get("tomorrow") is None:
             _LOGGER.warning(
                 "No values for tomorrow in Norpool entity %s ", self._nordpool_entity
