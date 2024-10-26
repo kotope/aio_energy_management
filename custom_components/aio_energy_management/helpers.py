@@ -59,3 +59,9 @@ def merge_two_dicts(x, y):
     z = x.copy()  # start with keys and values of x
     z.update(y)  # modifies z with keys and values of y
     return z
+
+def get_first(iterable, default=None):
+    if iterable:
+        for item in iterable:
+            return item
+    return default
