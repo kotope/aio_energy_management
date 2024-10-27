@@ -21,12 +21,12 @@ def calculate_sequential_cheapest_hours(
     first_hour: int,
     last_hour: int,
     inversed: bool = False,
-    max_price: float | None = None,
+    price_limit: float | None = None,
 ) -> list:
     """Calculate sequential cheapest hours."""
-    if max_price is not None:  # Max price is not supported on seuqantial calculations
+    if price_limit is not None:  # Max price is not supported on seuqantial calculations
         _LOGGER.error(
-            "Invalid configuration: max_price not supported by sequential cheapest hours"
+            "Invalid configuration: price_limit not supported by sequential cheapest hours"
         )
         raise InvalidInput
 
@@ -85,7 +85,7 @@ def calculate_non_sequential_cheapest_hours(
     first_hour: int,
     last_hour: int,
     inversed: bool = False,
-    max_price: float | None = None,
+    price_limit: float | None = None,
 ) -> list:
     """Calculate non-sequential cheapest hours."""
     if (
@@ -112,8 +112,11 @@ def calculate_non_sequential_cheapest_hours(
     data.sort(key=lambda x: (x["price"], x["start"]), reverse=inversed)
     data = data[:number_of_hours]
     data.sort(key=lambda x: (x["start"]))
-    if mp := max_price:
-        data = [d for d in data if d["price"] < mp]
+    if inversed:
+        if mp := price_limit:
+            data = [d for d in data if d["price"] >= mp]
+    elif mp := price_limit:
+        data = [d for d in data if d["price"] <= mp]
 
     # Combine sequantial slots
     iterate = True

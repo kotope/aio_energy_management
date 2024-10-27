@@ -656,7 +656,7 @@ async def test_max_price(hass: HomeAssistant, freezer: FrozenDateTimeFactory) ->
         number_of_hours=3,
         sequential=False,
         coordinator=coordinator_mock,
-        max_price=-0.7,
+        price_limit=-0.7,
     )
 
     await sensor.async_update()
@@ -695,7 +695,7 @@ async def test_max_price_no_matches(
         number_of_hours=3,
         sequential=False,
         coordinator=coordinator_mock,
-        max_price=-0.8,
+        price_limit=-0.8,
     )
 
     await sensor.async_update()
@@ -744,3 +744,4 @@ async def test_failsafe(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> 
     await sensor.async_update()
     assert sensor.is_on is False
     assert sensor.extra_state_attributes.get("list") == []
+

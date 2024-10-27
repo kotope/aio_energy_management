@@ -248,7 +248,7 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
     """Test non-sequential with max price."""
     # Start of tomorrow
     result = calculate_non_sequential_cheapest_hours(
-        today_valid, tomorrow_valid, 10, False, 0, 23, max_price=2.0
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
     )
 
     # Should only find three items in two slots (10, 12, 13)
@@ -270,7 +270,39 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
 
     # Test with zero values found as max_price set to very very low
     result = calculate_non_sequential_cheapest_hours(
-        today_valid, tomorrow_valid, 10, False, 0, 23, max_price=0.1
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=0.1
+    )
+    assert np.size(result) == 0
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) -> None:
+    """Test non-sequential with max price."""
+    # Start of tomorrow
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=4.75
+    )
+
+    # Should only find two items (11, 14)
+    assert np.size(result) == 2
+
+    assert result[0]["start"] == datetime(
+        2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert result[0]["end"] == datetime(
+        2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+
+    assert result[1]["start"] == datetime(
+        2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert result[1]["end"] == datetime(
+        2024, 7, 23, 15, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+
+    # Test with zero values found as min_price set to very very low
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=28
     )
     assert np.size(result) == 0
 
@@ -280,5 +312,5 @@ def test_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) -> Non
     """Test non-sequential with max price."""
     with pytest.raises(InvalidInput):  # max price not supported on sequential
         calculate_sequential_cheapest_hours(
-            today_valid, tomorrow_valid, 10, False, 0, 23, max_price=2.0
+            today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
         )
