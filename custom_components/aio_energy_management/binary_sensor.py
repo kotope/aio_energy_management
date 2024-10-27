@@ -22,6 +22,7 @@ from .const import (
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
     CONF_NUMBER_OF_HOURS,
+    CONF_PRICE_LIMIT,
     CONF_SEQUENTIAL,
     CONF_STARTING_TODAY,
     CONF_TRIGGER_HOUR,
@@ -49,6 +50,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_TRIGGER_TIME): vol.All(vol.Coerce(str)),
         vol.Optional(CONF_TRIGGER_HOUR): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
+        vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
     },
     extra=ALLOW_EXTRA,
 )
@@ -93,8 +95,12 @@ def _create_cheapest_hours_entity(
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
-    max_price = discovery_info.get(CONF_MAX_PRICE)
+    price_limit = discovery_info.get(
+        CONF_MAX_PRICE
+    )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
+    if pl := discovery_info.get(CONF_PRICE_LIMIT):
+        price_limit = pl
 
     return CheapestHoursBinarySensor(
         hass=hass,
@@ -112,5 +118,5 @@ def _create_cheapest_hours_entity(
         inversed=inversed,
         trigger_time=trigger_time,
         trigger_hour=trigger_hour,
-        max_price=max_price,
+        price_limit=price_limit,
     )

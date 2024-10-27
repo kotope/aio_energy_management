@@ -1,6 +1,5 @@
 """Nord pool cheapet hours binary sensor."""
 
-import contextlib
 from datetime import date, datetime, timedelta
 import logging
 
@@ -52,7 +51,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         nordpool_entity=None,
         trigger_time=None,
         trigger_hour=None,
-        max_price=None,
+        price_limit=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -71,7 +70,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._inversed = inversed
         self._trigger_time = None
         self._trigger_hour = trigger_hour
-        self._max_price = max_price
+        self._price_limit = price_limit
 
         if trigger_time is not None:
             self._trigger_time = from_str_to_time(trigger_time)
@@ -203,7 +202,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._max_price,
+                    self._data.get("active_price_limit")
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -214,7 +213,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._max_price,
+                    self._data.get("active_price_limit")
                 )
         except InvalidInput:
             return None
@@ -408,11 +407,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
             "inversed": self._inversed,
-            "max_price": self._max_price,
         }
 
-        if max_price := self._max_price:
-            attrs["max_price"] = max_price
+        if price_limit := self._price_limit:
+            attrs["price_limit"] = self._price_limit
         if trigger_time := self._trigger_time:
             attrs["trigger_time"] = trigger_time
         if trigger_hour := self._trigger_hour:
@@ -426,8 +424,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         )
         if trigger_hour := self._trigger_hour:
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
-        if max_price := self._max_price:
-            self._data["active_max_price"] = self._float_from_entity(max_price)
+        if price_limit := self._price_limit:
+            self._data["active_price_limit"] = self._float_from_entity(price_limit)
 
     def _float_from_entity(self, entity_id) -> float | None:
         """Get float value from another entity."""

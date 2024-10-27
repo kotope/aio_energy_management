@@ -64,7 +64,7 @@ Configuration parameters are shown below:
 | failsafe_starting_hour | no        | If for some reason nord pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
-| max_price        | no        | Only accept prices less than given float value. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours. Can contain entity_id of dynamic entity to get value from e.g. input_number |
+| price_limit      | no        | Only accept prices less than given float value or more than given float value if inversed is used. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 
 ### Example configuration
