@@ -1,5 +1,6 @@
 """Nord pool cheapet hours binary sensor."""
 
+import contextlib
 from datetime import date, datetime, timedelta
 import logging
 
@@ -19,9 +20,9 @@ from .helpers import (
     convert_datetime,
     from_str_to_datetime,
     from_str_to_time,
+    get_first,
     merge_two_dicts,
     time_in_between,
-    get_first
 )
 from .math import (
     calculate_non_sequential_cheapest_hours,
@@ -50,6 +51,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         entsoe_entity=None,
         nordpool_entity=None,
         trigger_time=None,
+        trigger_hour=None,
         max_price=None,
     ) -> None:
         """Init sensor."""
@@ -68,6 +70,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._number_of_hours = number_of_hours
         self._inversed = inversed
         self._trigger_time = None
+        self._trigger_hour = trigger_hour
         self._max_price = max_price
 
         if trigger_time is not None:
@@ -131,11 +134,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             if self._is_expired() is False:
                 return None
-
-        if self._is_allowed_to_update() is False:
-            _LOGGER.debug("Update not allowed by rules: trigger_time")
-            return None
-
         # No valid data found from store either, try get new
         _LOGGER.debug(
             "No today fetch done for %s or value is expired. Request new data from nord pool integration",
@@ -144,8 +142,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Update number of hours.. this actually needs to be stored in the data..
         try:
-            self._update_number_of_hours()
+            self._update_entity_variables()
         except InvalidEntityState:
+            return None
+
+        if self._is_allowed_to_update() is False:
+            _LOGGER.debug("Update not allowed by set rules")
             return None
 
         await self._swap_list_if_needed()
@@ -277,8 +279,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     def _is_allowed_to_update(self) -> bool:
         """Check if update is allowed by local rules."""
         if self._trigger_time is not None:
-            return dt_util.now().time() >= self._trigger_time
-
+            if dt_util.now().time() < self._trigger_time:
+                return False
+        if trigger_hour := self._data.get("active_trigger_hour"):
+            if dt_util.now().hour < trigger_hour:
+                return False
         return True
 
     def _is_fetched_today(self) -> bool:
@@ -334,7 +339,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if raw_today := np.attributes.get("raw_today"):
             if first := from_str_to_datetime(get_first(raw_today).get("start")):
                 if first.date() != dt_util.start_of_local_day().date():
-                    _LOGGER.debug("Nord pool provided old data. Ignore.")
+                    _LOGGER.debug("Nord pool provided old data: Ignore")
                     raise ValueNotFound
 
         if np.attributes.get("tomorrow") is None:
@@ -394,7 +399,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return False
 
     def _construct_attributes(self) -> dict:
-        return {
+        attrs = {
             "first_hour": self._first_hour,
             "last_hour": self._last_hour,
             "starting_today": self._starting_today,
@@ -406,16 +411,42 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "max_price": self._max_price,
         }
 
-    def _update_number_of_hours(self) -> None:
-        if isinstance(self._number_of_hours, int):
-            self._data["active_number_of_hours"] = self._number_of_hours
-            return None
+        if max_price := self._max_price:
+            attrs["max_price"] = max_price
+        if trigger_time := self._trigger_time:
+            attrs["trigger_time"] = trigger_time
+        if trigger_hour := self._trigger_hour:
+            attrs["trigger_hour"] = trigger_hour
 
-        value = self.hass.states.get(self._number_of_hours).state
+        return attrs
+
+    def _update_entity_variables(self) -> None:
+        self._data["active_number_of_hours"] = self._int_from_entity(
+            self._number_of_hours
+        )
+        if trigger_hour := self._trigger_hour:
+            self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
+        if max_price := self._max_price:
+            self._data["active_max_price"] = self._float_from_entity(max_price)
+
+    def _float_from_entity(self, entity_id) -> float | None:
+        """Get float value from another entity."""
+        if isinstance(entity_id, float):
+            return entity_id
+
+        value = self.hass.states.get(entity_id).state
         if value is not None:
-            self._data["active_number_of_hours"] = int(float(value))
-        else:
-            _LOGGER.error(
-                "Could not get entity state for cheapest hours number of hours!"
-            )
-            raise InvalidEntityState
+            return float(value)
+        _LOGGER.error("Could not get entity state for %s", entity_id)
+        raise InvalidEntityState
+
+    def _int_from_entity(self, entity_id) -> int | None:
+        """Get int value from another entity."""
+        if isinstance(entity_id, int):
+            return entity_id
+
+        value = self.hass.states.get(entity_id).state
+        if value is not None:
+            return int(float(value))
+        _LOGGER.error("Could not get entity state for %s", entity_id)
+        raise InvalidEntityState

@@ -63,8 +63,9 @@ Configuration parameters are shown below:
 | sequential       | yes       | true if trying to calculate sequential cheapet hours timeframe. False if multiple values are acceptable. |
 | failsafe_starting_hour | no        | If for some reason nord pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
-| trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' |
-| max_price        | no        | Only accept prices less than given float value. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours |
+| trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
+| max_price        | no        | Only accept prices less than given float value. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours. Can contain entity_id of dynamic entity to get value from e.g. input_number |
+| trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **nord pool cheapest three hours**, one for **nord pool most expensive prices** and final one for **entso-e cheapest hours**.
@@ -88,7 +89,7 @@ aio_energy_management:
         first_hour: 0
         last_hour: 22
         starting_today: false
-        number_of_hours: input_number.my_input_number
+        number_of_hours: 4
         sequential: false
         failsafe_starting_hour: 1
         inversed: true
@@ -120,6 +121,34 @@ aio_energy_management:
     unique_id: energy_management_calendar
 ```
 
+
+## Full example with Nord Pool cheapest hours, expensive hours and a calendar
+```
+aio_energy_management:
+    cheapest_hours:
+      - nordpool_entity: sensor.nordpool
+        unique_id: my_cheapest_hours
+        name: My Cheapest Hours
+        first_hour: 21
+        last_hour: 12
+        starting_today: true
+        number_of_hours: 3
+        sequential: false
+        failsafe_starting_hour: 1
+      - nordpool_entity: sensor.nordpool
+        unique_id: my_expensive_hours
+        name: Expensive Hours
+        first_hour: 0
+        last_hour: 22
+        starting_today: false
+        number_of_hours: 4
+        sequential: false
+        failsafe_starting_hour: 1
+        inversed: true
+  calendar:
+    name: Energy Management
+    unique_id: energy_management_calendar
+```
 
 ## Support the developer?
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/tokorhon)

@@ -24,6 +24,7 @@ from .const import (
     CONF_NUMBER_OF_HOURS,
     CONF_SEQUENTIAL,
     CONF_STARTING_TODAY,
+    CONF_TRIGGER_HOUR,
     CONF_TRIGGER_TIME,
     CONF_UNIQUE_ID,
     COORDINATOR,
@@ -46,7 +47,8 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_FAILSAFE_STARTING_HOUR): int,
         vol.Optional(CONF_INVERSED): bool,
         vol.Optional(CONF_TRIGGER_TIME): vol.All(vol.Coerce(str)),
-        vol.Optional(CONF_MAX_PRICE): float,
+        vol.Optional(CONF_TRIGGER_HOUR): vol.Any(int, cv.entity_id),
+        vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
     },
     extra=ALLOW_EXTRA,
 )
@@ -92,6 +94,7 @@ def _create_cheapest_hours_entity(
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
     max_price = discovery_info.get(CONF_MAX_PRICE)
+    trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
 
     return CheapestHoursBinarySensor(
         hass=hass,
@@ -108,5 +111,6 @@ def _create_cheapest_hours_entity(
         failsafe_starting_hour=failsafe_starting_hour,
         inversed=inversed,
         trigger_time=trigger_time,
+        trigger_hour=trigger_hour,
         max_price=max_price,
     )

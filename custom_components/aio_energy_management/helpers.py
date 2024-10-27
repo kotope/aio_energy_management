@@ -60,7 +60,9 @@ def merge_two_dicts(x, y):
     z.update(y)  # modifies z with keys and values of y
     return z
 
+
 def get_first(iterable, default=None):
+    """Get first item of array."""
     if iterable:
         for item in iterable:
             return item

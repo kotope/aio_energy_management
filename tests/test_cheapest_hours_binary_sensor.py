@@ -463,6 +463,7 @@ async def test_cheapest_hours_next_nordpool_data_not_updated(
     assert attributes.get("list_next") is None
     assert attributes["expiration"] == datetime(2024, 7, 16, 0, 0, tzinfo=tzinfo)
 
+
 async def test_cheapest_hours_entsoe(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
@@ -602,6 +603,39 @@ async def test_trigger_time(
     assert sensor.extra_state_attributes.get("list") is not None
 
 
+async def test_trigger_hour(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors trigger time."""
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+
+    # Create sensor to test
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=18,
+        last_hour=22,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=19,
+        coordinator=coordinator_mock,
+        trigger_hour=17,
+    )
+
+    await sensor.async_update()
+    assert sensor.extra_state_attributes.get("list") == []
+
+    freezer.move_to("2024-07-13 17:00+03:00")
+    await sensor.async_update()
+    assert sensor.extra_state_attributes.get("list") is not None
+
+
 async def test_max_price(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> None:
     """Test cheapest binary sensors max price."""
     coordinator_mock = _setup_coordinator_mock()
@@ -667,9 +701,7 @@ async def test_max_price_no_matches(
     await sensor.async_update()
 
     # Only one hour should be found that is less than -0.7 max price value
-    assert (
-        sensor.extra_state_attributes.get("list") is not None
-    )  # TODO: Fix these get(list) is not None to contain numpy check over zero
+    assert sensor.extra_state_attributes.get("list") is not None
     assert np.size(sensor.extra_state_attributes["list"]) == 0
 
 
