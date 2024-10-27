@@ -69,7 +69,6 @@ Configuration parameters are shown below:
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **nord pool cheapest three hours**, one for **nord pool most expensive prices** and final one for **entso-e cheapest hours**.
-The expensive sensor uses external input_number to get number of hours requested.
 
 ```
 aio_energy_management:
