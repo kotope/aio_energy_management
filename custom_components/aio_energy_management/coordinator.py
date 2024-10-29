@@ -56,6 +56,9 @@ class EnergyManagementCoordinator:
         data = self.data.get(entity_id)
         if data is None:
             data = {}
+
+        if data.get("list") is None:
+            data["list"] = []  # Always contain list
         return data
 
     def convert_datetimes(self, dictionary: dict) -> dict | None:

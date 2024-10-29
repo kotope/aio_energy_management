@@ -17,7 +17,9 @@ from .exceptions import (
 )
 from .helpers import (
     convert_datetime,
+    from_str_to_datetime,
     from_str_to_time,
+    get_first,
     merge_two_dicts,
     time_in_between,
 )
@@ -48,7 +50,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         entsoe_entity=None,
         nordpool_entity=None,
         trigger_time=None,
-        max_price=None,
+        trigger_hour=None,
+        price_limit=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -66,7 +69,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._number_of_hours = number_of_hours
         self._inversed = inversed
         self._trigger_time = None
-        self._max_price = max_price
+        self._trigger_hour = trigger_hour
+        self._price_limit = price_limit
 
         if trigger_time is not None:
             self._trigger_time = from_str_to_time(trigger_time)
@@ -90,7 +94,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return False
 
         items = self._data.get("list")
-        if items is None:
+        if items is None or items == []:
             # No valid data, check failsafe
             _LOGGER.debug("No valid data found. Check failsafe")
             return self._is_failsafe()
@@ -99,6 +103,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         values = convert_datetime(items)
 
         if values is None:
+            _LOGGER.error(
+                "No values found! This is a bug, please report to https://github.com/kotope/aio_energy_management/issues"
+            )
             return False
 
         for value in values:
@@ -117,6 +124,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
+            _LOGGER.debug("Failsafe on. Don't interrupt the operation.")
             return None
 
         # Check if our data is valid and we do not need to do anything
@@ -127,10 +135,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if self._is_expired() is False:
                 return None
 
-        if self._is_allowed_to_update() is False:
-            _LOGGER.debug("Update not allowed by rules: trigger_time")
-            return None
-
         # No valid data found from store either, try get new
         _LOGGER.debug(
             "No today fetch done for %s or value is expired. Request new data from nord pool integration",
@@ -139,8 +143,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Update number of hours.. this actually needs to be stored in the data..
         try:
-            self._update_number_of_hours()
+            self._update_entity_variables()
         except InvalidEntityState:
+            _LOGGER.error("Failed to get values from external entities!")
+            return None
+
+        if self._is_allowed_to_update() is False:
+            _LOGGER.debug("Update not allowed by set rules")
             return None
 
         await self._swap_list_if_needed()
@@ -159,7 +168,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from nordpool integration")
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
         elif self._entsoe_entity is not None:
             # Update from entsoe
@@ -172,7 +181,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from entsoe integration")
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
             except SystemConfigurationError:
                 _LOGGER.error(
@@ -180,7 +189,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._entsoe_entity,
                 )
                 if self._is_expired():
-                    self._data.pop("list", None)
+                    self._data["list"] = []
                 return None
 
         cheapest = None
@@ -196,7 +205,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._max_price,
+                    self._data.get("active_price_limit")
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -207,18 +216,16 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._max_price,
+                    self._data.get("active_price_limit")
                 )
         except InvalidInput:
             return None
-
         # Construct new data from calculated hours
         if self._is_expired():
             self._set_list(cheapest, self._create_expiration())
         elif (
             self._data["list"] != cheapest
         ):  # Not expired, but data is not the same. Set to list_next
-            # Data is not the same, set the next
             self._data["list_next"] = cheapest
             self._data["list_next_expiration"] = self._create_expiration()
 
@@ -244,13 +251,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
                 return True
-            self._data.pop("list", None)
+            else:
+                self._data["list"] = []
 
         return False
 
-    def _set_list(self, list: dict, expiration: datetime) -> None:
+    def _set_list(self, list_data: dict, expiration: datetime) -> None:
         """Set list data."""
-        self._data["list"] = list
+        self._data["list"] = list_data
         self._data["expiration"] = expiration
         self._data["updated_at"] = dt_util.now()
 
@@ -263,8 +271,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if self._data.get("expiration") is None:
                 return True
 
-            expires = dt_util.as_local(self._data.get("expiration"))
-            if expires is not None:
+            if expires := dt_util.as_local(self._data.get("expiration")):
+                _LOGGER.debug("Checking expiration. Expiration as local = %s, now = %s", expires, dt_util.now())
                 if expires > dt_util.now():
                     return False
         return True
@@ -272,8 +280,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     def _is_allowed_to_update(self) -> bool:
         """Check if update is allowed by local rules."""
         if self._trigger_time is not None:
-            return dt_util.now().time() >= self._trigger_time
-
+            if dt_util.now().time() < self._trigger_time:
+                return False
+        if trigger_hour := self._data.get("active_trigger_hour"):
+            if dt_util.now().hour < trigger_hour:
+                return False
         return True
 
     def _is_fetched_today(self) -> bool:
@@ -323,6 +334,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._nordpool_entity,
             )
             raise ValueNotFound
+
+        # Ensure raw_today first value is actually today as we might get old values
+        # if Home Assistant event loop has not reached nord pool yet
+        if raw_today := np.attributes.get("raw_today"):
+            if first := from_str_to_datetime(get_first(raw_today).get("start")):
+                if first.date() != dt_util.start_of_local_day().date():
+                    _LOGGER.debug("Nord pool provided old data: Ignore")
+                    raise ValueNotFound
+
         if np.attributes.get("tomorrow") is None:
             _LOGGER.warning(
                 "No values for tomorrow in Norpool entity %s ", self._nordpool_entity
@@ -374,13 +394,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if failsafe := self._data.get("failsafe"):
             start = from_str_to_time(failsafe.get("start"))
             end = from_str_to_time(failsafe.get("end"))
-
-            return time_in_between(dt_util.now().time(), start, end)
+            failsafe_on = time_in_between(dt_util.now().time(), start, end)
+            _LOGGER.debug("Running on failsafe: %s", failsafe_on)
+            return failsafe_on
 
         return False
 
     def _construct_attributes(self) -> dict:
-        return {
+        attrs = {
             "first_hour": self._first_hour,
             "last_hour": self._last_hour,
             "starting_today": self._starting_today,
@@ -389,19 +410,44 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
             "inversed": self._inversed,
-            "max_price": self._max_price,
         }
 
-    def _update_number_of_hours(self) -> None:
-        if isinstance(self._number_of_hours, int):
-            self._data["active_number_of_hours"] = self._number_of_hours
-            return None
+        if price_limit := self._price_limit:
+            attrs["price_limit"] = self._price_limit
+        if trigger_time := self._trigger_time:
+            attrs["trigger_time"] = trigger_time
+        if trigger_hour := self._trigger_hour:
+            attrs["trigger_hour"] = trigger_hour
 
-        value = self.hass.states.get(self._number_of_hours).state
+        return attrs
+
+    def _update_entity_variables(self) -> None:
+        self._data["active_number_of_hours"] = self._int_from_entity(
+            self._number_of_hours
+        )
+        if trigger_hour := self._trigger_hour:
+            self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
+        if price_limit := self._price_limit:
+            self._data["active_price_limit"] = self._float_from_entity(price_limit)
+
+    def _float_from_entity(self, entity_id) -> float | None:
+        """Get float value from another entity."""
+        if isinstance(entity_id, float):
+            return entity_id
+
+        value = self.hass.states.get(entity_id).state
         if value is not None:
-            self._data["active_number_of_hours"] = int(float(value))
-        else:
-            _LOGGER.error(
-                "Could not get entity state for cheapest hours number of hours!"
-            )
-            raise InvalidEntityState
+            return float(value)
+        _LOGGER.error("Could not get entity state for %s", entity_id)
+        raise InvalidEntityState
+
+    def _int_from_entity(self, entity_id) -> int | None:
+        """Get int value from another entity."""
+        if isinstance(entity_id, int):
+            return entity_id
+
+        value = self.hass.states.get(entity_id).state
+        if value is not None:
+            return int(float(value))
+        _LOGGER.error("Could not get entity state for %s", entity_id)
+        raise InvalidEntityState
