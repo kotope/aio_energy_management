@@ -124,6 +124,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
+            _LOGGER.debug("Failsafe on. Don't interrupt the operation.")
             return None
 
         # Check if our data is valid and we do not need to do anything
@@ -133,6 +134,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             if self._is_expired() is False:
                 return None
+
         # No valid data found from store either, try get new
         _LOGGER.debug(
             "No today fetch done for %s or value is expired. Request new data from nord pool integration",
@@ -143,6 +145,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         try:
             self._update_entity_variables()
         except InvalidEntityState:
+            _LOGGER.error("Failed to get values from external entities!")
             return None
 
         if self._is_allowed_to_update() is False:
@@ -223,7 +226,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         elif (
             self._data["list"] != cheapest
         ):  # Not expired, but data is not the same. Set to list_next
-            # Data is not the same, set the next
             self._data["list_next"] = cheapest
             self._data["list_next_expiration"] = self._create_expiration()
 
@@ -254,9 +256,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return False
 
-    def _set_list(self, list: dict, expiration: datetime) -> None:
+    def _set_list(self, list_data: dict, expiration: datetime) -> None:
         """Set list data."""
-        self._data["list"] = list
+        self._data["list"] = list_data
         self._data["expiration"] = expiration
         self._data["updated_at"] = dt_util.now()
 
@@ -269,8 +271,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if self._data.get("expiration") is None:
                 return True
 
-            expires = dt_util.as_local(self._data.get("expiration"))
-            if expires is not None:
+            if expires := dt_util.as_local(self._data.get("expiration")):
+                _LOGGER.debug("Checking expiration. Expiration as local = %s, now = %s", expires, dt_util.now())
                 if expires > dt_util.now():
                     return False
         return True
@@ -392,8 +394,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if failsafe := self._data.get("failsafe"):
             start = from_str_to_time(failsafe.get("start"))
             end = from_str_to_time(failsafe.get("end"))
-
-            return time_in_between(dt_util.now().time(), start, end)
+            failsafe_on = time_in_between(dt_util.now().time(), start, end)
+            _LOGGER.debug("Running on failsafe: %s", failsafe_on)
+            return failsafe_on
 
         return False
 
