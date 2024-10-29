@@ -4,7 +4,7 @@ Purpose of this component is to provide easily configurable energy management fo
 During the first phase it supports only to find nord pool cheapest hours (or most expensive) per day and automatic calendar creation.
 Later AIO Energy Management is planned to integrate into solar forecast to get support for solar energy usage.
 
-Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/?p=3256) blog
+Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
 
 ## Installation
 ### Option 1: HACS
