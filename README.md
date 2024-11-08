@@ -15,7 +15,7 @@ Read more detailed information at the [creatingsmarthome.com](https://www.creati
 - Go to `HACS` -> `Integrations`,
 - Select `...` from upper right corner,
 - Select `Custom repositories`
-- Add `https://github.com/kotope/aio_energy_management` and select Category as `Integration`
+- Add `https://github.com/kotope/aio_energy_management` and select Type as `Integration`
 - Search for `AIO Energy Management` and select it
 - Press `Download`
 - Restart Home Assistant
