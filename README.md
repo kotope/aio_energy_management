@@ -8,7 +8,7 @@ Read more detailed information at the [creatingsmarthome.com](https://www.creati
 
 ## Installation
 ### Option 1: HACS
-- Follow [![Open your Home Assistant instance and open a repositoryinside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration) and install it
+- Follow [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration) and install it
 - Restart Home Assistant
 
   *or*
@@ -32,7 +32,7 @@ wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/
 * Event Calendar
 
 ## Cheapest hours sensor (supports nord pool and entso-e integrations)
-The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the chepeast hours per day.<br>
+The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the cheapest hours per day.<br>
 Binary sensor will have the state 'on' when cheapest hours is active.<br>
 Automations can them be set to follow this sensor 'on' state.
 The feature supports failsafe to ensure critical devices to run if for some reason Nord Pool price fetch has failed!
@@ -46,7 +46,7 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 ### Configuration
 Configuration is done through configuration.yaml.<br>
 
-Either nordpool_entity or entsoe_entity must be set depending of which integration you want to use.
+Either nordpool_entity or entsoe_entity must be set, depending on which integration you want to use.
 
 Configuration parameters are shown below:
 
@@ -60,7 +60,7 @@ Configuration parameters are shown below:
 | first_hour       | yes       | starting hour used by cheapest hours calculation. If used 'starting_today' as true, must be AFTER nord pool price publishing. |
 | last_hour        | yes       | last hour used by cheapest hours calculation |
 | starting_today   | yes       | first_hour should be already on the same day. False if next day calculations only |
-| sequential       | yes       | true if trying to calculate sequential cheapet hours timeframe. False if multiple values are acceptable. |
+| sequential       | yes       | true if trying to calculate sequential cheapest hours timeframe. False if multiple values are acceptable. |
 | failsafe_starting_hour | no        | If for some reason nord pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
