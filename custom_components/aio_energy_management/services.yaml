@@ -1,0 +1,8 @@
+clear_data:
+  fields:
+    unique_id:
+      required: true
+      selector:
+        text:
+      example: >-
+         "my_cheapest_hours"

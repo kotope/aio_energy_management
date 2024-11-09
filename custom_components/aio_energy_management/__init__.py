@@ -10,6 +10,7 @@ from homeassistant.helpers.discovery import async_load_platform
 
 from .const import CONF_ENTITY_CALENDAR, CONF_ENTITY_CHEAPEST_HOURS, COORDINATOR, DOMAIN
 from .coordinator import EnergyManagementCoordinator
+from .services import async_setup_services
 
 PLATFORMS = ["binary_sensor", "calendar"]
 
@@ -48,5 +49,8 @@ async def async_setup(hass: core.HomeAssistant, config: dict) -> bool:
         hass.async_create_task(
             async_load_platform(hass, Platform.CALENDAR, DOMAIN, calendar_entry, config)
         )
+
+    # Services
+    await async_setup_services(hass)
 
     return True

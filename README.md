@@ -30,6 +30,7 @@ wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/
 ## Features
 * Cheapest Hours (or most expensive) - Nord Pool and Entso-E integration support
 * Event Calendar
+* Service utility
 
 ## Cheapest hours sensor (supports nord pool and entso-e integrations)
 The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the cheapest hours per day.<br>
@@ -120,6 +121,24 @@ aio_energy_management:
     unique_id: energy_management_calendar
 ```
 
+## Service utility
+AIO Energy Management integration provides a service utility to be used alongside with other components. For now it only supports to clear cached cheapest hours data.
+
+Service utility is provided automatically with the integration and does not need separate configuration.
+
+### Action: Clear cached data (aio_energy_management.clear_data)
+Will clear stored data for specified cheapest hours configuration. Changes will take effect in next 30s when Home Assistant event loop is run. This is especially useful when trying different paremeters for cheapest hours: No longer need to wait until next day for changes to effect.
+
+| Parameter        | Description    |
+|------------------|----------------|
+| unique_id        | unique_id of the item to be cleared. Unique_id should be the same as  defined in cheapest_hours configuration entry. |
+
+### Example service call
+```
+service: aio_energy_management.clear_data
+data:
+  unique_id: my_cheapest_hours
+```
 
 ## Full example with Nord Pool cheapest hours, expensive hours and a calendar
 ```
