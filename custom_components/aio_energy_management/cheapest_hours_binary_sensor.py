@@ -122,6 +122,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         # Always get new data from coordinator as other components might have modified the data
         self._data = self._coordinator.get_data(self._attr_unique_id)
 
+        await self._swap_list_if_needed()
+
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
             _LOGGER.debug("Failsafe on. Don't interrupt the operation")
@@ -152,7 +154,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             _LOGGER.debug("Update not allowed by set rules")
             return None
 
-        await self._swap_list_if_needed()
         self._data["failsafe"] = self._create_failsafe()
 
         # Price array from integrations
@@ -251,8 +252,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._data.pop("list_next_expiration", None)
                 await self._store_data()
                 return True
-            else:
-                self._data["list"] = []
+
+            self._data["list"] = []
 
         return False
 
