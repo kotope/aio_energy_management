@@ -34,6 +34,13 @@ class EnergyManagementCoordinator:
         _LOGGER.debug("Request to clear all values from the store")
         await self._store.async_save({})
 
+    async def async_clear_data(self, unique_id: str) -> None:
+        """Clear entity data by unique_id."""
+        _LOGGER.debug("Request to clear data for %s", unique_id)
+        if self.data.get(unique_id) is not None:
+            self.data.pop(unique_id, None)
+            await self._async_save_data()
+
     async def async_load_data(self):
         """Load data from store."""
         stored = await self._store.async_load()

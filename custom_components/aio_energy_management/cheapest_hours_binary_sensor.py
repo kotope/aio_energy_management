@@ -119,12 +119,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return False
 
     async def _async_operate(self) -> None:
-        if self._data is None:
-            self._data = self._coordinator.get_data(self._attr_unique_id)
+        # Always get new data from coordinator as other components might have modified the data
+        self._data = self._coordinator.get_data(self._attr_unique_id)
 
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
-            _LOGGER.debug("Failsafe on. Don't interrupt the operation.")
+            _LOGGER.debug("Failsafe on. Don't interrupt the operation")
             return None
 
         # Check if our data is valid and we do not need to do anything
@@ -205,7 +205,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._data.get("active_price_limit")
+                    self._data.get("active_price_limit"),
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -216,7 +216,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._first_hour,
                     self._last_hour,
                     self._inversed,
-                    self._data.get("active_price_limit")
+                    self._data.get("active_price_limit"),
                 )
         except InvalidInput:
             return None
@@ -272,7 +272,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 return True
 
             if expires := dt_util.as_local(self._data.get("expiration")):
-                _LOGGER.debug("Checking expiration. Expiration as local = %s, now = %s", expires, dt_util.now())
+                _LOGGER.debug(
+                    "Checking expiration. Expiration as local = %s, now = %s",
+                    expires,
+                    dt_util.now(),
+                )
                 if expires > dt_util.now():
                     return False
         return True
@@ -413,7 +417,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         }
 
         if price_limit := self._price_limit:
-            attrs["price_limit"] = self._price_limit
+            attrs["price_limit"] = price_limit
         if trigger_time := self._trigger_time:
             attrs["trigger_time"] = trigger_time
         if trigger_hour := self._trigger_hour:
