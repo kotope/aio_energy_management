@@ -745,3 +745,56 @@ async def test_failsafe(hass: HomeAssistant, freezer: FrozenDateTimeFactory) -> 
     assert sensor.is_on is False
     assert sensor.extra_state_attributes.get("list") == []
 
+
+async def test_failsafe_not_triggering_after_last_hour(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors failsafe functionality."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2024-07-13 23:01+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2024, 7, 15, 0, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes.get("list_next_expiration") is None
+
+    freezer.move_to("2024-07-14 00:01+03:00")
+    _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240714.json")
+    await sensor.async_update()
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2024, 7, 15, 0, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes.get("list_next_expiration") is None
+
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_20240714.json")
+    await sensor.async_update()
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2024, 7, 15, 0, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list_next_expiration"] == datetime(
+        2024, 7, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    freezer.move_to("2024-07-15 00:01+03:00")
+    _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240715.json")
+    await sensor.async_update()
+    assert sensor.extra_state_attributes["failsafe_active"] is False
