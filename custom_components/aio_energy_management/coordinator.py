@@ -49,12 +49,13 @@ class EnergyManagementCoordinator:
             self.data = self.convert_datetimes(stored)
 
     async def async_set_data(
-        self, entity_id: str, name: str, module: str, dict: dict
+        self, entity_id: str, name: str, calendar: bool, module: str, dict: dict
     ) -> None:
         """Set entity data."""
         self.data[entity_id] = dict
         self.data[entity_id]["name"] = name
         self.data[entity_id]["type"] = module
+        self.data[entity_id]["calendar"] = calendar
         await self._async_save_data()
 
     def get_data(self, entity_id: str) -> dict | None:

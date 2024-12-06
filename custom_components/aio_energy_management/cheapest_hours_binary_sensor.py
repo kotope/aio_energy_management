@@ -52,6 +52,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         trigger_time=None,
         trigger_hour=None,
         price_limit=None,
+        calendar=True,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -71,6 +72,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_time = None
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
+        self._calendar = calendar
 
         if trigger_time is not None:
             self._trigger_time = from_str_to_time(trigger_time)
@@ -237,6 +239,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         await self._coordinator.async_set_data(
             self._attr_unique_id,
             self._attr_name,
+            self._calendar,
             self.__class__.__name__,
             self._data,
         )
