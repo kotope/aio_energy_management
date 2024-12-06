@@ -12,6 +12,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .cheapest_hours_binary_sensor import CheapestHoursBinarySensor
 from .const import (
+    CONF_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTSOE_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
@@ -51,6 +52,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_TRIGGER_HOUR): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
+        vol.Optional(CONF_CALENDAR): bool,
     },
     extra=ALLOW_EXTRA,
 )
@@ -99,8 +101,13 @@ def _create_cheapest_hours_entity(
         CONF_MAX_PRICE
     )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
+    calendar = discovery_info.get(CONF_CALENDAR)
+    if calendar is None:
+        calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
         price_limit = pl
+    print(f"ZZZZ: discovery_info = {discovery_info}")
+    print(f"ZZZZ: calendar = {calendar}")
 
     return CheapestHoursBinarySensor(
         hass=hass,
@@ -119,4 +126,5 @@ def _create_cheapest_hours_entity(
         trigger_time=trigger_time,
         trigger_hour=trigger_hour,
         price_limit=price_limit,
+        calendar=calendar,
     )

@@ -106,6 +106,10 @@ class EnergyManagementCalendar(CalendarEntity):
         events: list[CalendarEvent] = []
 
         for k, v in self._coordinator.data.items():
+            # Don't add to calendar if disabled by config
+            if v.get("calendar") is False:
+                continue
+
             if d := v.get("list"):
                 for value in d:
                     start = value.get("start")
