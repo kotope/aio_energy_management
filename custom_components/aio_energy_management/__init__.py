@@ -17,7 +17,6 @@ PLATFORMS = ["binary_sensor", "calendar"]
 _LOGGER = logging.getLogger(__name__)
 
 # TODO:
-# - Cheapeast hours trigger time
 # - Solar energy forecast best hours
 # - Cheapest hours multi-state sensor (low, high, normal) to avoid expensive and boost cheapest!
 

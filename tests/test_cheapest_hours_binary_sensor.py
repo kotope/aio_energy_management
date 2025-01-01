@@ -376,7 +376,7 @@ async def test_cheapest_hours_next_item(
     # We should have list and next in here now
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes["list_next"] is not None
+    assert attributes["next"] is not None
     assert attributes["expiration"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
 
     # Move to 14th 23:01, data expired
@@ -384,7 +384,7 @@ async def test_cheapest_hours_next_item(
     await sensor.async_update()
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes.get("list_next") is None
+    assert attributes.get("next") is None
     assert attributes["expiration"] == datetime(2024, 7, 15, 23, 0, tzinfo=tzinfo)
 
     # Move to 15th 00:01, day changed
@@ -393,7 +393,7 @@ async def test_cheapest_hours_next_item(
     await sensor.async_update()
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes.get("list_next") is None
+    assert attributes.get("next") is None
     assert attributes["expiration"] == datetime(2024, 7, 15, 23, 0, tzinfo=tzinfo)
 
 
@@ -442,7 +442,7 @@ async def test_cheapest_hours_next_nordpool_data_not_updated(
     # We should have list and next in here now
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes["list_next"] is not None
+    assert attributes["next"] is not None
     assert attributes["expiration"] == datetime(2024, 7, 15, 0, 0, tzinfo=tzinfo)
 
     # Move to 15th 00:01, data expired
@@ -451,7 +451,7 @@ async def test_cheapest_hours_next_nordpool_data_not_updated(
     await sensor.async_update()
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes.get("list_next") is None
+    assert attributes.get("next") is None
     assert attributes["expiration"] == datetime(2024, 7, 16, 0, 0, tzinfo=tzinfo)
 
     # Move to 15th 00:01, day changed
@@ -460,7 +460,7 @@ async def test_cheapest_hours_next_nordpool_data_not_updated(
     await sensor.async_update()
     attributes = sensor.extra_state_attributes
     assert attributes["list"] is not None
-    assert attributes.get("list_next") is None
+    assert attributes.get("next") is None
     assert attributes["expiration"] == datetime(2024, 7, 16, 0, 0, tzinfo=tzinfo)
 
 
@@ -774,7 +774,7 @@ async def test_failsafe_not_triggering_after_last_hour(
     assert sensor.extra_state_attributes["expiration"] == datetime(
         2024, 7, 15, 0, 0, tzinfo=tzinfo
     )
-    assert sensor.extra_state_attributes.get("list_next_expiration") is None
+    assert sensor.extra_state_attributes.get("next") is None
 
     freezer.move_to("2024-07-14 00:01+03:00")
     _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240714.json")
@@ -782,7 +782,7 @@ async def test_failsafe_not_triggering_after_last_hour(
     assert sensor.extra_state_attributes["expiration"] == datetime(
         2024, 7, 15, 0, 0, tzinfo=tzinfo
     )
-    assert sensor.extra_state_attributes.get("list_next_expiration") is None
+    assert sensor.extra_state_attributes.get("next") is None
 
     freezer.move_to("2024-07-14 14:25+03:00")
     _setup_nordpool_mock(hass, "nordpool_happy_20240714.json")
@@ -790,7 +790,7 @@ async def test_failsafe_not_triggering_after_last_hour(
     assert sensor.extra_state_attributes["expiration"] == datetime(
         2024, 7, 15, 0, 0, tzinfo=tzinfo
     )
-    assert sensor.extra_state_attributes["list_next_expiration"] == datetime(
+    assert sensor.extra_state_attributes["next"]["expiration"] == datetime(
         2024, 7, 16, 0, 0, tzinfo=tzinfo
     )
 

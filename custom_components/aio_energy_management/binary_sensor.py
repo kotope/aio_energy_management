@@ -106,8 +106,6 @@ def _create_cheapest_hours_entity(
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
         price_limit = pl
-    print(f"ZZZZ: discovery_info = {discovery_info}")
-    print(f"ZZZZ: calendar = {calendar}")
 
     return CheapestHoursBinarySensor(
         hass=hass,

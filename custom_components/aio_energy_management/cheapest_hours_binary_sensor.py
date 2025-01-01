@@ -87,7 +87,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         """Return all the data."""
-        return merge_two_dicts(self._data, self._construct_attributes())
+        return merge_two_dicts(
+            self._construct_data_attributes(),
+            self._construct_static_attributes(),
+        )
 
     @property
     def is_on(self) -> bool:
@@ -225,12 +228,19 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return None
         # Construct new data from calculated hours
         if self._is_expired():
-            self._set_list(cheapest, self._create_expiration())
-        elif (
-            self._data["list"] != cheapest
+            self._set_list(
+                cheapest.get("list"),
+                self._create_expiration(),
+                cheapest.get("extra"),
+            )
+        elif self._data["list"] != cheapest.get(
+            "list"
         ):  # Not expired, but data is not the same. Set to list_next
-            self._data["list_next"] = cheapest
-            self._data["list_next_expiration"] = self._create_expiration()
+            self._set_next(
+                cheapest.get("list") or [],
+                self._create_expiration(),
+                cheapest.get("extra") or {},
+            )
 
         self._data["fetch_date"] = self._create_fetch_date()
         await self._store_data()
@@ -247,12 +257,16 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     async def _swap_list_if_needed(self) -> bool:
         """Swap the list_next to list if needed. Returns true if list was swapped."""
         if self._is_expired():  # Data is expired
-            if list_next := self._data.get("list_next"):
-                self._set_list(list_next, self._data.get("list_next_expiration"))
+            if nxt := self._data.get("next"):
+                self._set_list(
+                    nxt.get("list") or [],
+                    nxt.get("expiration"),
+                    nxt.get("extra") or {},
+                )
 
-                # Clear old data
-                self._data.pop("list_next", None)
-                self._data.pop("list_next_expiration", None)
+                # Clear previous next data as it's transferred to parent now
+                self._data.pop("next", None)
+
                 await self._store_data()
                 return True
 
@@ -260,11 +274,23 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return False
 
-    def _set_list(self, list_data: dict, expiration: datetime) -> None:
+    def _set_list(
+        self, list_data: list, expiration: datetime, attributes: dict
+    ) -> None:
         """Set list data."""
         self._data["list"] = list_data
         self._data["expiration"] = expiration
+        self._data["extra"] = attributes
         self._data["updated_at"] = dt_util.now()
+
+    def _set_next(
+        self, list_data: list, expiration: datetime, attributes: dict
+    ) -> None:
+        nxt = {}
+        nxt["list"] = list_data
+        nxt["expiration"] = expiration
+        nxt["extra"] = attributes
+        self._data["next"] = nxt
 
     def _is_expired(self) -> bool:
         """Check if data is expired."""
@@ -408,7 +434,19 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return False
 
-    def _construct_attributes(self) -> dict:
+    def _construct_data_attributes(self) -> dict:
+        # Make some manipulation of the data stucture returned to the user
+        d = self._data
+
+        # Move extra data from 'extra' to root
+        if extras := self._data.get("extra"):
+            d["max_price"] = extras.get("max_price")
+            d["min_price"] = extras.get("min_price")
+            d["mean_price"] = extras.get("mean_price")
+            d.pop("extra", None)
+        return d
+
+    def _construct_static_attributes(self) -> dict:
         attrs = {
             "first_hour": self._first_hour,
             "last_hour": self._last_hour,
