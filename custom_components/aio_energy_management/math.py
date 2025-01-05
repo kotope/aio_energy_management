@@ -22,7 +22,7 @@ def calculate_sequential_cheapest_hours(
     last_hour: int,
     inversed: bool = False,
     price_limit: float | None = None,
-) -> list:
+) -> dict:
     """Calculate sequential cheapest hours."""
     if price_limit is not None:  # Max price is not supported on seuqantial calculations
         _LOGGER.error(
@@ -39,9 +39,15 @@ def calculate_sequential_cheapest_hours(
         _LOGGER.error("Invalid configuration for sequential cheapest hours sensor")
         raise InvalidInput
 
+    fd: dict = {}  # Final data dictionary
+    fd["extra"] = {}
+
     # Function specific varialbes
     prices = today + tomorrow
     cheapest_price = 999.99
+    mean_price: float = 0.0
+    max_price: float | None = None
+    min_price: float | None = None
 
     if inversed:
         cheapest_price = -999.99
@@ -55,8 +61,15 @@ def calculate_sequential_cheapest_hours(
         starting = first_hour + 24
     for i in range(starting + number_of_hours, ending + 1):
         counter = 0.0
+        max_temp = -999.0
+        min_temp = 999.99
+
         for j in range(i - number_of_hours, i):
             counter += prices[j]
+            if prices[j] > max_temp:
+                max_temp = prices[j]
+            if prices[j] < min_temp:
+                min_temp = prices[j]
 
         if (
             inversed
@@ -64,16 +77,26 @@ def calculate_sequential_cheapest_hours(
             or not inversed
             and counter < cheapest_price
         ):
+            # If the price is 'better' than previous
+            max_price = max_temp
+            min_price = min_temp
             cheapest_price = counter
+            mean_price = counter / number_of_hours
             cheapest_hour = dt_util.start_of_local_day() + timedelta(
                 hours=i - number_of_hours
             )
-    return [
+
+    fd["list"] = [
         {
             "start": cheapest_hour,
             "end": cheapest_hour + timedelta(hours=number_of_hours),
         }
     ]
+
+    fd["extra"]["mean_price"] = mean_price
+    fd["extra"]["max_price"] = max_price
+    fd["extra"]["min_price"] = min_price
+    return fd
 
 
 # TODO: Support for daylight saving days.. e.g. not hard coded 24h
@@ -86,7 +109,7 @@ def calculate_non_sequential_cheapest_hours(
     last_hour: int,
     inversed: bool = False,
     price_limit: float | None = None,
-) -> list:
+) -> dict:
     """Calculate non-sequential cheapest hours."""
     if (
         _is_cheapest_hours_input_valid(
@@ -103,6 +126,8 @@ def calculate_non_sequential_cheapest_hours(
         starting = first_hour + 24
     ending = last_hour + 1 + 24
     data = []
+    fd: dict = {}  # Final data dictionary
+    fd["extra"] = {}
 
     for i in range(starting, ending):
         start = dt_util.start_of_local_day() + timedelta(hours=i)
@@ -110,6 +135,7 @@ def calculate_non_sequential_cheapest_hours(
         data += [{"start": start, "end": end, "price": arr[i]}]
 
     data.sort(key=lambda x: (x["price"], x["start"]), reverse=inversed)
+
     data = data[:number_of_hours]
     data.sort(key=lambda x: (x["start"]))
     if inversed:
@@ -117,6 +143,10 @@ def calculate_non_sequential_cheapest_hours(
             data = [d for d in data if d["price"] >= mp]
     elif mp := price_limit:
         data = [d for d in data if d["price"] <= mp]
+
+    fd["extra"]["mean_price"] = _get_average(data)
+    fd["extra"]["max_price"] = _get_max(data)
+    fd["extra"]["min_price"] = _get_min(data)
 
     # Combine sequantial slots
     iterate = True
@@ -152,7 +182,27 @@ def calculate_non_sequential_cheapest_hours(
         if not matched:
             iterate = False
 
-    return data
+    fd["list"] = data
+    return fd
+
+
+def _get_average(data: list) -> float | None:
+    if len(data) == 0:
+        return None
+    total = sum(item["price"] for item in data)
+    return total / len(data)
+
+
+def _get_max(data: list) -> float | None:
+    if len(data) == 0:
+        return None
+    return max(item["price"] for item in data)
+
+
+def _get_min(data: list) -> float | None:
+    if len(data) == 0:
+        return None
+    return min(item["price"] for item in data)
 
 
 def _is_cheapest_hours_input_valid(

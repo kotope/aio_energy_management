@@ -124,20 +124,21 @@ class EnergyManagementCalendar(CalendarEntity):
                                 summary=v.get("name") or k, start=start, end=end
                             )
                         )
-            if d := v.get("list_next"):
-                for value in d:
-                    start = value.get("start")
-                    end = value.get("end")
-                    if (
-                        start is not None
-                        and end is not None
-                        and self._is_in_range(start, start_date, end_date)
-                    ):
-                        events.append(
-                            CalendarEvent(
-                                summary=v.get("name") or k, start=start, end=end
+            if next := v.get("next"):
+                if d := next.get("list"):
+                    for value in d:
+                        start = value.get("start")
+                        end = value.get("end")
+                        if (
+                            start is not None
+                            and end is not None
+                            and self._is_in_range(start, start_date, end_date)
+                        ):
+                            events.append(
+                                CalendarEvent(
+                                    summary=v.get("name") or k, start=start, end=end
+                                )
                             )
-                        )
 
         return events
 

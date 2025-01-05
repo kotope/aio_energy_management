@@ -82,37 +82,49 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     result = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23
     )
-    assert np.size(result) == 1
-    assert result[0]["start"] == datetime(
+    lis: list = result.get("list")
+    assert np.size(lis) == 1
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 4, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 2.762333333333333
+    assert result["extra"]["min_price"] == 2.461
+    assert result["extra"]["max_price"] == 2.967
 
     # Later tomorrow
     result = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 11, 20
     )
-    assert np.size(result) == 1
-    assert result[0]["start"] == datetime(
+    lis = result.get("list")
+    assert np.size(lis) == 1
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 15, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 2.7783333333333338
+    assert result["extra"]["min_price"] == 1.71
+    assert result["extra"]["max_price"] == 4.774
 
     # Starting today
     result = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, True, 21, 18
     )
-    assert np.size(result) == 1
-    assert result[0]["start"] == datetime(
+    lis = result.get("list")
+    assert np.size(lis) == 1
+    assert lis[0]["start"] == datetime(
         2024, 7, 22, 21, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 0, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 1.4640000000000002
+    assert result["extra"]["min_price"] == 0.434
+    assert result["extra"]["max_price"] == 2.567
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -122,25 +134,33 @@ def test_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     result = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23, inversed=True
     )
-    assert np.size(result) == 1
-    assert result[0]["start"] == datetime(
+    lis: list = result.get("list")
+    assert np.size(lis) == 1
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 9, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 10.642
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 25.874
 
     # Starting today expensive
     result = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, True, 21, 8, inversed=True
     )
-    assert np.size(result) == 1
-    assert result[0]["start"] == datetime(
+    lis: list = result.get("list")
+    assert np.size(lis) == 1
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 6, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 9, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 4.0376666666666665
+    assert result["extra"]["min_price"] == 3.582
+    assert result["extra"]["max_price"] == 4.382
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -150,20 +170,24 @@ def test_non_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, last_hour
     )
-    assert np.size(result) == 2
-    assert result[0]["start"] == datetime(
+    lis: list = result.get("list")
+    assert np.size(lis) == 2
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 10, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[1]["start"] == datetime(
+    assert lis[1]["start"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[1]["end"] == datetime(
+    assert lis[1]["end"] == datetime(
         2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 1.7026666666666666
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 1.851
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -173,46 +197,55 @@ def test_non_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 18, inversed=True
     )
-    assert np.size(result) == 2
-    assert result[0]["start"] == datetime(
+
+    lis: list = result.get("list")
+    assert np.size(lis) == 2
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[1]["start"] == datetime(
+    assert lis[1]["start"] == datetime(
         2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[1]["end"] == datetime(
+    assert lis[1]["end"] == datetime(
         2024, 7, 23, 16, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 11.784666666666666
+    assert result["extra"]["min_price"] == 4.706
+    assert result["extra"]["max_price"] == 25.874
 
     # Also today
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, True, 18, 6, inversed=True
     )
-    assert np.size(result) == 3
-    assert result[0]["start"] == datetime(
+    lis = result.get("list")
+    assert np.size(lis) == 3
+    assert lis[0]["start"] == datetime(
         2024, 7, 22, 18, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 22, 19, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[1]["start"] == datetime(
+    assert lis[1]["start"] == datetime(
         2024, 7, 23, 0, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[1]["end"] == datetime(
+    assert lis[1]["end"] == datetime(
         2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[2]["start"] == datetime(
+    assert lis[2]["start"] == datetime(
         2024, 7, 23, 6, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[2]["end"] == datetime(
+    assert lis[2]["end"] == datetime(
         2024, 7, 23, 7, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 5.783666666666666
+    assert result["extra"]["min_price"] == 3.482
+    assert result["extra"]["max_price"] == 10.287
 
 
 def test_invalid_input(today_valid, tomorrow_valid) -> None:
@@ -250,29 +283,37 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
     )
+    lis: list = result.get("list")
 
     # Should only find three items in two slots (10, 12, 13)
-    assert np.size(result) == 2
+    assert np.size(lis) == 2
 
-    assert result[0]["start"] == datetime(
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 10, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[1]["start"] == datetime(
+    assert lis[1]["start"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[1]["end"] == datetime(
+    assert lis[1]["end"] == datetime(
         2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 1.7026666666666666
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 1.851
 
     # Test with zero values found as max_price set to very very low
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=0.1
     )
-    assert np.size(result) == 0
+    lis = result.get("list")
+    assert np.size(lis) == 0
+    assert result["extra"]["mean_price"] is None
+    assert result["extra"]["min_price"] is None
+    assert result["extra"]["max_price"] is None
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -282,29 +323,37 @@ def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) ->
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=4.75
     )
+    lis: list = result.get("list")
 
     # Should only find two items (11, 14)
-    assert np.size(result) == 2
+    assert np.size(lis) == 2
 
-    assert result[0]["start"] == datetime(
+    assert lis[0]["start"] == datetime(
         2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[0]["end"] == datetime(
+    assert lis[0]["end"] == datetime(
         2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
 
-    assert result[1]["start"] == datetime(
+    assert lis[1]["start"] == datetime(
         2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
-    assert result[1]["end"] == datetime(
+    assert lis[1]["end"] == datetime(
         2024, 7, 23, 15, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert result["extra"]["mean_price"] == 15.324
+    assert result["extra"]["min_price"] == 4.774
+    assert result["extra"]["max_price"] == 25.874
 
     # Test with zero values found as min_price set to very very low
     result = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=28
     )
-    assert np.size(result) == 0
+    lis = result.get("list")
+    assert np.size(lis) == 0
+    assert result["extra"]["mean_price"] is None
+    assert result["extra"]["min_price"] is None
+    assert result["extra"]["max_price"] is None
 
 
 @freeze_time("2024-07-22 14:25+03:00")
