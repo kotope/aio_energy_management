@@ -67,7 +67,7 @@ Configuration parameters are shown below:
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
 | price_limit      | no        | Only accept prices less than given float value or more than given float value if inversed is used. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Only supported by non-seuqential cheapest_hours. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
-
+| calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
 ### Example configuration
 The example configuration presents creation of three sensors: one for **nord pool cheapest three hours**, one for **nord pool most expensive prices** and final one for **entso-e cheapest hours**.
 
