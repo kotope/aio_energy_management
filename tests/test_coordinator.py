@@ -54,17 +54,19 @@ def mock_stored_data() -> dict:
             "fetch_date": "2024-10-08",
             "name": "My Expensive Hours",
             "type": "CheapestHoursBinarySensor",
-            "list_next": [
-                {
-                    "start": "2024-10-08T20:00:00+03:00",
-                    "end": "2024-10-08T21:00:00+03:00",
-                },
-                {
-                    "start": "2024-10-09T10:00:00+03:00",
-                    "end": "2024-10-09T11:00:00+03:00",
-                },
-            ],
-            "list_next_expiration": "2024-10-09T17:00:00+03:00",
+            "next": {
+                "list": [
+                    {
+                        "start": "2024-10-08T20:00:00+03:00",
+                        "end": "2024-10-08T21:00:00+03:00",
+                    },
+                    {
+                        "start": "2024-10-09T10:00:00+03:00",
+                        "end": "2024-10-09T11:00:00+03:00",
+                    },
+                ],
+                "expiration": "2024-10-09T17:00:00+03:00",
+            }
         },
         "my_next_day_hours": {
             "active_number_of_hours": 4,
@@ -84,17 +86,19 @@ def mock_stored_data() -> dict:
             "fetch_date": "2024-10-08",
             "name": "My Next Day Hours",
             "type": "CheapestHoursBinarySensor",
-            "list_next": [
-                {
-                    "start": "2024-10-09T00:00:00+03:00",
-                    "end": "2024-10-09T01:00:00+03:00",
-                },
-                {
-                    "start": "2024-10-09T02:00:00+03:00",
-                    "end": "2024-10-09T05:00:00+03:00",
-                },
-            ],
-            "list_next_expiration": "2024-10-10T00:00:00+03:00",
+            "next": {
+                "list": [
+                    {
+                        "start": "2024-10-09T00:00:00+03:00",
+                        "end": "2024-10-09T01:00:00+03:00",
+                    },
+                    {
+                        "start": "2024-10-09T02:00:00+03:00",
+                        "end": "2024-10-09T05:00:00+03:00",
+                    },
+                ],
+                "expiration": "2024-10-10T00:00:00+03:00",
+            }
         },
         "my_entsoe_prices": {
             "active_number_of_hours": 4,
@@ -132,21 +136,23 @@ def mock_stored_data() -> dict:
             "fetch_date": "2024-10-08",
             "name": "My Next Day Hours 5",
             "type": "CheapestHoursBinarySensor",
-            "list_next": [
-                {
-                    "start": "2024-10-09T00:00:00+03:00",
-                    "end": "2024-10-09T01:00:00+03:00",
-                },
-                {
-                    "start": "2024-10-09T02:00:00+03:00",
-                    "end": "2024-10-09T05:00:00+03:00",
-                },
-                {
-                    "start": "2024-10-09T23:00:00+03:00",
-                    "end": "2024-10-10T00:00:00+03:00",
-                },
-            ],
-            "list_next_expiration": "2024-10-10T00:00:00+03:00",
+            "next": {
+                "list": [
+                    {
+                        "start": "2024-10-09T00:00:00+03:00",
+                        "end": "2024-10-09T01:00:00+03:00",
+                    },
+                    {
+                        "start": "2024-10-09T02:00:00+03:00",
+                        "end": "2024-10-09T05:00:00+03:00",
+                    },
+                    {
+                        "start": "2024-10-09T23:00:00+03:00",
+                        "end": "2024-10-10T00:00:00+03:00",
+                    },
+                ],
+                "expiration": "2024-10-10T00:00:00+03:00",
+            }
         },
         "my_next_day_hours_6": {
             "active_number_of_hours": 6,
@@ -166,17 +172,19 @@ def mock_stored_data() -> dict:
             "fetch_date": "2024-10-08",
             "name": "My Next Day Hours 6",
             "type": "CheapestHoursBinarySensor",
-            "list_next": [
-                {
-                    "start": "2024-10-09T00:00:00+03:00",
-                    "end": "2024-10-09T05:00:00+03:00",
-                },
-                {
-                    "start": "2024-10-09T23:00:00+03:00",
-                    "end": "2024-10-10T00:00:00+03:00",
-                },
-            ],
-            "list_next_expiration": "2024-10-10T00:00:00+03:00",
+            "next": {
+                "list": [
+                    {
+                        "start": "2024-10-09T00:00:00+03:00",
+                        "end": "2024-10-09T05:00:00+03:00",
+                    },
+                    {
+                        "start": "2024-10-09T23:00:00+03:00",
+                        "end": "2024-10-10T00:00:00+03:00",
+                    },
+                ],
+                "expiration": "2024-10-10T00:00:00+03:00",
+            }
         },
     }
 
@@ -198,8 +206,10 @@ async def test_convert_persistent_data(hass: HomeAssistant, mock_stored_data) ->
         2024, 10, 9, 0, 0, tzinfo=tzinfo
     )
 
-    assert isinstance(next_day_hours.get("list_next_expiration"), datetime)
-    assert next_day_hours.get("list_next_expiration") == datetime(
+    nxt = next_day_hours.get("next")
+    assert isinstance(nxt, dict)
+    assert isinstance(nxt.get("expiration"), datetime)
+    assert nxt.get("expiration") == datetime(
         2024, 10, 10, 0, 0, tzinfo=tzinfo
     )
 
@@ -210,7 +220,7 @@ async def test_convert_persistent_data(hass: HomeAssistant, mock_stored_data) ->
     assert lst[1]["start"] == datetime(2024, 10, 8, 21, 0, tzinfo=tzinfo)
     assert lst[1]["end"] == datetime(2024, 10, 9, 0, 0, tzinfo=tzinfo)
 
-    lst_next = next_day_hours.get("list_next")
+    lst_next = next_day_hours.get("next").get("list")
     assert np.size(lst_next) == 2
     assert lst_next[0]["start"] == datetime(2024, 10, 9, 0, 0, tzinfo=tzinfo)
     assert lst_next[0]["end"] == datetime(2024, 10, 9, 1, 0, tzinfo=tzinfo)

@@ -267,6 +267,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 # Clear previous next data as it's transferred to parent now
                 self._data.pop("next", None)
 
+                # Remove deprecated list_next. List next was used prior version 0.3.3
+                if self._data.get("list_next") is not None:
+                    self._data.pop("list_next", None)
+
                 await self._store_data()
                 return True
 

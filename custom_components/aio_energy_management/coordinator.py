@@ -75,6 +75,7 @@ class EnergyManagementCoordinator:
             dictionary[k] = self._convert_datetimes_of_item(v)
         return dictionary
 
+    # TODO: Better technic for converting all the date times between str and datetimes
     def _convert_datetimes_of_item(self, dictionary: dict) -> dict:
         if expires := dictionary.get("expiration"):
             if expires is not datetime:
@@ -92,14 +93,15 @@ class EnergyManagementCoordinator:
                 dictionary["updated_at"] = updated_at
         if data_list := dictionary.get("list"):
             dictionary["list"] = convert_datetime(data_list)
-        if data_list_next := dictionary.get("list_next"):
-            dictionary["list_next"] = convert_datetime(data_list_next)
-        if data_expiration_next := dictionary.get("list_next_expiration"):
-            if data_expiration_next is not datetime:
-                dictionary["list_next_expiration"] = from_str_to_datetime(
-                    data_expiration_next
-                )
-            else:
-                dictionary["list_next_expiration"] = data_expiration_next
+        if data_next := dictionary.get("next"):
+            if list_next := data_next.get("list"):
+                dictionary["next"]["list"] = convert_datetime(list_next)
+            if data_expiration_next := data_next.get("expiration"):
+                if data_expiration_next is not datetime:
+                    dictionary["next"]["expiration"] = from_str_to_datetime(
+                        data_expiration_next
+                    )
+                else:
+                    dictionary["next"]["expiration"] = data_expiration_next
 
         return dictionary
