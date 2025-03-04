@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant, State
 import homeassistant.util.dt as dt_util
 
 from .coordinator import EnergyManagementCoordinator
+from .enums import HourPriceType
 from .exceptions import (
     InvalidEntityState,
     InvalidInput,
@@ -27,6 +28,7 @@ from .math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )
+from .models import hour_price
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,8 +171,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             # Update from nordpool
             try:
                 nordpool = self._update_from_nordpool()
-                today = nordpool.attributes["today"]
-                tomorrow = nordpool.attributes["tomorrow"]
+                today = [
+                    hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+                    for item in nordpool.attributes["raw_today"]
+                ]
+                tomorrow = [
+                    hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+                    for item in nordpool.attributes["raw_tomorrow"]
+                ]
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from nordpool integration")
                 if self._is_expired():
@@ -180,9 +188,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             # Update from entsoe
             try:
                 entsoe = self._update_from_entsoe()
-                today = [item["price"] for item in entsoe.attributes["prices_today"]]
+                today = [
+                    hour_price.HourPrice.from_dict(item, type=HourPriceType.ENTSOE)
+                    for item in entsoe.attributes["prices_today"]
+                ]
+
                 tomorrow = [
-                    item["price"] for item in entsoe.attributes["prices_tomorrow"]
+                    hour_price.HourPrice.from_dict(item, type=HourPriceType.ENTSOE)
+                    for item in entsoe.attributes["prices_tomorrow"]
                 ]
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from entsoe integration")
@@ -374,7 +387,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             raise ValueNotFound
 
         # Ensure raw_today first value is actually today as we might get old values
-        # if Home Assistant event loop has not reached nord pool yet
+        # if Home Assistant event loop has not reached nord pool yet")
         if raw_today := np.attributes.get("raw_today"):
             if first := from_str_to_datetime(get_first(raw_today).get("start")):
                 if first.date() != dt_util.start_of_local_day().date():
@@ -413,10 +426,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 "No values for tomorrow in Entso-e entity %s", self._entsoe_entity
             )
             raise ValueNotFound
-
-        if len(tomorrow) < 24:
-            # TODO: Summer time saving support for this check aswell
-            raise SystemConfigurationError
 
         return entsoe
 

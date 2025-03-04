@@ -798,3 +798,171 @@ async def test_failsafe_not_triggering_after_last_hour(
     _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240715.json")
     await sensor.async_update()
     assert sensor.extra_state_attributes["failsafe_active"] is False
+
+
+async def test_cheapest_hours_binary_sensors_daylight_savings_sequential_summer_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test summer time binary sensors."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    hass.config.timezone = tzinfo
+    coordinator_mock = _setup_coordinator_mock()
+
+    # Test today summer time
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_tomorrow_summertime.json")
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=20,
+        last_hour=12,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 10, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 13, 0, tzinfo=tzinfo)
+
+    # Test today summer time
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_today_summertime.json")
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 2, 0, tzinfo=tzinfo)
+
+
+async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_summer_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test summer time binary sensors."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    hass.config.timezone = tzinfo
+    coordinator_mock = _setup_coordinator_mock()
+
+    # Test today summer time
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_tomorrow_summertime.json")
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=20,
+        last_hour=12,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 10, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 13, 0, tzinfo=tzinfo)
+
+    # Test today summer time
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_today_summertime.json")
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert np.size(attributes["list"]) == 2
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 1, 0, tzinfo=tzinfo)
+    assert attributes["list"][1]["start"] == datetime(2024, 7, 15, 3, 0, tzinfo=tzinfo)
+    assert attributes["list"][1]["end"] == datetime(2024, 7, 15, 4, 0, tzinfo=tzinfo)
+
+
+async def test_cheapest_hours_binary_sensors_daylight_savings_sequential_winter_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test summer time binary sensors."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    hass.config.timezone = tzinfo
+    coordinator_mock = _setup_coordinator_mock()
+
+    # Test today summer time
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_tomorrow_wintertime.json")
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=20,
+        last_hour=12,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 10, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 13, 0, tzinfo=tzinfo)
+
+    # Test today summer time
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_today_wintertime.json")
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 2, 0, tzinfo=tzinfo)
+
+
+async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_winter_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test summer time binary sensors."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    hass.config.timezone = tzinfo
+    coordinator_mock = _setup_coordinator_mock()
+
+    # Test today summer time
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_tomorrow_wintertime.json")
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=20,
+        last_hour=12,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 10, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 13, 0, tzinfo=tzinfo)
+
+    # Test today summer time
+    freezer.move_to("2024-07-14 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_today_wintertime.json")
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert np.size(attributes["list"]) == 2
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 1, 0, tzinfo=tzinfo)
+    assert attributes["list"][1]["start"] == datetime(2024, 7, 15, 3, 0, tzinfo=tzinfo)
+    assert attributes["list"][1]["end"] == datetime(2024, 7, 15, 4, 0, tzinfo=tzinfo)

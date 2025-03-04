@@ -7,12 +7,15 @@ import numpy as np
 
 import homeassistant.util.dt as dt_util
 
-from .exceptions import InvalidInput
+from .exceptions import InvalidInput, ValueNotFound
+from .models.hour_price import HourPrice
 
 _LOGGER = logging.getLogger(__name__)
 
+MAX_PRICE_VALUE = 999.9
+MIN_PRICE_VALUE = -999.9
 
-# TODO: Support for daylight saving days.. e.g. not hard coded 24h
+
 def calculate_sequential_cheapest_hours(
     today: list,
     tomorrow: list,
@@ -42,15 +45,25 @@ def calculate_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
+    # Check daylight saivings
+    td = _check_day_light_savings(today)
+    tm = _check_day_light_savings(tomorrow)
+
+    if len(td) != 24 or len(tm) != 24:
+        _LOGGER.error(
+            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+        )
+        raise ValueNotFound
+
     # Function specific varialbes
-    prices = today + tomorrow
-    cheapest_price = 999.99
+    prices = [item.value for item in td] + [item.value for item in tm]
+    cheapest_price = MAX_PRICE_VALUE
     mean_price: float = 0.0
     max_price: float | None = None
     min_price: float | None = None
 
     if inversed:
-        cheapest_price = -999.99
+        cheapest_price = MIN_PRICE_VALUE
 
     cheapest_hour = dt_util.start_of_local_day()
     counter = 0.00
@@ -61,8 +74,8 @@ def calculate_sequential_cheapest_hours(
         starting = first_hour + 24
     for i in range(starting + number_of_hours, ending + 1):
         counter = 0.0
-        max_temp = -999.0
-        min_temp = 999.99
+        max_temp = MIN_PRICE_VALUE
+        min_temp = MAX_PRICE_VALUE
 
         for j in range(i - number_of_hours, i):
             counter += prices[j]
@@ -99,7 +112,6 @@ def calculate_sequential_cheapest_hours(
     return fd
 
 
-# TODO: Support for daylight saving days.. e.g. not hard coded 24h
 def calculate_non_sequential_cheapest_hours(
     today: list,
     tomorrow: list,
@@ -120,7 +132,16 @@ def calculate_non_sequential_cheapest_hours(
         _LOGGER.error("Invalid configuration for non-sequential cheapest hours sensor")
         raise InvalidInput
 
-    arr = today + tomorrow
+    td = _check_day_light_savings(today)
+    tm = _check_day_light_savings(tomorrow)
+
+    if len(td) != 24 or len(tm) != 24:
+        _LOGGER.error(
+            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+        )
+        raise ValueNotFound
+
+    arr = [item.value for item in td] + [item.value for item in tm]
     starting = first_hour
     if not starting_today:
         starting = first_hour + 24
@@ -221,3 +242,54 @@ def _is_cheapest_hours_input_valid(
         return False
 
     return True
+
+
+def _check_day_light_savings(hours: list, inversed: bool = False) -> list:
+    if len(hours) == 23:
+        return _add_missing_hour(hours, inversed)
+    if len(hours) == 25:
+        return _remove_duplicate_starts(hours)
+    return hours
+
+
+def _add_missing_hour(hours: list, inversed: bool) -> list:
+    """Add missing hour when turning to summer time. The new hour added has the value of max or min depending of inversed state."""
+    # Find the missing entry's index by checking time difference.
+    missing_index = -1
+    for i in range(len(hours) - 1):
+        time_diff = hours[i + 1].start - hours[i].start
+        time_diff_hours = time_diff.total_seconds() / 3600.0
+
+        if time_diff_hours >= 2:
+            # Missing one index
+            missing_index = i + 1
+            break
+
+    if missing_index == -1:
+        return hours  # No missing entry found
+
+    # Create the missing entry
+    missing_start_time = hours[missing_index - 1].start + timedelta(hours=1)
+    if inversed:
+        missing_value = MIN_PRICE_VALUE
+    else:
+        missing_value = MAX_PRICE_VALUE
+
+    # Insert the missing entry into the data
+    hours.insert(
+        missing_index, HourPrice(value=missing_value, start=missing_start_time)
+    )
+    return hours
+
+
+def _remove_duplicate_starts(hours: list) -> list:
+    """Remove duplicate hour when turning to winter time. Hour removed is the latter item."""
+    seen_starts = set()
+    result = []
+
+    for item in hours:
+        if item.start not in seen_starts:
+            result.append(item)
+            seen_starts.add(item.start)
+
+    return result

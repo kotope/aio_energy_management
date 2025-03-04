@@ -1,6 +1,6 @@
 """Tests for math."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import zoneinfo
 
 from custom_components.aio_energy_management.exceptions import InvalidInput
@@ -8,6 +8,7 @@ from custom_components.aio_energy_management.math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )
+from custom_components.aio_energy_management.models.hour_price import HourPrice
 from freezegun import freeze_time
 import numpy as np
 import pytest
@@ -17,30 +18,34 @@ import pytest
 def today_valid() -> list:
     """Fixture of today prices."""
     return [
-        3.809,  # 0
-        3.435,  # 1
-        3.295,  # 2
-        3.169,  # 3
-        3.08,  # 4
-        3.16,  # 5
-        3.355,  # 6
-        3.436,  # 7
-        3.752,  # 8
-        3.768,  # 9
-        3.577,  # 10
-        3.549,  # 11
-        3.463,  # 12
-        3.6,  # 13
-        3.585,  # 14
-        3.541,  # 15
-        3.229,  # 16
-        3.019,  # 17
-        10.287,  # 18 Expensive
-        3.369,  # 19
-        3.435,  # 20
-        0.434,  # 21, Cheap
-        1.391,  # 22
-        2.567,  # 23
+        HourPrice(3.809, datetime.strptime("2025-01-02 00:00", "%Y-%m-%d %H:%M")),  # 0
+        HourPrice(3.435, datetime.strptime("2025-01-02 01:00", "%Y-%m-%d %H:%M")),  # 1
+        HourPrice(3.295, datetime.strptime("2025-01-02 02:00", "%Y-%m-%d %H:%M")),  # 2
+        HourPrice(3.169, datetime.strptime("2025-01-02 03:00", "%Y-%m-%d %H:%M")),  # 3
+        HourPrice(3.08, datetime.strptime("2025-01-02 04:00", "%Y-%m-%d %H:%M")),  # 4
+        HourPrice(3.16, datetime.strptime("2025-01-02 05:00", "%Y-%m-%d %H:%M")),  # 5
+        HourPrice(3.355, datetime.strptime("2025-01-02 06:00", "%Y-%m-%d %H:%M")),  # 6
+        HourPrice(3.436, datetime.strptime("2025-01-02 07:00", "%Y-%m-%d %H:%M")),  # 7
+        HourPrice(3.752, datetime.strptime("2025-01-02 08:00", "%Y-%m-%d %H:%M")),  # 8
+        HourPrice(3.768, datetime.strptime("2025-01-02 09:00", "%Y-%m-%d %H:%M")),  # 9
+        HourPrice(3.577, datetime.strptime("2025-01-02 10:00", "%Y-%m-%d %H:%M")),  # 10
+        HourPrice(3.549, datetime.strptime("2025-01-02 11:00", "%Y-%m-%d %H:%M")),  # 11
+        HourPrice(3.463, datetime.strptime("2025-01-02 12:00", "%Y-%m-%d %H:%M")),  # 12
+        HourPrice(3.6, datetime.strptime("2025-01-02 13:00", "%Y-%m-%d %H:%M")),  # 13
+        HourPrice(3.585, datetime.strptime("2025-01-02 14:00", "%Y-%m-%d %H:%M")),  # 14
+        HourPrice(3.541, datetime.strptime("2025-01-02 15:00", "%Y-%m-%d %H:%M")),  # 15
+        HourPrice(3.229, datetime.strptime("2025-01-02 16:00", "%Y-%m-%d %H:%M")),  # 16
+        HourPrice(3.019, datetime.strptime("2025-01-02 17:00", "%Y-%m-%d %H:%M")),  # 17
+        HourPrice(
+            10.287, datetime.strptime("2025-01-02 18:00", "%Y-%m-%d %H:%M")
+        ),  # 18 Expensive
+        HourPrice(3.369, datetime.strptime("2025-01-02 19:00", "%Y-%m-%d %H:%M")),  # 19
+        HourPrice(3.435, datetime.strptime("2025-01-02 20:00", "%Y-%m-%d %H:%M")),  # 20
+        HourPrice(
+            0.434, datetime.strptime("2025-01-02 21:00", "%Y-%m-%d %H:%M")
+        ),  # 21, Cheap
+        HourPrice(1.391, datetime.strptime("2025-01-02 22:00", "%Y-%m-%d %H:%M")),  # 22
+        HourPrice(2.567, datetime.strptime("2025-01-02 23:00", "%Y-%m-%d %H:%M")),  # 23
     ]
 
 
@@ -48,30 +53,42 @@ def today_valid() -> list:
 def tomorrow_valid() -> list:
     """Fixture of tomorrow prices."""
     return [
-        3.482,  # 0
-        2.461,  # 1
-        2.967,  # 2
-        2.859,  # 3
-        3.063,  # 4
-        3.249,  # 5
-        3.582,  # 6
-        4.149,  # 7
-        4.382,  # 8
-        4.505,  # 9
-        1.547,  # 10, Cheap
-        25.874,  # 11 Expensive
-        1.851,  # 12, Cheap
-        1.71,  # 13, Cheap
-        4.774,  # 14 # Expensive
-        4.706,  # 15 # Expensive
-        4.598,  # 16
-        4.551,  # 17
-        4.463,  # 18
-        4.551,  # 19
-        4.46,  # 20
-        4.397,  # 21
-        4.345,  # 22
-        4.175,  # 23
+        HourPrice(3.482, datetime.strptime("2025-01-02 00:00", "%Y-%m-%d %H:%M")),  # 0
+        HourPrice(2.461, datetime.strptime("2025-01-02 01:00", "%Y-%m-%d %H:%M")),  # 1
+        HourPrice(2.967, datetime.strptime("2025-01-02 02:00", "%Y-%m-%d %H:%M")),  # 2
+        HourPrice(2.859, datetime.strptime("2025-01-02 03:00", "%Y-%m-%d %H:%M")),  # 3
+        HourPrice(3.063, datetime.strptime("2025-01-02 04:00", "%Y-%m-%d %H:%M")),  # 4
+        HourPrice(3.249, datetime.strptime("2025-01-02 05:00", "%Y-%m-%d %H:%M")),  # 5
+        HourPrice(3.582, datetime.strptime("2025-01-02 06:00", "%Y-%m-%d %H:%M")),  # 6
+        HourPrice(4.149, datetime.strptime("2025-01-02 07:00", "%Y-%m-%d %H:%M")),  # 7
+        HourPrice(4.382, datetime.strptime("2025-01-02 08:00", "%Y-%m-%d %H:%M")),  # 8
+        HourPrice(4.505, datetime.strptime("2025-01-02 09:00", "%Y-%m-%d %H:%M")),  # 9
+        HourPrice(
+            1.547, datetime.strptime("2025-01-02 10:00", "%Y-%m-%d %H:%M")
+        ),  # 10, Cheap
+        HourPrice(
+            25.874, datetime.strptime("2025-01-02 11:00", "%Y-%m-%d %H:%M")
+        ),  # 11 Expensive
+        HourPrice(
+            1.851, datetime.strptime("2025-01-02 12:00", "%Y-%m-%d %H:%M")
+        ),  # 12, Cheap
+        HourPrice(
+            1.71, datetime.strptime("2025-01-02 13:00", "%Y-%m-%d %H:%M")
+        ),  # 13, Cheap
+        HourPrice(
+            4.774, datetime.strptime("2025-01-02 14:00", "%Y-%m-%d %H:%M")
+        ),  # 14 # Expensive
+        HourPrice(
+            4.706, datetime.strptime("2025-01-02 15:00", "%Y-%m-%d %H:%M")
+        ),  # 15 # Expensive
+        HourPrice(4.598, datetime.strptime("2025-01-02 16:00", "%Y-%m-%d %H:%M")),  # 16
+        HourPrice(4.551, datetime.strptime("2025-01-02 17:00", "%Y-%m-%d %H:%M")),  # 17
+        HourPrice(4.463, datetime.strptime("2025-01-02 18:00", "%Y-%m-%d %H:%M")),  # 18
+        HourPrice(4.551, datetime.strptime("2025-01-02 19:00", "%Y-%m-%d %H:%M")),  # 19
+        HourPrice(4.46, datetime.strptime("2025-01-02 20:00", "%Y-%m-%d %H:%M")),  # 20
+        HourPrice(4.397, datetime.strptime("2025-01-02 21:00", "%Y-%m-%d %H:%M")),  # 21
+        HourPrice(4.345, datetime.strptime("2025-01-02 22:00", "%Y-%m-%d %H:%M")),  # 22
+        HourPrice(4.175, datetime.strptime("2025-01-02 23:00", "%Y-%m-%d %H:%M")),  # 23
     ]
 
 
@@ -80,7 +97,12 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     """Test sequential."""
     # Start of tomorrow
     result = calculate_sequential_cheapest_hours(
-        today_valid, tomorrow_valid, 3, False, 0, 23
+        today_valid,
+        tomorrow_valid,
+        3,
+        False,
+        0,
+        23,
     )
     lis: list = result.get("list")
     assert np.size(lis) == 1
@@ -96,7 +118,12 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
 
     # Later tomorrow
     result = calculate_sequential_cheapest_hours(
-        today_valid, tomorrow_valid, 3, False, 11, 20
+        today_valid,
+        tomorrow_valid,
+        3,
+        False,
+        11,
+        20,
     )
     lis = result.get("list")
     assert np.size(lis) == 1
@@ -112,7 +139,12 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
 
     # Starting today
     result = calculate_sequential_cheapest_hours(
-        today_valid, tomorrow_valid, 3, True, 21, 18
+        today_valid,
+        tomorrow_valid,
+        3,
+        True,
+        21,
+        18,
     )
     lis = result.get("list")
     assert np.size(lis) == 1
