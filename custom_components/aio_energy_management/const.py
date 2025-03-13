@@ -18,6 +18,12 @@ CONF_TRIGGER_HOUR = "trigger_hour"
 CONF_MAX_PRICE = "max_price"  # DEPRECATED: use price_limit instead
 CONF_PRICE_LIMIT = "price_limit"
 CONF_CALENDAR = "calendar"
+CONF_OFFSET = "offset"
+CONF_START = "start"
+CONF_END = "end"
+CONF_HOURS = "hours"
+CONF_MINUTES = "minutes"
+
 
 # Entities
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"

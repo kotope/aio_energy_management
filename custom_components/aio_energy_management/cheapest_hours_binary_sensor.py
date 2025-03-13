@@ -21,6 +21,7 @@ from .helpers import (
     from_str_to_datetime,
     from_str_to_time,
     get_first,
+    get_last,
     merge_two_dicts,
     time_in_between,
 )
@@ -55,6 +56,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         trigger_hour=None,
         price_limit=None,
         calendar=True,
+        offset=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -75,6 +77,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
         self._calendar = calendar
+        if offset is None:
+            self._offset = {}
+        else:
+            self._offset = offset
 
         if trigger_time is not None:
             self._trigger_time = from_str_to_time(trigger_time)
@@ -275,8 +281,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     nxt.get("list") or [],
                     nxt.get("expiration"),
                     nxt.get("extra") or {},
+                    is_swap=True,
                 )
-
                 # Clear previous next data as it's transferred to parent now
                 self._data.pop("next", None)
 
@@ -292,9 +298,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return False
 
     def _set_list(
-        self, list_data: list, expiration: datetime, attributes: dict
+        self,
+        list_data: list,
+        expiration: datetime,
+        attributes: dict,
+        is_swap: bool = False,
     ) -> None:
         """Set list data."""
+        if is_swap is False:
+            list_data, expiration = self._add_offset(list_data, expiration)
         self._data["list"] = list_data
         self._data["expiration"] = expiration
         self._data["extra"] = attributes
@@ -304,10 +316,45 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self, list_data: list, expiration: datetime, attributes: dict
     ) -> None:
         nxt = {}
-        nxt["list"] = list_data
-        nxt["expiration"] = expiration
+        lst, exp = self._add_offset(list_data, expiration)
+        nxt["list"] = lst
+        nxt["expiration"] = exp
         nxt["extra"] = attributes
         self._data["next"] = nxt
+
+    def _add_offset(self, list: list, expiration: datetime) -> tuple[list, datetime]:
+        new_expiration = expiration
+        if first := get_first(list):
+            if start := first.get("start"):
+                if offset := self._offset.get("start"):
+                    hours = self._int_from_entity(offset.get("hours"))
+                    minutes = self._int_from_entity(offset.get("minutes"))
+
+                    new_start = start + timedelta(
+                        hours=hours if hours is not None else 0,
+                        minutes=minutes if minutes is not None else 0,
+                    )
+                    new_first = {"start": new_start, "end": first["end"]}
+                    list[0] = new_first
+        if last := get_last(list):
+            if end := last.get("end"):
+                if offset := self._offset.get("end"):
+                    hours = self._int_from_entity(offset.get("hours"))
+                    minutes = self._int_from_entity(offset.get("minutes"))
+                    end_offset = timedelta(
+                        hours=hours if hours is not None else 0,
+                        minutes=minutes if minutes is not None else 0,
+                    )
+                    new_end = end + end_offset
+                    new_last = {"start": last["start"], "end": new_end}
+
+                    # if added end is greater than expiration, extend the expiration as well
+                    if new_end > expiration:
+                        new_expiration = expiration + end_offset
+
+                    list[-1] = new_last
+
+        return (list, new_expiration)
 
     def _is_expired(self) -> bool:
         """Check if data is expired."""
@@ -491,6 +538,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _float_from_entity(self, entity_id) -> float | None:
         """Get float value from another entity."""
+        if entity_id is None:
+            return None
+
         if isinstance(entity_id, float):
             return entity_id
 
@@ -502,6 +552,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _int_from_entity(self, entity_id) -> int | None:
         """Get int value from another entity."""
+        if entity_id is None:
+            return None
+
         if isinstance(entity_id, int):
             return entity_id
 

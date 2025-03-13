@@ -884,7 +884,7 @@ async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_sum
     assert attributes["list"][1]["end"] == datetime(2024, 7, 15, 4, 0, tzinfo=tzinfo)
 
 
-async def test_cheapest_hours_binary_sensors_daylight_savings_sequential_winter_time(
+async def test_cheapest_hours_offset(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     """Test summer time binary sensors."""
@@ -894,34 +894,65 @@ async def test_cheapest_hours_binary_sensors_daylight_savings_sequential_winter_
 
     # Test today summer time
     freezer.move_to("2024-07-13 14:25+03:00")
-    _setup_nordpool_mock(hass, "nordpool_happy_tomorrow_wintertime.json")
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713_cheapest_last.json")
     sensor = CheapestHoursBinarySensor(
         hass=hass,
         nordpool_entity="sensor.nordpool",
         unique_id="my_sensor",
         name="My Sensor",
-        first_hour=20,
-        last_hour=12,
-        starting_today=True,
-        number_of_hours=3,
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=1,
         sequential=True,
         failsafe_starting_hour=1,
         coordinator=coordinator_mock,
+        offset={"start": {"minutes": 30}, "end": {"minutes": 45}},
     )
     await sensor.async_update()
 
     attributes = sensor.extra_state_attributes
-    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 10, 0, tzinfo=tzinfo)
-    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 13, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["start"] == datetime(
+        2024, 7, 14, 23, 30, tzinfo=tzinfo
+    )
 
-    # Test today summer time
+    # Move to next day
     freezer.move_to("2024-07-14 14:25+03:00")
-    _setup_nordpool_mock(hass, "nordpool_happy_today_wintertime.json")
+    _setup_nordpool_mock(hass, "nordpool_happy_20240714_cheapest_first.json")
     await sensor.async_update()
 
     attributes = sensor.extra_state_attributes
-    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 23, 0, tzinfo=tzinfo)
-    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 2, 0, tzinfo=tzinfo)
+
+    assert attributes["list"][0]["start"] == datetime(
+        2024, 7, 14, 23, 30, tzinfo=tzinfo
+    )
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 0, 45, tzinfo=tzinfo)
+
+    # Expiration needs to be extended
+    assert attributes["expiration"] == datetime(2024, 7, 15, 0, 45, tzinfo=tzinfo)
+    assert attributes["next"]["list"][0]["start"] == datetime(
+        2024, 7, 15, 0, 30, tzinfo=tzinfo
+    )
+    assert attributes["next"]["list"][0]["end"] == datetime(
+        2024, 7, 15, 1, 45, tzinfo=tzinfo
+    )
+    assert attributes["next"]["expiration"] == datetime(
+        2024, 7, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    # Move to after original expiration, but before new expiration. Previous list should still be kept
+    freezer.move_to("2024-07-15 00:30+03:00")
+    _setup_nordpool_mock(hass, "nordpool_tomorrow_not_valid_20240715.json")
+    await sensor.async_update()
+    assert sensor.extra_state_attributes == attributes
+
+    # Move to after new expiration, list_swap should have been made
+    freezer.move_to("2024-07-15 00:46+03:00")
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 15, 0, 30, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 1, 45, tzinfo=tzinfo)
+    assert attributes["expiration"] == datetime(2024, 7, 16, 0, 0, tzinfo=tzinfo)
 
 
 async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_winter_time(
@@ -966,3 +997,33 @@ async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_win
     assert attributes["list"][0]["end"] == datetime(2024, 7, 15, 1, 0, tzinfo=tzinfo)
     assert attributes["list"][1]["start"] == datetime(2024, 7, 15, 3, 0, tzinfo=tzinfo)
     assert attributes["list"][1]["end"] == datetime(2024, 7, 15, 4, 0, tzinfo=tzinfo)
+
+
+async def test_failsafe_not_triggering_after_last_hour(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors failsafe functionality."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2024-07-13 23:01+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2024, 7, 15, 0, 0, tzinfo=tzinfo
+    )
