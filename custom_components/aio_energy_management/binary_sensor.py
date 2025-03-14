@@ -13,18 +13,23 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from .cheapest_hours_binary_sensor import CheapestHoursBinarySensor
 from .const import (
     CONF_CALENDAR,
+    CONF_END,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTSOE_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
+    CONF_HOURS,
     CONF_INVERSED,
     CONF_LAST_HOUR,
     CONF_MAX_PRICE,
+    CONF_MINUTES,
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
     CONF_NUMBER_OF_HOURS,
+    CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_SEQUENTIAL,
+    CONF_START,
     CONF_STARTING_TODAY,
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_TIME,
@@ -53,6 +58,16 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_CALENDAR): bool,
+        vol.Optional(CONF_OFFSET): {
+            vol.Optional(CONF_START): {
+                vol.Optional(CONF_HOURS): vol.Any(cv.positive_int, cv.entity_id),
+                vol.Optional(CONF_MINUTES): vol.Any(cv.positive_int, cv.entity_id),
+            },
+            vol.Optional(CONF_END): {
+                vol.Optional(CONF_HOURS): vol.Any(cv.positive_int, cv.entity_id),
+                vol.Optional(CONF_MINUTES): vol.Any(cv.positive_int, cv.entity_id),
+            },
+        },
     },
     extra=ALLOW_EXTRA,
 )
@@ -102,6 +117,7 @@ def _create_cheapest_hours_entity(
     )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
     calendar = discovery_info.get(CONF_CALENDAR)
+    offset = discovery_info.get(CONF_OFFSET)
     if calendar is None:
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
@@ -125,4 +141,5 @@ def _create_cheapest_hours_entity(
         trigger_hour=trigger_hour,
         price_limit=price_limit,
         calendar=calendar,
+        offset=offset,
     )

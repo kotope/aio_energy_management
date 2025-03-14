@@ -67,3 +67,10 @@ def get_first(iterable, default=None):
         for item in iterable:
             return item
     return default
+
+
+def get_last(iterable, default=None):
+    """Get last item of array."""
+    if not iterable:
+        return None
+    return iterable[-1]
