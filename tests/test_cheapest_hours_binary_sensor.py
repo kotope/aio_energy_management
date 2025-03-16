@@ -14,7 +14,7 @@ from freezegun.api import FrozenDateTimeFactory
 import numpy as np
 from pytest_homeassistant_custom_component.common import load_fixture
 
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant, State, SupportsResponse
 import homeassistant.util.dt as dt_util
 
 
@@ -37,6 +37,31 @@ def _setup_entsoe_mock(hass: HomeAssistant, fixture: str) -> None:
     mocked_entsoe = State.from_dict(json.loads(load_fixture(fixture, DOMAIN)))
     hass.states.async_set(
         "sensor.entsoe", mocked_entsoe.state, attributes=mocked_entsoe.attributes
+    )
+
+
+def _setup_nordpool_official_mock(
+    hass: HomeAssistant, fixture_today: str, fixture_tomorrow: str
+) -> None:
+    """Set up the Nordpool official mock service."""
+    mocked_nordpool_official_today = json.loads(load_fixture(fixture_today, DOMAIN))
+    mocked_nordpool_official_tomorrow = json.loads(
+        load_fixture(fixture_tomorrow, DOMAIN)
+    )
+    call_counter = 0
+
+    async def mock_service_call(service_call):
+        nonlocal call_counter
+        call_counter += 1
+        if call_counter == 1:
+            return mocked_nordpool_official_today
+        return mocked_nordpool_official_tomorrow
+
+    hass.services.async_register(
+        "nordpool",
+        "get_prices_for_date",
+        AsyncMock(side_effect=mock_service_call),
+        supports_response=SupportsResponse.ONLY,
     )
 
 
@@ -999,18 +1024,23 @@ async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_win
     assert attributes["list"][1]["end"] == datetime(2024, 7, 15, 4, 0, tzinfo=tzinfo)
 
 
-async def test_failsafe_not_triggering_after_last_hour(
+async def test_nordpool_official(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
-    """Test cheapest binary sensors failsafe functionality."""
+    """Test official nord pool integration."""
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
     coordinator_mock = _setup_coordinator_mock()
     freezer.move_to("2024-07-13 14:25+03:00")
-    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_20250314.json",
+        "nordpool_official_service_20250315.json",
+    )
 
     sensor = CheapestHoursBinarySensor(
         hass=hass,
-        nordpool_entity="sensor.nordpool",
+        nordpool_official_config_entry="DUMMY",
         unique_id="my_sensor",
         name="My Sensor",
         first_hour=0,
@@ -1021,9 +1051,17 @@ async def test_failsafe_not_triggering_after_last_hour(
         failsafe_starting_hour=0,
         coordinator=coordinator_mock,
     )
-    freezer.move_to("2024-07-13 23:01+03:00")
+    freezer.move_to("2025-03-14 14:30+03:00")
     await sensor.async_update()
 
     assert sensor.extra_state_attributes["expiration"] == datetime(
-        2024, 7, 15, 0, 0, tzinfo=tzinfo
+        2025, 3, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 1
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 3, 15, 2, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 3, 15, 5, 0, tzinfo=tzinfo
     )

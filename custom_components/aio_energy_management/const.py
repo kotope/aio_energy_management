@@ -6,6 +6,7 @@ DOMAIN = "aio_energy_management"
 # Chepest hours sensor
 CONF_ENTSOE_ENTITY = "entsoe_entity"
 CONF_NORDPOOL_ENTITY = "nordpool_entity"
+CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY = "nordpool_official_config_entry"
 CONF_FIRST_HOUR = "first_hour"
 CONF_LAST_HOUR = "last_hour"
 CONF_SEQUENTIAL = "sequential"

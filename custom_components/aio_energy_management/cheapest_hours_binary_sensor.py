@@ -6,6 +6,7 @@ import logging
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
+from homeassistant.exceptions import ServiceValidationError
 import homeassistant.util.dt as dt_util
 
 from .coordinator import EnergyManagementCoordinator
@@ -52,6 +53,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         inversed=False,
         entsoe_entity=None,
         nordpool_entity=None,
+        nordpool_official_config_entry=None,
         trigger_time=None,
         trigger_hour=None,
         price_limit=None,
@@ -60,6 +62,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
+        self._nordpool_official_config_entry = nordpool_official_config_entry
         self._entsoe_entity = entsoe_entity
         self._attr_unique_id = unique_id.replace(" ", "_")
         self._attr_name = name
@@ -140,7 +143,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
             _LOGGER.debug("Failsafe on. Don't interrupt the operation")
-            return None
+            return
 
         # Check if our data is valid and we do not need to do anything
         if self._is_fetched_today():  # Data valid for today
@@ -148,7 +151,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 "Local entity data is still valid for %s", self._attr_unique_id
             )
             if self._is_expired() is False:
-                return None
+                return
 
         # No valid data found from store either, try get new
         _LOGGER.debug(
@@ -161,19 +164,49 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._update_entity_variables()
         except InvalidEntityState:
             _LOGGER.error("Failed to get values from external entities!")
-            return None
+            return
 
         if self._is_allowed_to_update() is False:
             _LOGGER.debug("Update not allowed by set rules")
-            return None
+            return
 
         self._data["failsafe"] = self._create_failsafe()
 
         # Price array from integrations
         today: list = None
         tomorrow: list = None
+        if self._nordpool_official_config_entry is not None:
+            try:
+                today_data, tomorrow_data = await self._update_from_nordpool_official()
+                today = [
+                    hour_price.HourPrice.from_dict(
+                        item, type=HourPriceType.NORDPOOL_OFFICIAL
+                    )
+                    for item in today_data
+                ]
+                tomorrow = [
+                    hour_price.HourPrice.from_dict(
+                        item, type=HourPriceType.NORDPOOL_OFFICIAL
+                    )
+                    for item in tomorrow_data
+                ]
+            except ServiceValidationError as e:
+                _LOGGER.debug(
+                    "No values for tomorrow in nord pool official integration %s", e
+                )
+                if self._is_expired():
+                    self._data["list"] = []
+                return
+            except (ValueNotFound, SystemConfigurationError, InvalidEntityState) as e:
+                _LOGGER.error(
+                    "Could not get the latest data from official nord pool integration: %s",
+                    e,
+                )
+                if self._is_expired():
+                    self._data["list"] = []
+                return
 
-        if self._nordpool_entity is not None:
+        elif self._nordpool_entity is not None:
             # Update from nordpool
             try:
                 nordpool = self._update_from_nordpool()
@@ -189,7 +222,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 _LOGGER.debug("Could not get the latest data from nordpool integration")
                 if self._is_expired():
                     self._data["list"] = []
-                return None
+                return
         elif self._entsoe_entity is not None:
             # Update from entsoe
             try:
@@ -207,7 +240,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 _LOGGER.debug("Could not get the latest data from entsoe integration")
                 if self._is_expired():
                     self._data["list"] = []
-                return None
+                return
             except SystemConfigurationError:
                 _LOGGER.error(
                     "Failed to get enough data from Entso-e integration using %s. Ensure your system timezone and Entso-e integration region is correct!",
@@ -215,7 +248,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 )
                 if self._is_expired():
                     self._data["list"] = []
-                return None
+                return
 
         cheapest = None
 
@@ -244,7 +277,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data.get("active_price_limit"),
                 )
         except InvalidInput:
-            return None
+            # Logging already made on math.py, just return
+            return
+
         # Construct new data from calculated hours
         if self._is_expired():
             self._set_list(
@@ -475,6 +510,33 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             raise ValueNotFound
 
         return entsoe
+
+    async def _update_from_nordpool_official(self) -> tuple[list, list]:
+        today_data = await self.hass.services.async_call(
+            domain="nordpool",
+            service="get_prices_for_date",
+            service_data={
+                "config_entry": self._nordpool_official_config_entry,
+                "date": dt_util.now().strftime("%Y-%m-%d"),
+            },
+            return_response=True,
+            blocking=True,
+        )
+        tomorrow_data = await self.hass.services.async_call(
+            domain="nordpool",
+            service="get_prices_for_date",
+            service_data={
+                "config_entry": self._nordpool_official_config_entry,
+                "date": (dt_util.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
+            },
+            return_response=True,
+            blocking=True,
+        )
+        first_key = next(iter(today_data))
+        value_today = today_data[first_key]
+        first_key = next(iter(tomorrow_data))
+        value_tomorrow = tomorrow_data[first_key]
+        return (value_today, value_tomorrow)
 
     def _is_failsafe(self) -> bool:
         if (
