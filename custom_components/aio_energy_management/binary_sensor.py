@@ -25,6 +25,7 @@ from .const import (
     CONF_MINUTES,
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
+    CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
     CONF_NUMBER_OF_HOURS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
@@ -43,6 +44,7 @@ _LOGGER = logging.getLogger(__name__)
 CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
     {
         vol.Optional(CONF_NORDPOOL_ENTITY): cv.entity_id,
+        vol.Optional(CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY): vol.All(vol.Coerce(str)),
         vol.Optional(CONF_ENTSOE_ENTITY): cv.entity_id,
         vol.Required(CONF_UNIQUE_ID): vol.All(vol.Coerce(str)),
         vol.Required(CONF_NAME): vol.All(vol.Coerce(str)),
@@ -101,6 +103,9 @@ def _create_cheapest_hours_entity(
     hass: HomeAssistant, discovery_info: DiscoveryInfoType | None = None
 ) -> CheapestHoursBinarySensor:
     nordpool_entity = discovery_info.get(CONF_NORDPOOL_ENTITY)
+    nordpool_official_config_entry = discovery_info.get(
+        CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY
+    )
     entsoe_entity = discovery_info.get(CONF_ENTSOE_ENTITY)
     unique_id = discovery_info[CONF_UNIQUE_ID]
     name = discovery_info[CONF_NAME]
@@ -127,6 +132,7 @@ def _create_cheapest_hours_entity(
         hass=hass,
         entsoe_entity=entsoe_entity,
         nordpool_entity=nordpool_entity,
+        nordpool_official_config_entry=nordpool_official_config_entry,
         unique_id=unique_id,
         name=name,
         first_hour=first_hour,
