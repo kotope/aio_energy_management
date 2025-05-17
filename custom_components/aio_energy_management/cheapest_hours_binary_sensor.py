@@ -536,6 +536,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         value_today = today_data[first_key]
         first_key = next(iter(tomorrow_data))
         value_tomorrow = tomorrow_data[first_key]
+
+        if self._is_15min_period_in_use(value_today):
+            value_today = combine_to_hourly(value_today)
+        if self._is_15min_period_in_use(value_tomorrow):
+            value_tomorrow = combine_to_hourly(value_tomorrow)
+
         return (value_today, value_tomorrow)
 
     def _is_failsafe(self) -> bool:
@@ -625,3 +631,54 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return int(float(value))
         _LOGGER.error("Could not get entity state for %s", entity_id)
         raise InvalidEntityState
+
+    def _is_15min_period_in_use(self, data: list) -> bool:
+        return len(data) > 40
+
+
+def combine_to_hourly(data):
+    """Combine a list of 15-minute price data into hourly averages.
+
+    Args:
+        data: A list of dictionaries, where each dictionary has 'start', 'end'
+              (ISO 8601 strings), and 'price' (float).
+
+    Returns:
+        A list of dictionaries, each representing an hour with 'start', 'end',
+        and 'price' (hourly average).
+
+    """
+    hourly_data = []
+    i = 0
+    while i < len(data):
+        current_block = []
+        # Ensure we have at least 4 items for a full hour
+        if i + 3 < len(data):
+            # Check if the current item's start minute is :00
+            start_dt = datetime.fromisoformat(data[i]["start"])
+            if start_dt.minute == 0:
+                # Collect the next four 15-minute blocks
+                current_block.extend(data[i + j] for j in range(4))
+
+                # Calculate average price
+                total_price = sum(item["price"] for item in current_block)
+                average_price = total_price / 4
+
+                # Define the hourly start and end times
+                hourly_start = current_block[0]["start"]
+                hourly_end = current_block[-1]["end"]
+
+                hourly_data.append(
+                    {
+                        "start": hourly_start,
+                        "end": hourly_end,
+                        "price": round(average_price, 2),  # Round to 2 decimal places
+                    }
+                )
+                i += 4  # Move to the next hour block
+            else:
+                i += 1  # Move to next 15-min block if not starting at :00
+        else:
+            break  # Not enough data for a full hour block
+
+    return hourly_data
