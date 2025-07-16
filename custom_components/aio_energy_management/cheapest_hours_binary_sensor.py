@@ -190,14 +190,16 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     )
                     for item in tomorrow_data
                 ]
-            except ServiceValidationError as e:
+                if len(tomorrow) < 10:
+                    raise ValueNotFound  # noqa: TRY301
+            except (ServiceValidationError, ValueNotFound) as e:
                 _LOGGER.debug(
                     "No values for tomorrow in nord pool official integration %s", e
                 )
                 if self._is_expired():
                     self._data["list"] = []
                 return
-            except (ValueNotFound, SystemConfigurationError, InvalidEntityState) as e:
+            except (SystemConfigurationError, InvalidEntityState) as e:
                 _LOGGER.error(
                     "Could not get the latest data from official nord pool integration: %s",
                     e,
