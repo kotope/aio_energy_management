@@ -1,12 +1,20 @@
 """Energy management component init."""
 
+import contextlib
 import logging
+
+import voluptuous as vol
 
 from homeassistant import core
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.const import SERVICE_RELOAD, Platform
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.discovery import async_load_platform
+from homeassistant.helpers.reload import (
+    async_integration_yaml_config,
+    async_reload_integration_platforms,
+)
 
 from .const import CONF_ENTITY_CALENDAR, CONF_ENTITY_CHEAPEST_HOURS, COORDINATOR, DOMAIN
 from .coordinator import EnergyManagementCoordinator
@@ -34,6 +42,27 @@ async def async_setup(hass: core.HomeAssistant, config: dict) -> bool:
 
     hass.data[DOMAIN] = {COORDINATOR: coordinator}
 
+    async def reload_service_handler(service: ServiceCall) -> None:
+        """Remove all user-defined groups and load new ones from config."""
+        conf = None
+        with contextlib.suppress(HomeAssistantError):
+            conf = await async_integration_yaml_config(hass, DOMAIN)
+        if conf is None:
+            return
+        await async_reload_integration_platforms(hass, DOMAIN, PLATFORMS)
+        await coordinator.async_load_data()
+        await _async_process_config(hass, conf)
+
+    # Services
+    await async_setup_services(hass)
+    hass.services.async_register(
+        DOMAIN, SERVICE_RELOAD, reload_service_handler, schema=vol.Schema({})
+    )
+
+    return await _async_process_config(hass, config)
+
+
+async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
     # Cheapest hours
     if cheapest_hours_entries := config[DOMAIN].get(CONF_ENTITY_CHEAPEST_HOURS):
         for entry in cheapest_hours_entries:
@@ -48,8 +77,5 @@ async def async_setup(hass: core.HomeAssistant, config: dict) -> bool:
         hass.async_create_task(
             async_load_platform(hass, Platform.CALENDAR, DOMAIN, calendar_entry, config)
         )
-
-    # Services
-    await async_setup_services(hass)
 
     return True

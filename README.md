@@ -148,7 +148,7 @@ aio_energy_management:
 ```
 
 ## Service utility
-AIO Energy Management integration provides a service utility to be used alongside with other components. For now it only supports to clear cached cheapest hours data.
+AIO Energy Management integration provides a service utility to be used alongside with other components. It supports to clear cached cheapest hours data and reloading integration confguration.
 
 Service utility is provided automatically with the integration and does not need separate configuration.
 
@@ -158,6 +158,9 @@ Will clear stored data for specified cheapest hours configuration. Changes will 
 | Parameter        | Description    |
 |------------------|----------------|
 | unique_id        | unique_id of the item to be cleared. Unique_id should be the same as defined in cheapest_hours configuration entry. |
+
+### Action: Reload integration (aio_energy_management.reload_data)
+Will reload whole configuration without needing to restart the whole Home Assistant. Remember to call aio_energy_management.clear_data after changes if needed.
 
 ### Example service call
 ```

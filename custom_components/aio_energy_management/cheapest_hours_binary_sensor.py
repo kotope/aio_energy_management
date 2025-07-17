@@ -190,7 +190,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     )
                     for item in tomorrow_data
                 ]
-                if len(tomorrow) < 10:
+                if len(tomorrow) < 10: # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
                     raise ValueNotFound  # noqa: TRY301
             except (ServiceValidationError, ValueNotFound) as e:
                 _LOGGER.debug(
