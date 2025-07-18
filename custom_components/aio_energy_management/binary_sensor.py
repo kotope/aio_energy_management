@@ -62,12 +62,12 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_CALENDAR): bool,
         vol.Optional(CONF_OFFSET): {
             vol.Optional(CONF_START): {
-                vol.Optional(CONF_HOURS): vol.Any(cv.positive_int, cv.entity_id),
-                vol.Optional(CONF_MINUTES): vol.Any(cv.positive_int, cv.entity_id),
+                vol.Optional(CONF_HOURS): vol.Any(int, cv.entity_id),
+                vol.Optional(CONF_MINUTES): vol.Any(int, cv.entity_id),
             },
             vol.Optional(CONF_END): {
-                vol.Optional(CONF_HOURS): vol.Any(cv.positive_int, cv.entity_id),
-                vol.Optional(CONF_MINUTES): vol.Any(cv.positive_int, cv.entity_id),
+                vol.Optional(CONF_HOURS): vol.Any(int, cv.entity_id),
+                vol.Optional(CONF_MINUTES): vol.Any(int, cv.entity_id),
             },
         },
     },
