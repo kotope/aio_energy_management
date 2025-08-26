@@ -23,6 +23,7 @@ from .const import (
     CONF_LAST_HOUR,
     CONF_MAX_PRICE,
     CONF_MINUTES,
+    CONF_MTU,
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
@@ -70,6 +71,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
                 vol.Optional(CONF_MINUTES): vol.Any(int, cv.entity_id),
             },
         },
+        vol.Optional(CONF_MTU): vol.Any(15, 60),
     },
     extra=ALLOW_EXTRA,
 )
@@ -123,6 +125,7 @@ def _create_cheapest_hours_entity(
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
     calendar = discovery_info.get(CONF_CALENDAR)
     offset = discovery_info.get(CONF_OFFSET)
+    mtu = discovery_info.get(CONF_MTU) or 60
     if calendar is None:
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
@@ -148,4 +151,5 @@ def _create_cheapest_hours_entity(
         price_limit=price_limit,
         calendar=calendar,
         offset=offset,
+        mtu=mtu,
     )

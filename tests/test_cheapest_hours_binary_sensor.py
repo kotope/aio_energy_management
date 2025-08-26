@@ -1100,10 +1100,178 @@ async def test_nordpool_official_15min_to_60min(
     assert sensor.extra_state_attributes["expiration"] == datetime(
         2025, 3, 16, 0, 0, tzinfo=tzinfo
     )
-    assert np.size(sensor.extra_state_attributes["list"]) == 1
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 2
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 2, 0, tzinfo=tzinfo
+        2025, 3, 15, 10, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 5, 0, tzinfo=tzinfo
+        2025, 3, 15, 12, 0, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
+        2025, 3, 15, 14, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
+    )
+
+
+async def test_nordpool_official_15min_mtu_non_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration, 15min mtu, non-sequential."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_15min_today.json",
+        "nordpool_official_service_15min_tomorrow.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+        mtu=15,
+    )
+    freezer.move_to("2025-03-14 14:30+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2025, 3, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 3
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 3, 15, 9, 30, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 3, 15, 9, 45, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
+        2025, 3, 15, 10, 15, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
+        2025, 3, 15, 12, 0, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][2]["start"] == datetime(
+        2025, 3, 15, 14, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][2]["end"] == datetime(
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
+    )
+
+
+async def test_nordpool_official_15min_mtu_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration, 15min mtu, sequential."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_15min_today.json",
+        "nordpool_official_service_15min_tomorrow.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+        mtu=15,
+    )
+    freezer.move_to("2025-03-14 14:30+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2025, 3, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 1
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 3, 15, 9, 15, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 3, 15, 12, 15, tzinfo=tzinfo
+    )
+
+
+async def test_nordpool_official_15min_mtu_summer_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration, 15min mtu, non-sequential, summer time transition."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_15min_today.json",
+        "nordpool_official_service_15min_tomorrow_summertime.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+        mtu=15,
+    )
+    freezer.move_to("2025-03-14 14:30+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2025, 3, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 3
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 3, 15, 9, 30, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 3, 15, 9, 45, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
+        2025, 3, 15, 10, 15, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
+        2025, 3, 15, 12, 0, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][2]["start"] == datetime(
+        2025, 3, 15, 14, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][2]["end"] == datetime(
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
     )
