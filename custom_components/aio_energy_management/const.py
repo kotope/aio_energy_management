@@ -24,6 +24,8 @@ CONF_START = "start"
 CONF_END = "end"
 CONF_HOURS = "hours"
 CONF_MINUTES = "minutes"
+CONF_TRIGGER = "trigger"
+CONF_MTU = "mtu"
 
 
 # Entities

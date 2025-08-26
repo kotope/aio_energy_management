@@ -12,8 +12,8 @@ from .models.hour_price import HourPrice
 
 _LOGGER = logging.getLogger(__name__)
 
-MAX_PRICE_VALUE = 999.9
-MIN_PRICE_VALUE = -999.9
+MAX_PRICE_VALUE = 99999.9
+MIN_PRICE_VALUE = -99999.9
 
 
 def calculate_sequential_cheapest_hours(
@@ -25,6 +25,7 @@ def calculate_sequential_cheapest_hours(
     last_hour: int,
     inversed: bool = False,
     price_limit: float | None = None,
+    mtu: int = 60,
 ) -> dict:
     """Calculate sequential cheapest hours."""
     if price_limit is not None:  # Max price is not supported on seuqantial calculations
@@ -46,10 +47,10 @@ def calculate_sequential_cheapest_hours(
     fd["extra"] = {}
 
     # Check daylight saivings
-    td = _check_day_light_savings(today)
-    tm = _check_day_light_savings(tomorrow)
+    td = _check_day_light_savings(today, mtu=mtu)
+    tm = _check_day_light_savings(tomorrow, mtu=mtu)
 
-    if len(td) != 24 or len(tm) != 24:
+    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
         _LOGGER.error(
             "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
         )
@@ -72,6 +73,12 @@ def calculate_sequential_cheapest_hours(
 
     if starting_today is False:
         starting = first_hour + 24
+
+    if mtu == 15:
+        number_of_hours = number_of_hours * 4  # Convert hours to 15min slots
+        starting = starting * 4
+        ending = ending * 4
+
     for i in range(starting + number_of_hours, ending + 1):
         counter = 0.0
         max_temp = MIN_PRICE_VALUE
@@ -79,32 +86,29 @@ def calculate_sequential_cheapest_hours(
 
         for j in range(i - number_of_hours, i):
             counter += prices[j]
-            if prices[j] > max_temp:
-                max_temp = prices[j]
-            if prices[j] < min_temp:
-                min_temp = prices[j]
+            max_temp = max(max_temp, prices[j])
+            min_temp = min(min_temp, prices[j])
 
-        if (
-            inversed
-            and counter > cheapest_price
-            or not inversed
-            and counter < cheapest_price
+        if (inversed and counter > cheapest_price) or (
+            not inversed and counter < cheapest_price
         ):
             # If the price is 'better' than previous
             max_price = max_temp
             min_price = min_temp
             cheapest_price = counter
             mean_price = counter / number_of_hours
-            cheapest_hour = dt_util.start_of_local_day() + timedelta(
-                hours=i - number_of_hours
-            )
+            delta = timedelta(hours=i - number_of_hours)
 
-    fd["list"] = [
-        {
-            "start": cheapest_hour,
-            "end": cheapest_hour + timedelta(hours=number_of_hours),
-        }
-    ]
+            if mtu == 15:
+                delta = timedelta(minutes=15 * (i - number_of_hours))
+
+            cheapest_hour = dt_util.start_of_local_day() + delta
+
+    delta = timedelta(hours=number_of_hours)
+    if mtu == 15:
+        delta = timedelta(minutes=15 * number_of_hours)
+
+    fd["list"] = [{"start": cheapest_hour, "end": cheapest_hour + delta}]
 
     fd["extra"]["mean_price"] = mean_price
     fd["extra"]["max_price"] = max_price
@@ -121,6 +125,7 @@ def calculate_non_sequential_cheapest_hours(
     last_hour: int,
     inversed: bool = False,
     price_limit: float | None = None,
+    mtu: int = 60,
 ) -> dict:
     """Calculate non-sequential cheapest hours."""
     if (
@@ -132,16 +137,25 @@ def calculate_non_sequential_cheapest_hours(
         _LOGGER.error("Invalid configuration for non-sequential cheapest hours sensor")
         raise InvalidInput
 
-    td = _check_day_light_savings(today)
-    tm = _check_day_light_savings(tomorrow)
+    td = _check_day_light_savings(today, mtu=mtu)
+    tm = _check_day_light_savings(tomorrow, mtu=mtu)
 
-    if len(td) != 24 or len(tm) != 24:
+    # Ensure valid data length for items. mtu can be 15 or 60
+    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
         _LOGGER.error(
             "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
         )
         raise ValueNotFound
 
-    arr = [item.value for item in td] + [item.value for item in tm]
+    arr = [
+        {
+            "price": item.value,
+            "start": item.start,
+            "end": item.end,
+        }
+        for item in td + tm
+    ]  # combined array with tomorrow and today.
+
     starting = first_hour
     if not starting_today:
         starting = first_hour + 24
@@ -150,12 +164,23 @@ def calculate_non_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
-    for i in range(starting, ending):
-        start = dt_util.start_of_local_day() + timedelta(hours=i)
-        end = dt_util.start_of_local_day() + timedelta(hours=i + 1)
-        data += [{"start": start, "end": end, "price": arr[i]}]
+    # TODO: This could be refactored to use less code duplication.
+    # arr contains all necessary data already, just need to take first_hour and last_hour into account
+    if mtu == 15:
+        for i in range(starting * 4, ending * 4):
+            start = dt_util.start_of_local_day() + timedelta(minutes=i * 15)
+            end = dt_util.start_of_local_day() + timedelta(minutes=(i + 1) * 15)
+            data += [{"start": start, "end": end, "price": arr[i]["price"]}]
+    else:
+        for i in range(starting, ending):
+            start = dt_util.start_of_local_day() + timedelta(hours=i)
+            end = dt_util.start_of_local_day() + timedelta(hours=i + 1)
+            data += [{"start": start, "end": end, "price": arr[i]["price"]}]
 
-    data.sort(key=lambda x: (x["price"], x["start"]), reverse=inversed)
+    data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
+
+    if mtu == 15:
+        number_of_hours = number_of_hours * 4  # Convert hours to 15min slots
 
     data = data[:number_of_hours]
     data.sort(key=lambda x: (x["start"]))
@@ -244,41 +269,76 @@ def _is_cheapest_hours_input_valid(
     return True
 
 
-def _check_day_light_savings(hours: list, inversed: bool = False) -> list:
+def _check_day_light_savings(
+    hours: list, inversed: bool = False, mtu: int = 60
+) -> list:
+    # mtu 15
+    if mtu == 15:
+        if len(hours) == 92:
+            return _add_missing_hour(hours, inversed, mtu=mtu)
+        if len(hours) == 100:
+            return _remove_duplicate_starts(hours)
+        return hours
+
+    # mtu 60
     if len(hours) == 23:
-        return _add_missing_hour(hours, inversed)
+        return _add_missing_hour(hours, inversed, mtu=mtu)
     if len(hours) == 25:
         return _remove_duplicate_starts(hours)
     return hours
 
 
-def _add_missing_hour(hours: list, inversed: bool) -> list:
+def _is_valid_data_length(hours: list, mtu: int) -> bool:
+    if mtu == 15:
+        if len(hours) != 96:
+            return False
+    elif len(hours) != 24:  # mtu = 60
+        return False
+    return True
+
+
+def _add_missing_hour(hours: list, inversed: bool, mtu: int = 60) -> list:
     """Add missing hour when turning to summer time. The new hour added has the value of max or min depending of inversed state."""
     # Find the missing entry's index by checking time difference.
-    missing_index = -1
+
+    missing_indexes = []
+    # missing_index = -1
     for i in range(len(hours) - 1):
         time_diff = hours[i + 1].start - hours[i].start
         time_diff_hours = time_diff.total_seconds() / 3600.0
 
-        if time_diff_hours >= 2:
+        if mtu == 15:
+            if time_diff_hours >= 1.25:
+                missing_indexes.extend([i - 3, i - 2, i - 1, i])
+                break
+        elif time_diff_hours >= 2:
             # Missing one index
-            missing_index = i + 1
+            missing_indexes.append(i + 1)
             break
 
-    if missing_index == -1:
+    if len(missing_indexes) == 0:
         return hours  # No missing entry found
 
-    # Create the missing entry
-    missing_start_time = hours[missing_index - 1].start + timedelta(hours=1)
-    if inversed:
-        missing_value = MIN_PRICE_VALUE
-    else:
-        missing_value = MAX_PRICE_VALUE
+    # Create the missing entries
+    for i in missing_indexes:
+        delta = timedelta(hours=1)
+        if mtu == 15:
+            delta = timedelta(minutes=15, hours=1)
+        missing_start_time = hours[i - 1].start + delta
 
-    # Insert the missing entry into the data
-    hours.insert(
-        missing_index, HourPrice(value=missing_value, start=missing_start_time)
-    )
+        if inversed:
+            missing_value = MIN_PRICE_VALUE
+        else:
+            missing_value = MAX_PRICE_VALUE
+
+        # Insert the missing entries into the data
+        if mtu == 15:
+            hours.insert(
+                i + 4, HourPrice(value=missing_value, start=missing_start_time)
+            )
+        else:
+            hours.insert(i, HourPrice(value=missing_value, start=missing_start_time))
+
     return hours
 
 

@@ -77,6 +77,7 @@ Configuration parameters are shown below:
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
 | offset    | no      | Possible start and end offset. On non-sequential the start offset is only added to first item and end offset to last item. Avg/min/max prices does not take the offset into account. See example below. |
+| mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours** and final one for **Nord Pool cheapest hours with offset**

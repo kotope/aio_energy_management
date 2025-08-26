@@ -59,6 +59,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         price_limit=None,
         calendar=True,
         offset=None,
+        mtu=60,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -80,6 +81,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
         self._calendar = calendar
+
+        # TODO: mtu can be 15 only in nord pool official integration. Validate
+        if mtu is None:
+            self._mtu = 60
+        else:
+            self._mtu = mtu
+
         if offset is None:
             self._offset = {}
         else:
@@ -177,7 +185,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         tomorrow: list = None
         if self._nordpool_official_config_entry is not None:
             try:
-                today_data, tomorrow_data = await self._update_from_nordpool_official()
+                (
+                    today_data,
+                    tomorrow_data,
+                    active_mtu,
+                ) = await self._update_from_nordpool_official(self._mtu)
                 today = [
                     hour_price.HourPrice.from_dict(
                         item, type=HourPriceType.NORDPOOL_OFFICIAL
@@ -190,8 +202,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     )
                     for item in tomorrow_data
                 ]
-                if len(tomorrow) < 10: # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
+                if (
+                    len(tomorrow) < 10
+                ):  # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
                     raise ValueNotFound  # noqa: TRY301
+
+                if active_mtu != self._mtu:
+                    raise SystemConfigurationError(  # noqa: TRY301
+                        f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
+                    )
             except (ServiceValidationError, ValueNotFound) as e:
                 _LOGGER.debug(
                     "No values for tomorrow in nord pool official integration %s", e
@@ -266,6 +285,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._last_hour,
                     self._inversed,
                     self._data.get("active_price_limit"),
+                    self._mtu,
                 )
             else:
                 cheapest = calculate_non_sequential_cheapest_hours(
@@ -277,6 +297,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._last_hour,
                     self._inversed,
                     self._data.get("active_price_limit"),
+                    self._mtu,
                 )
         except InvalidInput:
             # Logging already made on math.py, just return
@@ -513,7 +534,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return entsoe
 
-    async def _update_from_nordpool_official(self) -> tuple[list, list]:
+    async def _update_from_nordpool_official(
+        self, requested_mtu: int = 60
+    ) -> tuple[list, list, int]:
         today_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_prices_for_date",
@@ -539,12 +562,18 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         first_key = next(iter(tomorrow_data))
         value_tomorrow = tomorrow_data[first_key]
 
+        active_mtu = 60
         if self._is_15min_period_in_use(value_today):
-            value_today = combine_to_hourly(value_today)
+            if requested_mtu == 60:
+                value_today = combine_to_hourly(value_today)
+            else:
+                active_mtu = 15
         if self._is_15min_period_in_use(value_tomorrow):
-            value_tomorrow = combine_to_hourly(value_tomorrow)
-
-        return (value_today, value_tomorrow)
+            if requested_mtu == 60:
+                value_tomorrow = combine_to_hourly(
+                    value_tomorrow,
+                )
+        return (value_today, value_tomorrow, active_mtu)
 
     def _is_failsafe(self) -> bool:
         if (
@@ -635,6 +664,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         raise InvalidEntityState
 
     def _is_15min_period_in_use(self, data: list) -> bool:
+        """Check if data mtu is 15min."""
         return len(data) > 40
 
 
