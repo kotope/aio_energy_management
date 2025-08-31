@@ -159,7 +159,7 @@ aio_energy_management:
             {{ with_taxes + 3.1 }}
           {%- else %}
             {{ with_taxes + 5.0 }}
-          {%- endif %}"""
+          {%- endif %}
 
 ```
 
