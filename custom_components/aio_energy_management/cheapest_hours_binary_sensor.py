@@ -260,7 +260,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 return
 
         cheapest = None
-        print(f"ZZZZ: today = {today}")
 
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
