@@ -82,7 +82,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._price_limit = price_limit
         self._calendar = calendar
 
-        # TODO: mtu can be 15 only in nord pool official integration. Validate
         if mtu is None:
             self._mtu = 60
         else:
@@ -186,31 +185,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if self._nordpool_official_config_entry is not None:
             try:
                 (
-                    today_data,
-                    tomorrow_data,
+                    today,
+                    tomorrow,
                     active_mtu,
                 ) = await self._update_from_nordpool_official(self._mtu)
-                today = [
-                    hour_price.HourPrice.from_dict(
-                        item, type=HourPriceType.NORDPOOL_OFFICIAL
-                    )
-                    for item in today_data
-                ]
-                tomorrow = [
-                    hour_price.HourPrice.from_dict(
-                        item, type=HourPriceType.NORDPOOL_OFFICIAL
-                    )
-                    for item in tomorrow_data
-                ]
-                if (
-                    len(tomorrow) < 10
-                ):  # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
-                    raise ValueNotFound  # noqa: TRY301
-
-                if active_mtu != self._mtu:
-                    raise SystemConfigurationError(  # noqa: TRY301
-                        f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
-                    )
             except (ServiceValidationError, ValueNotFound) as e:
                 _LOGGER.debug(
                     "No values for tomorrow in nord pool official integration %s", e
@@ -230,23 +208,33 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         elif self._nordpool_entity is not None:
             # Update from nordpool
             try:
-                nordpool = self._update_from_nordpool()
-                today = [
-                    hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
-                    for item in nordpool.attributes["raw_today"]
-                ]
-                tomorrow = [
-                    hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
-                    for item in nordpool.attributes["raw_tomorrow"]
-                ]
+                (today, tomorrow, active_mtu) = self._update_from_nordpool(
+                    requested_mtu=self._mtu
+                )
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from nordpool integration")
                 if self._is_expired():
                     self._data["list"] = []
                 return
+            except SystemConfigurationError as e:
+                _LOGGER.error(
+                    "Invalid configuration or mismatch of data: %s",
+                    e,
+                )
+                if self._is_expired():
+                    self._data["list"] = []
+                return
+
         elif self._entsoe_entity is not None:
             # Update from entsoe
             try:
+                if (
+                    self._mtu == 15
+                ):  # Don't allow mtu 15 with etsoe as it does not have end time for the time
+                    raise SystemConfigurationError(  # noqa: TRY301
+                        "MTU 15 not supported with entsoe integration."
+                    )
+
                 entsoe = self._update_from_entsoe()
                 today = [
                     hour_price.HourPrice.from_dict(item, type=HourPriceType.ENTSOE)
@@ -272,7 +260,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 return
 
         cheapest = None
+        print(f"ZZZZ: today = {today}")
 
+        # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
         try:
             if self._sequential:
@@ -471,7 +461,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         """Return fetch date."""
         return dt_util.start_of_local_day().date()
 
-    def _update_from_nordpool(self) -> State:
+    def _update_from_nordpool(self, requested_mtu: int = 60) -> tuple[list, list, int]:
         np = self.hass.states.get(self._nordpool_entity)
 
         if np is None:
@@ -499,13 +489,38 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     _LOGGER.debug("Nord pool provided old data: Ignore")
                     raise ValueNotFound
 
-        if np.attributes.get("tomorrow") is None:
+        raw_tomorrow = np.attributes.get("raw_tomorrow")
+        if raw_tomorrow is None:
             _LOGGER.warning(
                 "No values for tomorrow in Norpool entity %s ", self._nordpool_entity
             )
             raise ValueNotFound
 
-        return np
+        active_mtu = 60
+        if self._is_15min_period_in_use(raw_today):
+            if requested_mtu == 60:
+                raw_today = combine_to_hourly(raw_today)
+            else:
+                active_mtu = 15
+        if self._is_15min_period_in_use(raw_tomorrow):
+            if requested_mtu == 60:
+                raw_tomorrow = combine_to_hourly(
+                    raw_tomorrow,
+                )
+
+        today = [
+            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+            for item in raw_today
+        ]
+        tomorrow = [
+            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+            for item in raw_tomorrow
+        ]
+        if active_mtu != self._mtu:
+            raise SystemConfigurationError(
+                f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
+            )
+        return (today, tomorrow, active_mtu)
 
     def _update_from_entsoe(self) -> State:
         """Update from entsoe integration."""
@@ -573,7 +588,27 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 value_tomorrow = combine_to_hourly(
                     value_tomorrow,
                 )
-        return (value_today, value_tomorrow, active_mtu)
+
+        # Convert to HourPrice list
+        today = [
+            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
+            for item in value_today
+        ]
+        tomorrow = [
+            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
+            for item in value_tomorrow
+        ]
+
+        if (
+            len(tomorrow) < 10
+        ):  # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
+            raise ValueNotFound
+
+        if active_mtu != self._mtu:
+            raise SystemConfigurationError(
+                f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
+            )
+        return (today, tomorrow, active_mtu)
 
     def _is_failsafe(self) -> bool:
         if (
