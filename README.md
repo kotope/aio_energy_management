@@ -78,6 +78,8 @@ Configuration parameters are shown below:
 | calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
 | offset    | no      | Possible start and end offset. On non-sequential the start offset is only added to first item and end offset to last item. Avg/min/max prices does not take the offset into account. See example below. |
 | mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
+| price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
+
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours** and final one for **Nord Pool cheapest hours with offset**
@@ -129,6 +131,39 @@ aio_energy_management:
             minutes: 15
 
 ```
+
+### Price modifications
+Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.
+
+Please note that price limit and other calculations are done **after** price modifications.
+
+`price_modifications` requires Jinja2 template with pre-defined parameters `price` and `time` used.
+
+Example below contains official nord pool price modification with **night tariff (22-07)**, conversion to **snt/kWh** and added electricity **tax 25.5%**
+```
+aio_energy_management:
+    cheapest_hours:
+      - nordpool_official_config_entry: 01K07FX4QRHEZW8GHSK3KT1ESY
+        unique_id: my_cheapest_hours
+        name: My Cheapest Hours
+        first_hour: 21
+        last_hour: 12
+        starting_today: true
+        number_of_hours: 3
+        sequential: false
+        failsafe_starting_hour: 1
+        price_modifications: >
+          {%- set as_snt = price / 10.0 %}
+          {%- set with_taxes = (as_snt * 1.255) | float %}
+          {%- if time.hour >= 22 or time.hour <= 7 %}
+            {{ with_taxes + 3.1 }}
+          {%- else %}
+            {{ with_taxes + 5.0 }}
+          {%- endif %}"""
+
+```
+
+
 ## Calendar
 Calendar feature will create a new calendar entity to display all upcoming scheduled energy management events.
 Also please note that the events can't be modified through the calendar, it's for displaying and automation purposes (for now at least).
