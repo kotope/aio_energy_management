@@ -3,6 +3,8 @@
 from datetime import date, datetime, timedelta
 import logging
 
+from jinja2 import Environment, StrictUndefined
+
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
@@ -60,6 +62,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         calendar=True,
         offset=None,
         mtu=60,
+        price_modifications=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -81,6 +84,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
         self._calendar = calendar
+        self._price_modifications = price_modifications
 
         if mtu is None:
             self._mtu = 60
@@ -260,6 +264,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 return
 
         cheapest = None
+
+        # Apply possible price modifications from template
+        if price_modifications := self._price_modifications:
+            today = apply_price_modifications(today, price_modifications)
+            tomorrow = apply_price_modifications(tomorrow, price_modifications)
 
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
@@ -748,3 +757,42 @@ def combine_to_hourly(data):
             break  # Not enough data for a full hour block
 
     return hourly_data
+
+
+def apply_price_modifications(
+    hour_prices: list,
+    template_str: str,
+) -> list:
+    """Apply price modifications to each HourPrice using a Jinja2 template.
+
+    Args:
+        hour_prices: List of HourPrice objects.
+        template_str: Jinja2 template string. Variables: 'price', 'time' (datetime).
+
+    Returns:
+        List of HourPrice objects with updated price.
+    """
+    env = Environment(undefined=StrictUndefined)
+    template = env.from_string(template_str)
+    updated = []
+    for hp in hour_prices:
+        # Use start time for 'time' variable
+        context = {
+            "price": hp.value,
+            "time": hp.start if hasattr(hp, "start") else None,
+        }
+        try:
+            new_price = float(template.render(context))
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error("Failed to render price modifications template: %s", ex)
+            new_price = hp.value
+        # Create a new HourPrice object with updated price
+        updated.append(
+            hour_price.HourPrice(
+                start=hp.start,
+                end=hp.end,
+                value=new_price,
+                type=hp.type,
+            )
+        )
+    return updated

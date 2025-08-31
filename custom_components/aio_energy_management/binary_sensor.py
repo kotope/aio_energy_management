@@ -30,6 +30,7 @@ from .const import (
     CONF_NUMBER_OF_HOURS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
+    CONF_PRICE_MODIFICATIONS,
     CONF_SEQUENTIAL,
     CONF_START,
     CONF_STARTING_TODAY,
@@ -72,6 +73,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
             },
         },
         vol.Optional(CONF_MTU): vol.Any(15, 60),
+        vol.Optional(CONF_PRICE_MODIFICATIONS): cv.template,
     },
     extra=ALLOW_EXTRA,
 )
@@ -130,6 +132,7 @@ def _create_cheapest_hours_entity(
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
         price_limit = pl
+    price_modifications = discovery_info.get(CONF_PRICE_MODIFICATIONS)
 
     return CheapestHoursBinarySensor(
         hass=hass,
@@ -152,4 +155,5 @@ def _create_cheapest_hours_entity(
         calendar=calendar,
         offset=offset,
         mtu=mtu,
+        price_modifications=price_modifications,
     )
