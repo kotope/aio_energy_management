@@ -6,7 +6,6 @@ import logging
 import voluptuous as vol
 
 from homeassistant import core
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import SERVICE_RELOAD, Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError

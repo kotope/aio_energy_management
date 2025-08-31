@@ -37,6 +37,7 @@ class HourPrice:
     @classmethod
     def from_dict(cls, dict: dict, type=HourPriceType.NORDPOOL) -> None:
         """Init Hour Price model with selected type. Single item."""
+        # Entsoe
         if type is HourPriceType.ENTSOE:
             return cls(
                 dict["price"],
@@ -44,14 +45,18 @@ class HourPrice:
                 from_str_to_datetime(dict["time"]) + datetime.timedelta(hours=1),
                 type,
             )
+        # Nord pool official
         if type is HourPriceType.NORDPOOL_OFFICIAL:
             return cls(
                 dict["price"],
                 from_str_to_datetime(dict["start"]),
+                from_str_to_datetime(dict["end"]),
                 type,
             )
+        # Nord pool custom
         return cls(
             dict["value"],
             from_str_to_datetime(dict["start"]),
+            from_str_to_datetime(dict["end"]),
             type,
         )
