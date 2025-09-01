@@ -41,9 +41,15 @@ def _setup_entsoe_mock(hass: HomeAssistant, fixture: str) -> None:
 
 
 def _setup_nordpool_official_mock(
-    hass: HomeAssistant, fixture_today: str, fixture_tomorrow: str
+    hass: HomeAssistant,
+    fixture_yesterday: str,
+    fixture_today: str,
+    fixture_tomorrow: str,
 ) -> None:
     """Set up the Nordpool official mock service."""
+    mocked_nordpool_official_yesterday = json.loads(
+        load_fixture(fixture_yesterday, DOMAIN)
+    )
     mocked_nordpool_official_today = json.loads(load_fixture(fixture_today, DOMAIN))
     mocked_nordpool_official_tomorrow = json.loads(
         load_fixture(fixture_tomorrow, DOMAIN)
@@ -54,6 +60,8 @@ def _setup_nordpool_official_mock(
         nonlocal call_counter
         call_counter += 1
         if call_counter == 1:
+            return mocked_nordpool_official_yesterday
+        if call_counter == 2:
             return mocked_nordpool_official_today
         return mocked_nordpool_official_tomorrow
 
@@ -1034,6 +1042,7 @@ async def test_nordpool_official(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_20250313.json",
         "nordpool_official_service_20250314.json",
         "nordpool_official_service_20250315.json",
     )
@@ -1060,10 +1069,10 @@ async def test_nordpool_official(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 1
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 2, 0, tzinfo=tzinfo
+        2025, 3, 15, 3, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 5, 0, tzinfo=tzinfo
+        2025, 3, 15, 6, 0, tzinfo=tzinfo
     )
 
 
@@ -1077,6 +1086,7 @@ async def test_nordpool_official_15min_to_60min(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_15min_yesterday.json",
         "nordpool_official_service_15min_today.json",
         "nordpool_official_service_15min_tomorrow.json",
     )
@@ -1103,17 +1113,17 @@ async def test_nordpool_official_15min_to_60min(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 2
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 10, 0, tzinfo=tzinfo
+        2025, 3, 15, 11, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 12, 0, tzinfo=tzinfo
+        2025, 3, 15, 13, 0, tzinfo=tzinfo
     )
 
     assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
-        2025, 3, 15, 14, 0, tzinfo=tzinfo
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
-        2025, 3, 15, 15, 0, tzinfo=tzinfo
+        2025, 3, 15, 16, 0, tzinfo=tzinfo
     )
 
 
@@ -1127,6 +1137,7 @@ async def test_nordpool_official_15min_mtu_non_sequential(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_15min_yesterday.json",
         "nordpool_official_service_15min_today.json",
         "nordpool_official_service_15min_tomorrow.json",
     )
@@ -1154,24 +1165,24 @@ async def test_nordpool_official_15min_mtu_non_sequential(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 3
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 9, 30, tzinfo=tzinfo
+        2025, 3, 15, 10, 30, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 9, 45, tzinfo=tzinfo
+        2025, 3, 15, 10, 45, tzinfo=tzinfo
     )
 
     assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
-        2025, 3, 15, 10, 15, tzinfo=tzinfo
+        2025, 3, 15, 11, 15, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
-        2025, 3, 15, 12, 0, tzinfo=tzinfo
+        2025, 3, 15, 13, 0, tzinfo=tzinfo
     )
 
     assert sensor.extra_state_attributes["list"][2]["start"] == datetime(
-        2025, 3, 15, 14, 0, tzinfo=tzinfo
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][2]["end"] == datetime(
-        2025, 3, 15, 15, 0, tzinfo=tzinfo
+        2025, 3, 15, 16, 0, tzinfo=tzinfo
     )
 
 
@@ -1185,6 +1196,7 @@ async def test_nordpool_official_15min_mtu_sequential(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_15min_yesterday.json",
         "nordpool_official_service_15min_today.json",
         "nordpool_official_service_15min_tomorrow.json",
     )
@@ -1212,10 +1224,10 @@ async def test_nordpool_official_15min_mtu_sequential(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 1
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 9, 15, tzinfo=tzinfo
+        2025, 3, 15, 10, 15, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 12, 15, tzinfo=tzinfo
+        2025, 3, 15, 13, 15, tzinfo=tzinfo
     )
 
 
@@ -1229,6 +1241,7 @@ async def test_nordpool_official_15min_mtu_summer_time(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_15min_yesterday.json",
         "nordpool_official_service_15min_today.json",
         "nordpool_official_service_15min_tomorrow_summertime.json",
     )
@@ -1256,24 +1269,24 @@ async def test_nordpool_official_15min_mtu_summer_time(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 3
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 9, 30, tzinfo=tzinfo
+        2025, 3, 15, 10, 30, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 9, 45, tzinfo=tzinfo
+        2025, 3, 15, 10, 45, tzinfo=tzinfo
     )
 
     assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
-        2025, 3, 15, 10, 15, tzinfo=tzinfo
+        2025, 3, 15, 11, 15, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
-        2025, 3, 15, 12, 0, tzinfo=tzinfo
+        2025, 3, 15, 13, 0, tzinfo=tzinfo
     )
 
     assert sensor.extra_state_attributes["list"][2]["start"] == datetime(
-        2025, 3, 15, 14, 0, tzinfo=tzinfo
+        2025, 3, 15, 15, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][2]["end"] == datetime(
-        2025, 3, 15, 15, 0, tzinfo=tzinfo
+        2025, 3, 15, 16, 0, tzinfo=tzinfo
     )
 
 
@@ -1287,6 +1300,7 @@ async def test_nordpool_official_price_modifications(
 
     _setup_nordpool_official_mock(
         hass,
+        "nordpool_official_service_20250313.json",
         "nordpool_official_service_20250314.json",
         "nordpool_official_service_20250315.json",
     )
@@ -1320,8 +1334,8 @@ async def test_nordpool_official_price_modifications(
 
     assert np.size(sensor.extra_state_attributes["list"]) == 1
     assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-        2025, 3, 15, 9, 0, tzinfo=tzinfo
+        2025, 3, 15, 10, 0, tzinfo=tzinfo
     )
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-        2025, 3, 15, 12, 0, tzinfo=tzinfo
+        2025, 3, 15, 13, 0, tzinfo=tzinfo
     )
