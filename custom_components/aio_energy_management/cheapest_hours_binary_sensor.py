@@ -560,6 +560,19 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     async def _update_from_nordpool_official(
         self, requested_mtu: int = 60
     ) -> tuple[list, list, int]:
+        # Depending on the timezone, today data might have more or less values required for today.
+        # Therefore we need to fetch yesterday, today and tomorrow to be sure we have all values
+        yesterday_data = await self.hass.services.async_call(
+            domain="nordpool",
+            service="get_prices_for_date",
+            service_data={
+                "config_entry": self._nordpool_official_config_entry,
+                "date": (dt_util.now() + timedelta(days=-1)).strftime("%Y-%m-%d"),
+            },
+            return_response=True,
+            blocking=True,
+        )
+
         today_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_prices_for_date",
@@ -580,36 +593,62 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return_response=True,
             blocking=True,
         )
-        first_key = next(iter(today_data))
-        value_today = today_data[first_key]
-        first_key = next(iter(tomorrow_data))
-        value_tomorrow = tomorrow_data[first_key]
 
+        # Extract values from returned dicts
+        value_yesterday = next(iter(yesterday_data.values()))
+        value_today = next(iter(today_data.values()))
+        value_tomorrow = next(iter(tomorrow_data.values()))
+
+        # Combine all periods into a single list
+        combined = value_yesterday + value_today + value_tomorrow
+
+        # Convert all start times to datetime for filtering
+        def parse_start(item):
+            return dt_util.as_local(datetime.fromisoformat(item["start"]))
+
+        # Get today's and tomorrow's date
+        today_date = dt_util.start_of_local_day().date()
+        tomorrow_date = (dt_util.start_of_local_day() + timedelta(days=1)).date()
+
+        # Filter for today: 00:00 to 23:00
+        today_prices = [
+            item
+            for item in combined
+            if parse_start(item).date() == today_date
+            and parse_start(item).hour >= 0
+            and parse_start(item).hour <= 23
+        ]
+        # Filter for tomorrow: 00:00 to 23:00
+        tomorrow_prices = [
+            item
+            for item in combined
+            if parse_start(item).date() == tomorrow_date
+            and parse_start(item).hour >= 0
+            and parse_start(item).hour <= 23
+        ]
+
+        # If 15min period, combine to hourly if needed
         active_mtu = 60
-        if self._is_15min_period_in_use(value_today):
+        if self._is_15min_period_in_use(today_prices):
             if requested_mtu == 60:
-                value_today = combine_to_hourly(value_today)
+                today_prices = combine_to_hourly(today_prices)
             else:
                 active_mtu = 15
-        if self._is_15min_period_in_use(value_tomorrow):
+        if self._is_15min_period_in_use(tomorrow_prices):
             if requested_mtu == 60:
-                value_tomorrow = combine_to_hourly(
-                    value_tomorrow,
-                )
+                tomorrow_prices = combine_to_hourly(tomorrow_prices)
 
-        # Convert to HourPrice list
+        # Convert to HourPrice objects
         today = [
             hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
-            for item in value_today
+            for item in today_prices
         ]
         tomorrow = [
             hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
-            for item in value_tomorrow
+            for item in tomorrow_prices
         ]
 
-        if (
-            len(tomorrow) < 10
-        ):  # Official nordpool no longer raise ServiceValidationError on empty data for tomorrow. Raise valuenotfound when no data is available
+        if len(tomorrow) < 10:
             raise ValueNotFound
 
         if active_mtu != self._mtu:
