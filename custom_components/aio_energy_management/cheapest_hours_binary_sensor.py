@@ -84,6 +84,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
         self._calendar = calendar
+
         self._price_modifications = price_modifications
 
         if mtu is None:
@@ -505,16 +506,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             raise ValueNotFound
 
         active_mtu = 60
+
         if self._is_15min_period_in_use(raw_today):
             if requested_mtu == 60:
-                raw_today = combine_to_hourly(raw_today)
+                raw_today = combine_to_hourly(raw_today, HourPriceType.NORDPOOL)
             else:
                 active_mtu = 15
         if self._is_15min_period_in_use(raw_tomorrow):
             if requested_mtu == 60:
-                raw_tomorrow = combine_to_hourly(
-                    raw_tomorrow,
-                )
+                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.NORDPOOL)
 
         today = [
             hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
@@ -635,12 +635,16 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         active_mtu = 60
         if self._is_15min_period_in_use(today_prices):
             if requested_mtu == 60:
-                today_prices = combine_to_hourly(today_prices)
+                today_prices = combine_to_hourly(
+                    today_prices, HourPriceType.NORDPOOL_OFFICIAL
+                )
             else:
                 active_mtu = 15
         if self._is_15min_period_in_use(tomorrow_prices):
             if requested_mtu == 60:
-                tomorrow_prices = combine_to_hourly(tomorrow_prices)
+                tomorrow_prices = combine_to_hourly(
+                    tomorrow_prices, HourPriceType.NORDPOOL_OFFICIAL
+                )
 
         # Convert to HourPrice objects
         today = [
@@ -791,12 +795,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return updated
 
 
-def combine_to_hourly(data):
+def combine_to_hourly(data, type: HourPriceType):
     """Combine a list of 15-minute price data into hourly averages.
 
     Args:
         data: A list of dictionaries, where each dictionary has 'start', 'end'
               (ISO 8601 strings), and 'price' (float).
+        type: The type of HourPrice (e.g., NORDPOOL, NORDPOOL_OFFICIAL).
 
     Returns:
         A list of dictionaries, each representing an hour with 'start', 'end',
@@ -810,26 +815,44 @@ def combine_to_hourly(data):
         # Ensure we have at least 4 items for a full hour
         if i + 3 < len(data):
             # Check if the current item's start minute is :00
-            start_dt = datetime.fromisoformat(data[i]["start"])
+            start_dt = data[i]["start"]
+            if isinstance(start_dt, str):
+                start_dt = datetime.fromisoformat(data[i]["start"])
             if start_dt.minute == 0:
                 # Collect the next four 15-minute blocks
                 current_block.extend(data[i + j] for j in range(4))
-
                 # Calculate average price
-                total_price = sum(item["price"] for item in current_block)
+                total_price = 0
+                if type == HourPriceType.NORDPOOL:
+                    total_price = sum(item["value"] for item in current_block)
+                else:  # NORDPOOL_OFFICIAL
+                    total_price = sum(item["price"] for item in current_block)
                 average_price = total_price / 4
 
                 # Define the hourly start and end times
                 hourly_start = current_block[0]["start"]
                 hourly_end = current_block[-1]["end"]
 
-                hourly_data.append(
-                    {
-                        "start": hourly_start,
-                        "end": hourly_end,
-                        "price": round(average_price, 2),  # Round to 2 decimal places
-                    }
-                )
+                if type == HourPriceType.NORDPOOL:
+                    hourly_data.append(
+                        {
+                            "start": hourly_start,
+                            "end": hourly_end,
+                            "value": round(
+                                average_price, 2
+                            ),  # Round to 2 decimal places
+                        }
+                    )
+                else:  # NORDPOOL_OFFICIAL
+                    hourly_data.append(
+                        {
+                            "start": hourly_start,
+                            "end": hourly_end,
+                            "price": round(
+                                average_price, 2
+                            ),  # Round to 2 decimal places
+                        }
+                    )
                 i += 4  # Move to the next hour block
             else:
                 i += 1  # Move to next 15-min block if not starting at :00

@@ -128,6 +128,7 @@ def _create_cheapest_hours_entity(
     calendar = discovery_info.get(CONF_CALENDAR)
     offset = discovery_info.get(CONF_OFFSET)
     mtu = discovery_info.get(CONF_MTU) or 60
+    price_modifications = None
     if calendar is None:
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
