@@ -3,7 +3,7 @@
 from datetime import date, datetime, timedelta
 import logging
 
-from jinja2 import Environment, StrictUndefined
+from jinja2 import Template
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
@@ -267,8 +267,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Apply possible price modifications from template
         if price_modifications := self._price_modifications:
-            today = apply_price_modifications(today, price_modifications)
-            tomorrow = apply_price_modifications(tomorrow, price_modifications)
+            today = self._apply_price_modifications(today, price_modifications)
+            tomorrow = self._apply_price_modifications(tomorrow, price_modifications)
 
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
@@ -753,6 +753,43 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         """Check if data mtu is 15min."""
         return len(data) > 40
 
+    def _apply_price_modifications(self, hour_prices: list, template: Template) -> list:
+        """Apply price modifications to each HourPrice using a Jinja2 template.
+
+        Args:
+            self: self reference
+            hour_prices: List of HourPrice objects.
+            template: Jinja2 template. Variables: 'price', 'time' (datetime).
+
+        Returns:
+            List of HourPrice objects with updated price.
+        """
+
+        updated = []
+        for hp in hour_prices:
+            # Use start time for 'time' variable
+            context = {
+                "price": hp.value,
+                "time": hp.start if hasattr(hp, "start") else None,
+            }
+            try:
+                new_price = float(
+                    template.async_render(price=context.price, time=context.time)
+                )
+            except Exception as ex:  # noqa: BLE001
+                _LOGGER.error("Failed to render price modifications template: %s", ex)
+                new_price = hp.value
+            # Create a new HourPrice object with updated price
+            updated.append(
+                hour_price.HourPrice(
+                    start=hp.start,
+                    end=hp.end,
+                    value=new_price,
+                    type=hp.type,
+                )
+            )
+        return updated
+
 
 def combine_to_hourly(data):
     """Combine a list of 15-minute price data into hourly averages.
@@ -800,42 +837,3 @@ def combine_to_hourly(data):
             break  # Not enough data for a full hour block
 
     return hourly_data
-
-
-def apply_price_modifications(
-    hour_prices: list,
-    template_str: str,
-) -> list:
-    """Apply price modifications to each HourPrice using a Jinja2 template.
-
-    Args:
-        hour_prices: List of HourPrice objects.
-        template_str: Jinja2 template string. Variables: 'price', 'time' (datetime).
-
-    Returns:
-        List of HourPrice objects with updated price.
-    """
-    env = Environment(undefined=StrictUndefined)
-    template = env.from_string(template_str)
-    updated = []
-    for hp in hour_prices:
-        # Use start time for 'time' variable
-        context = {
-            "price": hp.value,
-            "time": hp.start if hasattr(hp, "start") else None,
-        }
-        try:
-            new_price = float(template.render(context))
-        except Exception as ex:  # noqa: BLE001
-            _LOGGER.error("Failed to render price modifications template: %s", ex)
-            new_price = hp.value
-        # Create a new HourPrice object with updated price
-        updated.append(
-            hour_price.HourPrice(
-                start=hp.start,
-                end=hp.end,
-                value=new_price,
-                type=hp.type,
-            )
-        )
-    return updated

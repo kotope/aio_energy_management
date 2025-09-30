@@ -132,7 +132,8 @@ def _create_cheapest_hours_entity(
         calendar = True
     if pl := discovery_info.get(CONF_PRICE_LIMIT):
         price_limit = pl
-    price_modifications = discovery_info.get(CONF_PRICE_MODIFICATIONS)
+    if pm := discovery_info.get(CONF_PRICE_MODIFICATIONS):
+        price_modifications = cv.template(pm)
 
     return CheapestHoursBinarySensor(
         hass=hass,
