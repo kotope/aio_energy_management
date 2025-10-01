@@ -11,6 +11,7 @@ from custom_components.aio_energy_management.binary_sensor import (
 from custom_components.aio_energy_management.const import DOMAIN
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
+from jinja2 import Template
 import numpy as np
 from pytest_homeassistant_custom_component.common import load_fixture
 
@@ -67,7 +68,7 @@ def _setup_nordpool_official_mock(
 
     hass.services.async_register(
         "nordpool",
-        "get_prices_for_date",
+        "get_price_indices_for_date",
         AsyncMock(side_effect=mock_service_call),
         supports_response=SupportsResponse.ONLY,
     )
@@ -1305,6 +1306,14 @@ async def test_nordpool_official_price_modifications(
         "nordpool_official_service_20250315.json",
     )
 
+    template = Template("""
+            {%- set with_taxes = (price * 2) | float %}
+        {%- if time.hour >= 22 or time.hour <= 7 %}
+          {{ with_taxes + 10 }}
+        {%- else %}
+          {{ with_taxes + 5 }}
+        {%- endif %}""")
+
     sensor = CheapestHoursBinarySensor(
         hass=hass,
         nordpool_official_config_entry="DUMMY",
@@ -1316,13 +1325,7 @@ async def test_nordpool_official_price_modifications(
         number_of_hours=3,
         sequential=False,
         failsafe_starting_hour=0,
-        price_modifications="""
-        {%- set with_taxes = (price * 2) | float %}
-        {%- if time.hour >= 22 or time.hour <= 7 %}
-          {{ with_taxes + 10 }}
-        {%- else %}
-          {{ with_taxes + 5 }}
-        {%- endif %}""",
+        price_modifications=template,
         coordinator=coordinator_mock,
     )
     freezer.move_to("2025-03-14 14:30+03:00")
