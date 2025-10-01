@@ -562,6 +562,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     ) -> tuple[list, list, int]:
         # Depending on the timezone, today data might have more or less values required for today.
         # Therefore we need to fetch yesterday, today and tomorrow to be sure we have all values
+
         yesterday_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_price_indices_for_date",
@@ -777,9 +778,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 "time": hp.start if hasattr(hp, "start") else None,
             }
             try:
-                new_price = float(
-                    template.async_render(price=context.price, time=context.time)
-                )
+                new_price = float(template.async_render(**context))
             except Exception as ex:  # noqa: BLE001
                 _LOGGER.error("Failed to render price modifications template: %s", ex)
                 new_price = hp.value
