@@ -1,6 +1,6 @@
 """Data coordinator. Owns all the data."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from homeassistant.core import HomeAssistant
@@ -49,14 +49,91 @@ class EnergyManagementCoordinator:
             self.data = self.convert_datetimes(stored)
 
     async def async_set_data(
-        self, entity_id: str, name: str, calendar: bool, module: str, dict: dict
+        self,
+        entity_id: str,
+        name: str,
+        calendar: bool,
+        module: str,
+        dict: dict,  # Data that is currently active or upcoming
+        archived: dict | None,  # Data that is to be moved on the archive
     ) -> None:
         """Set entity data."""
+        prev_archived = {}
+
+        # Check if previous
+        if entity := self.data.get(entity_id):
+            prev_archived = entity.get("archived")
+
         self.data[entity_id] = dict
         self.data[entity_id]["name"] = name
         self.data[entity_id]["type"] = module
         self.data[entity_id]["calendar"] = calendar
+
+        archived_list = None
+        if arch := archived:
+            archived_list = arch.get("list", None)
+
+        self.data[entity_id]["archived"] = self._update_archived(
+            entity_id, prev_archived, archived_list
+        )
+
+        _LOGGER.debug(
+            "Set new data for %s. Archive is = %s",
+            entity_id,
+            [self.data[entity_id]["archived"]],
+        )
+
         await self._async_save_data()
+
+    def _update_archived(
+        self, entity_id: str, existing_archive: list | None, new_data: list | None
+    ) -> list:
+        """Merge archived lists by 'start' key, preferring self.data[entity_id] values on conflict."""
+
+        current_archived = existing_archive
+        if current_archived is None:
+            current_archived = []
+
+        # Build dicts keyed by 'start' for fast lookup
+        current_by_start = {
+            item["start"]: item for item in current_archived if "start" in item
+        }
+
+        new_by_start = []
+        if new_data is not None:
+            new_by_start = {item["start"]: item for item in new_data if "start" in item}
+
+        # Merge keys: use current if exists, else new
+        merged = []
+        all_starts = set(current_by_start) | set(new_by_start)
+        for start in sorted(all_starts):
+            if start in current_by_start:
+                merged.append(current_by_start[start])
+            else:
+                merged.append(new_by_start[start])
+
+        return merged
+
+    def clear_archived(self, entity_id: str, retention_days: int) -> None:
+        """Clear archived data older than retention days."""
+        now = dt_util.now()
+        if entity_data := self.data.get(entity_id):
+            archived = entity_data.get("archived", [])
+            filtered_archived = [
+                item
+                for item in archived
+                if "end" in item
+                and (
+                    from_str_to_datetime(item["end"])
+                    >= now - timedelta(days=retention_days)
+                )
+            ]
+            self.data[entity_id]["archived"] = filtered_archived
+            _LOGGER.debug(
+                "After clearing, archived for %s is %s",
+                entity_id,
+                filtered_archived,
+            )
 
     def get_data(self, entity_id: str) -> dict | None:
         """Get entity data."""
@@ -93,6 +170,9 @@ class EnergyManagementCoordinator:
                 dictionary["updated_at"] = updated_at
         if data_list := dictionary.get("list"):
             dictionary["list"] = convert_datetime(data_list)
+        if archived_list := dictionary.get("archived"):
+            dictionary["archived"] = convert_datetime(archived_list)
+
         if data_next := dictionary.get("next"):
             if list_next := data_next.get("list"):
                 dictionary["next"]["list"] = convert_datetime(list_next)

@@ -79,7 +79,7 @@ class EnergyManagementCalendar(CalendarEntity):
         now = dt_util.now()
 
         events = self._get_events(
-            start_date=now,
+            start_date=now - timedelta(days=-30),
             end_date=now + timedelta(days=7),  # only need to check a week ahead
         )
         return next(iter(events), None)
@@ -109,9 +109,11 @@ class EnergyManagementCalendar(CalendarEntity):
             # Don't add to calendar if disabled by config
             if v.get("calendar") is False:
                 continue
+            # Combine current and archived data
+            combined_data = v.get("list", []) + v.get("archived", [])
 
-            if d := v.get("list"):
-                for value in d:
+            if combined_data:
+                for value in combined_data:
                     start = value.get("start")
                     end = value.get("end")
                     if (
@@ -121,12 +123,15 @@ class EnergyManagementCalendar(CalendarEntity):
                     ):
                         events.append(
                             CalendarEvent(
-                                summary=v.get("name") or k, start=start, end=end
+                                summary=v.get("name") or k,
+                                start=start,
+                                end=end,
+                                uid=self._uid(k, start, end),
                             )
                         )
-            if next := v.get("next"):
-                if d := next.get("list"):
-                    for value in d:
+            if next_data := v.get("next"):
+                if next_list := next_data.get("list", []):
+                    for value in next_list:
                         start = value.get("start")
                         end = value.get("end")
                         if (
@@ -136,11 +141,31 @@ class EnergyManagementCalendar(CalendarEntity):
                         ):
                             events.append(
                                 CalendarEvent(
-                                    summary=v.get("name") or k, start=start, end=end
+                                    summary=v.get("name") or k,
+                                    start=start,
+                                    end=end,
+                                    uid=self._uid(k, start, end),
                                 )
                             )
 
         return events
+
+    def _uid(
+        self, unqiue_id: str, event_start_time: datetime, event_end_time: datetime
+    ) -> str:
+        """Generate a deterministic unique id for an event.
+
+        The uid is generated from the event start and end times converted to
+        UTC and formatted as YYYYmmddTHHMMSSZ for compactness and stability.
+        """
+        # Ensure we work with timezone-aware UTC datetimes for stability
+        start_utc = dt_util.as_utc(event_start_time)
+        end_utc = dt_util.as_utc(event_end_time)
+
+        start_str = start_utc.strftime("%Y%m%dT%H%M%SZ")
+        end_str = end_utc.strftime("%Y%m%dT%H%M%SZ")
+
+        return f"{unqiue_id}_{start_str}_{end_str}"
 
     def _is_in_range(
         self, event_start_time: datetime, start_date: datetime, end_date: datetime

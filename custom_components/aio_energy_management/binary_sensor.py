@@ -31,6 +31,7 @@ from .const import (
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_MODIFICATIONS,
+    CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
     CONF_START,
     CONF_STARTING_TODAY,
@@ -62,6 +63,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_CALENDAR): bool,
+        vol.Optional(CONF_RETENTION_DAYS): int,
         vol.Optional(CONF_OFFSET): {
             vol.Optional(CONF_START): {
                 vol.Optional(CONF_HOURS): vol.Any(int, cv.entity_id),
@@ -126,6 +128,7 @@ def _create_cheapest_hours_entity(
     )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
     calendar = discovery_info.get(CONF_CALENDAR)
+    retention_days = discovery_info.get(CONF_RETENTION_DAYS) or 1
     offset = discovery_info.get(CONF_OFFSET)
     mtu = discovery_info.get(CONF_MTU) or 60
     price_modifications = None
@@ -158,4 +161,5 @@ def _create_cheapest_hours_entity(
         offset=offset,
         mtu=mtu,
         price_modifications=price_modifications,
+        retention_days=retention_days,
     )

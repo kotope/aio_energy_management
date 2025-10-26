@@ -27,6 +27,7 @@ CONF_MINUTES = "minutes"
 CONF_TRIGGER = "trigger"
 CONF_MTU = "mtu"
 CONF_PRICE_MODIFICATIONS = "price_modifications"
+CONF_RETENTION_DAYS = "retention_days"
 
 # Entities
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"
