@@ -63,6 +63,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         offset=None,
         mtu=60,
         price_modifications=None,
+        retention_days=1,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -84,7 +85,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
         self._calendar = calendar
+        self._last_known_day = None
+        self._retention_days = retention_days
 
+        self._archived = None
         self._price_modifications = price_modifications
 
         if mtu is None:
@@ -151,6 +155,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._data = self._coordinator.get_data(self._attr_unique_id)
 
         await self._swap_list_if_needed()
+
+        # Check for day change
+        current_day = dt_util.start_of_local_day().date()
+        if current_day != self._last_known_day:
+            self._last_known_day = current_day
+            self._coordinator.clear_archived(self._attr_unique_id, self._retention_days)
 
         # Don't update values if we are already on failsafe as we don't want to interrupt it
         if self._is_failsafe():
@@ -319,6 +329,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
 
         self._data["fetch_date"] = self._create_fetch_date()
+
+        # Finally store the data
         await self._store_data()
 
     async def _store_data(self) -> None:
@@ -328,6 +340,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._calendar,
             self.__class__.__name__,
             self._data,
+            self._archived,
         )
 
     async def _swap_list_if_needed(self) -> bool:
@@ -362,6 +375,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         is_swap: bool = False,
     ) -> None:
         """Set list data."""
+        # Archive previous
+        self._archived = self._data["list"]
+
         if is_swap is False:
             list_data, expiration = self._add_offset(list_data, expiration)
         self._data["list"] = list_data

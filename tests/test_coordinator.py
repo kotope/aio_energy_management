@@ -1,16 +1,57 @@
 """Tests for coordinator."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
+import json
 import zoneinfo
 
+from custom_components.aio_energy_management.const import DOMAIN
 from custom_components.aio_energy_management.coordinator import (
     EnergyManagementCoordinator,
 )
 from freezegun import freeze_time
+from freezegun.api import FrozenDateTimeFactory
 import numpy as np
 import pytest
+from pytest_homeassistant_custom_component.common import load_fixture
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
+
+
+def _setup_nordpool_mock(hass: HomeAssistant, fixture: str) -> None:
+    mocked_nordpool = State.from_dict(json.loads(load_fixture(fixture, DOMAIN)))
+    hass.states.async_set(
+        "sensor.nordpool", mocked_nordpool.state, attributes=mocked_nordpool.attributes
+    )
+
+
+@pytest.fixture
+def mock_cheapest_hours_data_17th() -> dict:
+    return {
+        "my_cheapest_hours_sensor": {
+            "active_number_of_hours": 3,
+            "failsafe": {"start": "22:00:00", "end": "01:00:00"},
+            "expiration": "2025-10-17T11:00:00+03:00",
+            "updated_at": "2025-10-16T14:29:05.557103+03:00",
+            "fetch_date": "2025-10-16",
+            "name": "My Cheapest Hours",
+            "type": "CheapestHoursBinarySensor",
+            "list": [
+                {
+                    "start": "2025-10-17T00:00:00+03:00",
+                    "end": "2025-10-17T01:00:00+03:00",
+                },
+                {
+                    "start": "2025-10-17T02:00:00+03:00",
+                    "end": "2025-10-17T04:00:00+03:00",
+                },
+            ],
+        }
+    }
+
+
+# def mock_nordpool_data_18th() -> dict:
+
+# def mock_nordpool_data_19th() -> dict:
 
 
 @pytest.fixture
@@ -66,7 +107,7 @@ def mock_stored_data() -> dict:
                     },
                 ],
                 "expiration": "2024-10-09T17:00:00+03:00",
-            }
+            },
         },
         "my_next_day_hours": {
             "active_number_of_hours": 4,
@@ -98,7 +139,7 @@ def mock_stored_data() -> dict:
                     },
                 ],
                 "expiration": "2024-10-10T00:00:00+03:00",
-            }
+            },
         },
         "my_entsoe_prices": {
             "active_number_of_hours": 4,
@@ -152,7 +193,7 @@ def mock_stored_data() -> dict:
                     },
                 ],
                 "expiration": "2024-10-10T00:00:00+03:00",
-            }
+            },
         },
         "my_next_day_hours_6": {
             "active_number_of_hours": 6,
@@ -184,7 +225,7 @@ def mock_stored_data() -> dict:
                     },
                 ],
                 "expiration": "2024-10-10T00:00:00+03:00",
-            }
+            },
         },
     }
 
@@ -209,9 +250,7 @@ async def test_convert_persistent_data(hass: HomeAssistant, mock_stored_data) ->
     nxt = next_day_hours.get("next")
     assert isinstance(nxt, dict)
     assert isinstance(nxt.get("expiration"), datetime)
-    assert nxt.get("expiration") == datetime(
-        2024, 10, 10, 0, 0, tzinfo=tzinfo
-    )
+    assert nxt.get("expiration") == datetime(2024, 10, 10, 0, 0, tzinfo=tzinfo)
 
     lst = next_day_hours.get("list")
     assert np.size(lst) == 2
@@ -229,3 +268,176 @@ async def test_convert_persistent_data(hass: HomeAssistant, mock_stored_data) ->
 
     assert isinstance(next_day_hours.get("updated_at"), datetime)
     assert next_day_hours.get("fetch_date") == date(2024, 10, 8)
+
+
+async def test_archive_data(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, mock_stored_data
+) -> None:
+    """Tests archiving old data for three days."""
+    hass.config.timezone = zoneinfo.ZoneInfo("Europe/Helsinki")
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2025-10-16 14:00+03:00")
+    mock: dict = {}
+    mock["list"] = [
+        {
+            "start": datetime(2025, 10, 17, 1, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 17, 2, 45, tzinfo=tzinfo),
+        },
+        {
+            "start": datetime(2025, 10, 17, 3, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 17, 3, 15, tzinfo=tzinfo),
+        },
+    ]
+    mock["active_number_of_hours"] = 2
+    mock["failsafe"] = {
+        "start": datetime(2025, 10, 17, 1, 0, tzinfo=tzinfo).time(),
+        "end": datetime(2025, 10, 17, 3, 0, tzinfo=tzinfo).time(),
+    }
+    mock["expiration"] = datetime(2025, 10, 18, 0, 0, tzinfo=tzinfo)
+    mock["extra"] = {"mean_price": 1.79275, "max_price": 1.817, "min_price": 1.772}
+    mock["updated_at"] = datetime(
+        2025,
+        10,
+        16,
+        14,
+        43,
+        38,
+        910378,
+        tzinfo=tzinfo,
+    )
+    mock["fetch_date"] = datetime(2025, 10, 16, 1, 0, tzinfo=tzinfo).date()
+    mock["type"] = "CheapestHoursBinarySensor"
+    mock["calendar"] = True
+
+    coordinator = EnergyManagementCoordinator(hass)
+    coordinator.async_set_data(
+        "my_cheapest_hours_sensor",
+        "My Cheapest Hours",
+        True,
+        "CheapestHoursBinarySensor",
+        mock,
+        None,
+    )
+
+    # Set the same data again
+    await coordinator.async_set_data(
+        entity_id="my_cheapest_hours_sensor",
+        name="My Cheapest Hours",
+        calendar=True,
+        module="CheapestHoursBinarySensor",
+        dict=mock,
+        archived=mock,
+    )
+
+    # Data should be same as before, no duplicates
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert data == mock
+    assert len(data["archived"]) == 2
+
+    freezer.move_to("2025-10-17 14:00+03:00")
+    # Set new mock with old as archived
+    mock_new: dict = {}
+    mock_new["list"] = [
+        {
+            "start": datetime(2025, 10, 18, 1, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 18, 2, 45, tzinfo=tzinfo),
+        },
+        {
+            "start": datetime(2025, 10, 18, 3, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 18, 3, 15, tzinfo=tzinfo),
+        },
+    ]
+    mock_new["active_number_of_hours"] = 2
+    mock_new["failsafe"] = {
+        "start": datetime(2025, 10, 18, 1, 0, tzinfo=tzinfo).time(),
+        "end": datetime(2025, 10, 18, 3, 0, tzinfo=tzinfo).time(),
+    }
+    mock_new["expiration"] = datetime(2025, 10, 19, 0, 0, tzinfo=tzinfo)
+    mock_new["extra"] = {"mean_price": 1.2000, "max_price": 2.0, "min_price": 1.0}
+    mock_new["updated_at"] = datetime(
+        2025,
+        10,
+        17,
+        14,
+        43,
+        38,
+        910378,
+        tzinfo=tzinfo,
+    )
+    mock_new["fetch_date"] = datetime(2025, 10, 17, 1, 0, tzinfo=tzinfo).date()
+    mock_new["type"] = "CheapestHoursBinarySensor"
+    mock_new["calendar"] = True
+
+    await coordinator.async_set_data(
+        entity_id="my_cheapest_hours_sensor",
+        name="My Cheapest Hours",
+        calendar=True,
+        module="CheapestHoursBinarySensor",
+        dict=mock_new,
+        archived=mock,
+    )
+
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert len(data["archived"]) == 2
+
+    # another new mock
+    mock_new_2: dict = {}
+    mock_new_2["list"] = [
+        {
+            "start": datetime(2025, 10, 19, 1, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 19, 2, 45, tzinfo=tzinfo),
+        },
+        {
+            "start": datetime(2025, 10, 19, 3, 0, tzinfo=tzinfo),
+            "end": datetime(2025, 10, 19, 3, 15, tzinfo=tzinfo),
+        },
+    ]
+    mock_new_2["active_number_of_hours"] = 2
+    mock_new_2["failsafe"] = {
+        "start": datetime(2025, 10, 19, 1, 0, tzinfo=tzinfo).time(),
+        "end": datetime(2025, 10, 19, 3, 0, tzinfo=tzinfo).time(),
+    }
+    mock_new_2["expiration"] = datetime(2025, 10, 20, 0, 0, tzinfo=tzinfo)
+    mock_new_2["extra"] = {"mean_price": 1.2000, "max_price": 2.0, "min_price": 1.0}
+    mock_new_2["updated_at"] = datetime(
+        2025,
+        10,
+        18,
+        14,
+        43,
+        38,
+        910378,
+        tzinfo=tzinfo,
+    )
+    mock_new_2["fetch_date"] = datetime(2025, 10, 18, 1, 0, tzinfo=tzinfo).date()
+    mock_new_2["type"] = "CheapestHoursBinarySensor"
+    mock_new_2["calendar"] = True
+
+    await coordinator.async_set_data(
+        entity_id="my_cheapest_hours_sensor",
+        name="My Cheapest Hours",
+        calendar=True,
+        module="CheapestHoursBinarySensor",
+        dict=mock_new_2,
+        archived=mock_new,
+    )
+
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert len(data["archived"]) == 4
+
+    # Test clear archive
+    freezer.move_to("2025-10-17 14:00+03:00")
+    coordinator.clear_archived(entity_id="my_cheapest_hours_sensor", retention_days=1)
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert len(data["archived"]) == 4
+
+    freezer.move_to("2025-10-18 14:00+03:00")
+    coordinator.clear_archived(entity_id="my_cheapest_hours_sensor", retention_days=1)
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert len(data["archived"]) == 2
+
+    freezer.move_to("2025-10-19 14:00+03:00")
+    coordinator.clear_archived(entity_id="my_cheapest_hours_sensor", retention_days=1)
+    data = coordinator.get_data("my_cheapest_hours_sensor")
+    assert len(data["archived"]) == 0
