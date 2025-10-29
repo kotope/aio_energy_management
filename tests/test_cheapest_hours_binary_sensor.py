@@ -604,6 +604,117 @@ async def test_cheapest_hours_entsoe_over_night(
     await sensor.async_update()
 
 
+async def test_cheapest_hours_entsoe_mtu15(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors failsafe."""
+    coordinator_mock = _setup_coordinator_mock()
+
+    freezer.move_to("2025-10-28 14:00+03:00")
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    _setup_entsoe_mock(hass, "entsoe_today_mtu15_20251028.json")
+
+    # Create sensor to test
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        entsoe_entity="sensor.entsoe",
+        nordpool_entity=None,
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=10,
+        last_hour=22,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=19,
+        mtu=15,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    assert len(sensor.extra_state_attributes.get("list")) == 3
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 10, 29, 11, 30, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 10, 29, 11, 45, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
+        2025, 10, 29, 13, 15, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
+        2025, 10, 29, 15, 30, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][2]["start"] == datetime(
+        2025, 10, 29, 22, 30, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][2]["end"] == datetime(
+        2025, 10, 29, 23, 0, tzinfo=tzinfo
+    )
+
+    assert (
+        sensor.extra_state_attributes["failsafe"]["start"]
+        == dt_util.now().replace(hour=19, minute=0).time()
+    )
+    assert (
+        sensor.extra_state_attributes["failsafe"]["end"]
+        == dt_util.now().replace(hour=22, minute=0).time()
+    )
+
+
+async def test_cheapest_hours_entsoe_mtu15_conversion_to_mtu60(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors failsafe."""
+    coordinator_mock = _setup_coordinator_mock()
+
+    freezer.move_to("2025-10-28 14:00+03:00")
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    _setup_entsoe_mock(hass, "entsoe_today_mtu15_20251028.json")
+
+    # Create sensor to test
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        entsoe_entity="sensor.entsoe",
+        nordpool_entity=None,
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=10,
+        last_hour=22,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=19,
+        mtu=60,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+
+    assert len(sensor.extra_state_attributes.get("list")) == 2
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 10, 29, 13, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 10, 29, 15, 0, tzinfo=tzinfo
+    )
+
+    assert sensor.extra_state_attributes["list"][1]["start"] == datetime(
+        2025, 10, 29, 22, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][1]["end"] == datetime(
+        2025, 10, 29, 23, 0, tzinfo=tzinfo
+    )
+    assert (
+        sensor.extra_state_attributes["failsafe"]["start"]
+        == dt_util.now().replace(hour=19, minute=0).time()
+    )
+    assert (
+        sensor.extra_state_attributes["failsafe"]["end"]
+        == dt_util.now().replace(hour=22, minute=0).time()
+    )
+
+
 async def test_trigger_time(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
