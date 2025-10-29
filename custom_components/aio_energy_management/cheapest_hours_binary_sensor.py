@@ -243,23 +243,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         elif self._entsoe_entity is not None:
             # Update from entsoe
             try:
-                if (
-                    self._mtu == 15
-                ):  # Don't allow mtu 15 with etsoe as it does not have end time for the time
-                    raise SystemConfigurationError(  # noqa: TRY301
-                        "MTU 15 not supported with entsoe integration."
-                    )
-
-                entsoe = self._update_from_entsoe()
-                today = [
-                    hour_price.HourPrice.from_dict(item, type=HourPriceType.ENTSOE)
-                    for item in entsoe.attributes["prices_today"]
-                ]
-
-                tomorrow = [
-                    hour_price.HourPrice.from_dict(item, type=HourPriceType.ENTSOE)
-                    for item in entsoe.attributes["prices_tomorrow"]
-                ]
+                (today, tomorrow, active_mtu) = self._update_from_entsoe(
+                    requested_mtu=self._mtu
+                )
             except ValueNotFound:
                 _LOGGER.debug("Could not get the latest data from entsoe integration")
                 if self._is_expired():
@@ -525,19 +511,23 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         if self._is_15min_period_in_use(raw_today):
             if requested_mtu == 60:
-                raw_today = combine_to_hourly(raw_today, HourPriceType.NORDPOOL)
+                raw_today = combine_to_hourly(raw_today, HourPriceType.ENTSOE)
             else:
                 active_mtu = 15
         if self._is_15min_period_in_use(raw_tomorrow):
             if requested_mtu == 60:
-                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.NORDPOOL)
+                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.ENTSOE)
 
         today = [
-            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.NORDPOOL
+            )
             for item in raw_today
         ]
         tomorrow = [
-            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL)
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.NORDPOOL
+            )
             for item in raw_tomorrow
         ]
         if active_mtu != self._mtu:
@@ -546,32 +536,57 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
         return (today, tomorrow, active_mtu)
 
-    def _update_from_entsoe(self) -> State:
+    def _update_from_entsoe(self, requested_mtu: int = 60) -> tuple[list, list, int]:
         """Update from entsoe integration."""
         entsoe = self.hass.states.get(self._entsoe_entity)
         if entsoe is None:
             _LOGGER.debug("Got empty data from Entso-e entity %s ", self._entsoe_entity)
             raise ValueNotFound
 
-        if entsoe.attributes.get("prices") is None:
+        raw_today = entsoe.attributes.get("prices_today")
+        if raw_today is None:
             _LOGGER.debug(
                 "No values for today in Entso-e entity %s ", self._entsoe_entity
             )
+            raise ValueNotFound
 
-        if tomorrow := entsoe.attributes.get("prices_tomorrow"):
-            if len(tomorrow) < 10:
-                _LOGGER.debug(
-                    "Not enough values for tomorrow in Entso-e entity %s (probably prices not yet published) ",
-                    self._entsoe_entity,
-                )
-                raise ValueNotFound
-        else:
-            _LOGGER.warning(
-                "No values for tomorrow in Entso-e entity %s", self._entsoe_entity
+        raw_tomorrow = entsoe.attributes.get("prices_tomorrow")
+        if raw_tomorrow is None or len(raw_tomorrow) < 10:
+            _LOGGER.debug(
+                "Not enough values for tomorrow in Entso-e entity %s (probably prices not yet published) ",
+                self._entsoe_entity,
             )
             raise ValueNotFound
 
-        return entsoe
+        active_mtu = 60
+        if self._is_15min_period_in_use(raw_today):
+            if requested_mtu == 60:
+                raw_today = combine_to_hourly(raw_today, HourPriceType.ENTSOE)
+            else:
+                active_mtu = 15
+        if self._is_15min_period_in_use(raw_tomorrow):
+            if requested_mtu == 60:
+                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.ENTSOE)
+
+        today = [
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.ENTSOE
+            )
+            for item in raw_today
+        ]
+        tomorrow = [
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.ENTSOE
+            )
+            for item in raw_tomorrow
+        ]
+
+        if active_mtu != self._mtu:
+            raise SystemConfigurationError(
+                f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
+            )
+
+        return (today, tomorrow, active_mtu)
 
     async def _update_from_nordpool_official(
         self, requested_mtu: int = 60
@@ -665,11 +680,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Convert to HourPrice objects
         today = [
-            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.NORDPOOL_OFFICIAL
+            )
             for item in today_prices
         ]
         tomorrow = [
-            hour_price.HourPrice.from_dict(item, type=HourPriceType.NORDPOOL_OFFICIAL)
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.NORDPOOL_OFFICIAL
+            )
             for item in tomorrow_prices
         ]
 
@@ -810,7 +829,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return updated
 
 
-def combine_to_hourly(data, type: HourPriceType):
+# TODO: Refactor this to use HourPrice model
+def combine_to_hourly(data, type: HourPriceType) -> list:
     """Combine a list of 15-minute price data into hourly averages.
 
     Args:
@@ -830,9 +850,13 @@ def combine_to_hourly(data, type: HourPriceType):
         # Ensure we have at least 4 items for a full hour
         if i + 3 < len(data):
             # Check if the current item's start minute is :00
-            start_dt = data[i]["start"]
+            start_key = "start"
+            if type == HourPriceType.ENTSOE:
+                start_key = "time"
+
+            start_dt = data[i][start_key]
             if isinstance(start_dt, str):
-                start_dt = datetime.fromisoformat(data[i]["start"])
+                start_dt = datetime.fromisoformat(data[i][start_key])
             if start_dt.minute == 0:
                 # Collect the next four 15-minute blocks
                 current_block.extend(data[i + j] for j in range(4))
@@ -840,13 +864,15 @@ def combine_to_hourly(data, type: HourPriceType):
                 total_price = 0
                 if type == HourPriceType.NORDPOOL:
                     total_price = sum(item["value"] for item in current_block)
-                else:  # NORDPOOL_OFFICIAL
+                else:  # NORDPOOL_OFFICIAL, ENTSOE
                     total_price = sum(item["price"] for item in current_block)
                 average_price = total_price / 4
 
                 # Define the hourly start and end times
-                hourly_start = current_block[0]["start"]
-                hourly_end = current_block[-1]["end"]
+                hourly_start = current_block[0][start_key]
+
+                if type != HourPriceType.ENTSOE:
+                    hourly_end = current_block[-1]["end"]
 
                 if type == HourPriceType.NORDPOOL:
                     hourly_data.append(
@@ -854,6 +880,15 @@ def combine_to_hourly(data, type: HourPriceType):
                             "start": hourly_start,
                             "end": hourly_end,
                             "value": round(
+                                average_price, 2
+                            ),  # Round to 2 decimal places
+                        }
+                    )
+                if type == HourPriceType.ENTSOE:
+                    hourly_data.append(
+                        {
+                            "time": hourly_start,
+                            "price": round(
                                 average_price, 2
                             ),  # Round to 2 decimal places
                         }
