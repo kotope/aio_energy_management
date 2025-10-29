@@ -327,7 +327,7 @@ async def test_archive_data(
         calendar=True,
         module="CheapestHoursBinarySensor",
         dict=mock,
-        archived=mock,
+        archived=mock["list"],
     )
 
     # Data should be same as before, no duplicates
@@ -375,7 +375,7 @@ async def test_archive_data(
         calendar=True,
         module="CheapestHoursBinarySensor",
         dict=mock_new,
-        archived=mock,
+        archived=mock["list"],
     )
 
     data = coordinator.get_data("my_cheapest_hours_sensor")
@@ -420,7 +420,7 @@ async def test_archive_data(
         calendar=True,
         module="CheapestHoursBinarySensor",
         dict=mock_new_2,
-        archived=mock_new,
+        archived=mock_new["list"],
     )
 
     data = coordinator.get_data("my_cheapest_hours_sensor")

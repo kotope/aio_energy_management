@@ -55,7 +55,7 @@ class EnergyManagementCoordinator:
         calendar: bool,
         module: str,
         dict: dict,  # Data that is currently active or upcoming
-        archived: dict | None,  # Data that is to be moved on the archive
+        archived: list | None,  # Data that is to be moved on the archive
     ) -> None:
         """Set entity data."""
         prev_archived = {}
@@ -69,12 +69,8 @@ class EnergyManagementCoordinator:
         self.data[entity_id]["type"] = module
         self.data[entity_id]["calendar"] = calendar
 
-        archived_list = None
-        if arch := archived:
-            archived_list = arch.get("list", None)
-
         self.data[entity_id]["archived"] = self._update_archived(
-            entity_id, prev_archived, archived_list
+            entity_id, prev_archived, archived
         )
 
         _LOGGER.debug(
