@@ -12,6 +12,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .cheapest_hours_binary_sensor import CheapestHoursBinarySensor
 from .const import (
+    CONF_AREA,
     CONF_CALENDAR,
     CONF_END,
     CONF_ENTITY_CHEAPEST_HOURS,
@@ -131,6 +132,7 @@ def _create_cheapest_hours_entity(
     retention_days = discovery_info.get(CONF_RETENTION_DAYS) or 1
     offset = discovery_info.get(CONF_OFFSET)
     mtu = discovery_info.get(CONF_MTU) or 60
+    area = discovery_info.get(CONF_AREA) or None
     price_modifications = None
     if calendar is None:
         calendar = True
@@ -162,4 +164,5 @@ def _create_cheapest_hours_entity(
         mtu=mtu,
         price_modifications=price_modifications,
         retention_days=retention_days,
+        area=area,
     )
