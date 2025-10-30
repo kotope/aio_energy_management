@@ -64,6 +64,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         mtu=60,
         price_modifications=None,
         retention_days=1,
+        area=None,
     ) -> None:
         """Init sensor."""
         self._nordpool_entity = nordpool_entity
@@ -87,6 +88,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._calendar = calendar
         self._last_known_day = None
         self._retention_days = retention_days
+        self._area = area
 
         self._archived = None
         self._price_modifications = price_modifications
@@ -593,15 +595,28 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     ) -> tuple[list, list, int]:
         # Depending on the timezone, today data might have more or less values required for today.
         # Therefore we need to fetch yesterday, today and tomorrow to be sure we have all values
+        def service_data(time: datetime, area: str | None) -> dict:
+            """Return service data for nord pool official service call."""
+            if a := area:
+                return {
+                    "areas": a,
+                    "config_entry": self._nordpool_official_config_entry,
+                    "date": time.strftime("%Y-%m-%d"),
+                    "resolution": str(self._mtu),
+                }
+            return {
+                "config_entry": self._nordpool_official_config_entry,
+                "date": time.strftime("%Y-%m-%d"),
+                "resolution": str(self._mtu),
+            }
 
         yesterday_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_price_indices_for_date",
-            service_data={
-                "config_entry": self._nordpool_official_config_entry,
-                "date": (dt_util.now() + timedelta(days=-1)).strftime("%Y-%m-%d"),
-                "resolution": str(self._mtu),
-            },
+            service_data=service_data(
+                dt_util.now() + timedelta(days=-1),
+                self._area,
+            ),
             return_response=True,
             blocking=True,
         )
@@ -609,11 +624,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         today_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_price_indices_for_date",
-            service_data={
-                "config_entry": self._nordpool_official_config_entry,
-                "date": dt_util.now().strftime("%Y-%m-%d"),
-                "resolution": str(self._mtu),
-            },
+            service_data=service_data(dt_util.now(), self._area),
             return_response=True,
             blocking=True,
         )
@@ -621,11 +632,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         tomorrow_data = await self.hass.services.async_call(
             domain="nordpool",
             service="get_price_indices_for_date",
-            service_data={
-                "config_entry": self._nordpool_official_config_entry,
-                "date": (dt_util.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
-                "resolution": str(self._mtu),
-            },
+            service_data=service_data(dt_util.now() + timedelta(days=1), self._area),
             return_response=True,
             blocking=True,
         )
