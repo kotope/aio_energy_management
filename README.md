@@ -79,6 +79,8 @@ Configuration parameters are shown below:
 | offset    | no      | Possible start and end offset. On non-sequential the start offset is only added to first item and end offset to last item. Avg/min/max prices does not take the offset into account. See example below. |
 | mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
 | price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
+| retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
+| area    | no    | Market area used for price date. Only effective when using Nord Pool official integration. Default area of your official Nord Pool integration configuration will be used if omitted. |
 
 
 ### Example configuration
