@@ -47,9 +47,11 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 ### Nord Pool Official integration Prerequisites (if using Nord Pool official integration)
 Installed and configured [Nord Pool official integration](https://www.home-assistant.io/integrations/nordpool/)
 #### Getting configuration entry id
-- Navigate to Home Assistant settings -> Devices & Services -> Nord Pool integration
-- Press '24 entities' link
--> config entry is presented at the end of browser URL field (e.g. http://192.168.1.XXX:8123/config/entities?historyBack=1&config_entry=01JPHC0B39ST11081WFZQCKMVC)
+1. Go to Developer Tools > Actions.
+2. In the “Service” dropdown, select Nord Pool: Get prices.
+3. Choose your newly created config entry from the UI.
+4. Switch to YAML mode.
+5. Voila! The config_entry ID will be displayed. Copy this value for the next steps. (configuration id is something like '01JPHC0B39ST11081WFZQCKMVC')
 
 ### Configuration
 Configuration is done through configuration.yaml.<br>
