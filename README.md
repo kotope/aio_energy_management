@@ -84,6 +84,9 @@ Configuration parameters are shown below:
 | retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
 | area    | no    | Market area used for price date. Only effective when using Nord Pool official integration. Default area of your official Nord Pool integration configuration will be used if omitted. |
 
+#### Restrictions:
+* Total timespan needs to be less or equal to 24 hours - this is to prevent overlapping items.
+* last_hour is always tomorrow
 
 ### Example configuration
 The example configuration presents creation of three sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours** and final one for **Nord Pool cheapest hours with offset**
