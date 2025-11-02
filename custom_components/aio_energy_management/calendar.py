@@ -1,6 +1,6 @@
 """Calendar component for aio energy management platform."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 
 import voluptuous as vol
@@ -72,17 +72,25 @@ class EnergyManagementCalendar(CalendarEntity):
         self._attr_unique_id = unique_id.replace(" ", "_")
         self._attr_name = name
         self._coordinator = coordinator
+        self._events = []
 
     @property
     def event(self) -> CalendarEvent | None:
-        """Return the next upcoming event."""
+        """Return the current or next upcoming event."""
         now = dt_util.now()
 
-        events = self._get_events(
-            start_date=now - timedelta(days=-30),
-            end_date=now + timedelta(days=7),  # only need to check a week ahead
-        )
-        return next(iter(events), None)
+        # First check for current event
+        for event in self._events:
+            if event.start <= now <= event.end:
+                return event
+
+        # If no current event, find the next upcoming event
+        future_events = [event for event in self._events if event.start > now]
+        if not future_events:
+            return None
+
+        # Return the earliest upcoming event
+        return min(future_events, key=lambda x: x.start)
 
     async def async_get_events(
         self,
@@ -91,16 +99,20 @@ class EnergyManagementCalendar(CalendarEntity):
         end_date: datetime,
     ) -> list[CalendarEvent]:
         """Return calendar events within a datetime range."""
+        return [
+            event
+            for event in self._events
+            if event.start <= end_date and event.end >= start_date
+        ]
 
-        return self._get_events(
-            start_date=start_date,
-            end_date=end_date,
-        )
+    async def async_update(self) -> None:
+        """Update loop of calendar. Only update when data is changed."""
+        if self._coordinator.requires_calendar_update is True:
+            self._events = self._get_all_events()
+            self._coordinator.requires_calendar_update = False
 
-    def _get_events(
+    def _get_all_events(
         self,
-        start_date: datetime,
-        end_date: datetime,
     ) -> list[CalendarEvent]:
         """Get calendar events within a datetime range."""
         events: list[CalendarEvent] = []
@@ -116,17 +128,14 @@ class EnergyManagementCalendar(CalendarEntity):
                 for value in combined_data:
                     start = value.get("start")
                     end = value.get("end")
-                    if (
-                        start is not None
-                        and end is not None
-                        and self._is_in_range(start, start_date, end_date)
-                    ):
+                    if start is not None and end is not None:
                         events.append(
                             CalendarEvent(
                                 summary=v.get("name") or k,
                                 start=start,
                                 end=end,
                                 uid=self._uid(k, start, end),
+                                description="",
                             )
                         )
             if next_data := v.get("next"):
@@ -134,19 +143,19 @@ class EnergyManagementCalendar(CalendarEntity):
                     for value in next_list:
                         start = value.get("start")
                         end = value.get("end")
-                        if (
-                            start is not None
-                            and end is not None
-                            and self._is_in_range(start, start_date, end_date)
-                        ):
+                        if start is not None and end is not None:
                             events.append(
                                 CalendarEvent(
                                     summary=v.get("name") or k,
                                     start=start,
                                     end=end,
                                     uid=self._uid(k, start, end),
+                                    description="",
                                 )
                             )
+
+        # Sort events by start time
+        events.sort(key=lambda x: x.start)
 
         return events
 
@@ -166,10 +175,3 @@ class EnergyManagementCalendar(CalendarEntity):
         end_str = end_utc.strftime("%Y%m%dT%H%M%SZ")
 
         return f"{unqiue_id}_{start_str}_{end_str}"
-
-    def _is_in_range(
-        self, event_start_time: datetime, start_date: datetime, end_date: datetime
-    ) -> bool:
-        if event_start_time > start_date and event_start_time < end_date:
-            return True
-        return False

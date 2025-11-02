@@ -23,6 +23,7 @@ class EnergyManagementCoordinator:
         self._store = Store[dict[str, any]](hass, STORAGE_VERSION, STORAGE_KEY)
         self.listeners = []
         self.data = {}
+        self.requires_calendar_update = False
 
     async def _async_save_data(self) -> None:
         """Save data to store."""
@@ -47,6 +48,7 @@ class EnergyManagementCoordinator:
         if stored:
             _LOGGER.debug("Load data from store: %s", stored)
             self.data = self.convert_datetimes(stored)
+            self.requires_calendar_update = True
 
     async def async_set_data(
         self,
@@ -79,6 +81,7 @@ class EnergyManagementCoordinator:
             [self.data[entity_id]["archived"]],
         )
 
+        self.requires_calendar_update = True
         await self._async_save_data()
 
     def _update_archived(
