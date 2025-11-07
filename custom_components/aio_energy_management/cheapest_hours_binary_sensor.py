@@ -513,13 +513,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         if self._is_15min_period_in_use(raw_today):
             if requested_mtu == 60:
-                raw_today = combine_to_hourly(raw_today, HourPriceType.ENTSOE)
+                raw_today = combine_to_hourly(raw_today, HourPriceType.NORDPOOL)
             else:
                 active_mtu = 15
         if self._is_15min_period_in_use(raw_tomorrow):
             if requested_mtu == 60:
-                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.ENTSOE)
-
+                raw_tomorrow = combine_to_hourly(raw_tomorrow, HourPriceType.NORDPOOL)
         today = [
             hour_price.HourPrice.from_dict(
                 item, mtu=active_mtu, type=HourPriceType.NORDPOOL
@@ -891,7 +890,7 @@ def combine_to_hourly(data, type: HourPriceType) -> list:
                             ),  # Round to 2 decimal places
                         }
                     )
-                if type == HourPriceType.ENTSOE:
+                elif type == HourPriceType.ENTSOE:
                     hourly_data.append(
                         {
                             "time": hourly_start,
@@ -910,10 +909,10 @@ def combine_to_hourly(data, type: HourPriceType) -> list:
                             ),  # Round to 2 decimal places
                         }
                     )
+
                 i += 4  # Move to the next hour block
             else:
                 i += 1  # Move to next 15-min block if not starting at :00
         else:
             break  # Not enough data for a full hour block
-
     return hourly_data
