@@ -29,6 +29,7 @@ from .const import (
     CONF_NORDPOOL_ENTITY,
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
     CONF_NUMBER_OF_HOURS,
+    CONF_NUMBER_OF_SLOTS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_MODIFICATIONS,
@@ -56,7 +57,8 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Required(CONF_FIRST_HOUR): int,
         vol.Required(CONF_LAST_HOUR): int,
         vol.Required(CONF_SEQUENTIAL): bool,
-        vol.Required(CONF_NUMBER_OF_HOURS): vol.Any(int, cv.entity_id),
+        vol.Optional(CONF_NUMBER_OF_HOURS): vol.Any(int, cv.entity_id),
+        vol.Optional(CONF_NUMBER_OF_SLOTS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_FAILSAFE_STARTING_HOUR): int,
         vol.Optional(CONF_INVERSED): bool,
         vol.Optional(CONF_TRIGGER_TIME): vol.All(vol.Coerce(str)),
@@ -120,7 +122,8 @@ def _create_cheapest_hours_entity(
     last_hour = discovery_info[CONF_LAST_HOUR]
     starting_today = discovery_info[CONF_STARTING_TODAY]
     sequential = discovery_info[CONF_SEQUENTIAL]
-    number_of_hours = discovery_info[CONF_NUMBER_OF_HOURS]
+    number_of_hours = discovery_info.get(CONF_NUMBER_OF_HOURS)
+    number_of_slots = discovery_info.get(CONF_NUMBER_OF_SLOTS)
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
@@ -152,6 +155,7 @@ def _create_cheapest_hours_entity(
         last_hour=last_hour,
         starting_today=starting_today,
         number_of_hours=number_of_hours,
+        number_of_slots=number_of_slots,
         coordinator=hass.data[DOMAIN][COORDINATOR],
         sequential=sequential,
         failsafe_starting_hour=failsafe_starting_hour,

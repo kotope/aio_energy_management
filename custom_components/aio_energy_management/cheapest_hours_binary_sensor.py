@@ -48,9 +48,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         first_hour,
         last_hour,
         starting_today,
-        number_of_hours,
         sequential,
         coordinator: EnergyManagementCoordinator,
+        number_of_hours=None,
+        number_of_slots=None,
         failsafe_starting_hour=None,
         inversed=False,
         entsoe_entity=None,
@@ -81,6 +82,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._sequential = sequential
         self._failsafe_starting_hour = failsafe_starting_hour
         self._number_of_hours = number_of_hours
+        self._number_of_slots = number_of_slots
         self._inversed = inversed
         self._trigger_time = None
         self._trigger_hour = trigger_hour
@@ -97,6 +99,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._mtu = 60
         else:
             self._mtu = mtu
+
+        if h := number_of_hours:
+            if mtu == 15:
+                self._number_of_slots = h * 4
+            else:
+                self._number_of_slots = h
 
         if offset is None:
             self._offset = {}
@@ -276,7 +284,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 cheapest = calculate_sequential_cheapest_hours(
                     today,
                     tomorrow,
-                    self._data["active_number_of_hours"],
+                    self._data["active_number_of_slots"],
                     self._starting_today,
                     self._first_hour,
                     self._last_hour,
@@ -288,7 +296,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 cheapest = calculate_non_sequential_cheapest_hours(
                     today,
                     tomorrow,
-                    self._data["active_number_of_hours"],
+                    self._data["active_number_of_slots"],
                     self._starting_today,
                     self._first_hour,
                     self._last_hour,
@@ -463,7 +471,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         start = dt_util.now().replace(
             hour=self._failsafe_starting_hour, minute=0, second=0, microsecond=0
         )
-        end = start + timedelta(hours=self._data["active_number_of_hours"])
+
+        if self._mtu == 15:
+            end = start + timedelta(minutes=self._data["active_number_of_slots"] * 15)
+        else:
+            end = start + timedelta(hours=self._data["active_number_of_slots"])
+
         return {"start": start.time(), "end": end.time()}
 
     def _create_expiration(self) -> datetime:
@@ -742,7 +755,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "first_hour": self._first_hour,
             "last_hour": self._last_hour,
             "starting_today": self._starting_today,
-            "number_of_hours": self._number_of_hours,
+            "number_of_slots": self._number_of_slots,
             "failsafe_starting_hour": self._failsafe_starting_hour,
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
@@ -759,8 +772,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         return attrs
 
     def _update_entity_variables(self) -> None:
-        self._data["active_number_of_hours"] = self._int_from_entity(
-            self._number_of_hours
+        self._data["active_number_of_slots"] = self._int_from_entity(
+            self._number_of_slots
         )
         if trigger_hour := self._trigger_hour:
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
