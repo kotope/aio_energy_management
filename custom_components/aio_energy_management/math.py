@@ -19,7 +19,7 @@ MIN_PRICE_VALUE = -99999.9
 def calculate_sequential_cheapest_hours(
     today: list,
     tomorrow: list,
-    number_of_hours: int,
+    number_of_slots: int,
     starting_today: bool,
     first_hour: int,
     last_hour: int,
@@ -36,7 +36,7 @@ def calculate_sequential_cheapest_hours(
 
     if (
         _is_cheapest_hours_input_valid(
-            number_of_hours, starting_today, first_hour, last_hour
+            number_of_slots, starting_today, first_hour, last_hour, mtu
         )
         is False
     ):
@@ -75,16 +75,15 @@ def calculate_sequential_cheapest_hours(
         starting = first_hour + 24
 
     if mtu == 15:
-        number_of_hours = number_of_hours * 4  # Convert hours to 15min slots
         starting = starting * 4
         ending = ending * 4
 
-    for i in range(starting + number_of_hours, ending + 1):
+    for i in range(starting + number_of_slots, ending + 1):
         counter = 0.0
         max_temp = MIN_PRICE_VALUE
         min_temp = MAX_PRICE_VALUE
 
-        for j in range(i - number_of_hours, i):
+        for j in range(i - number_of_slots, i):
             counter += prices[j]
             max_temp = max(max_temp, prices[j])
             min_temp = min(min_temp, prices[j])
@@ -96,17 +95,17 @@ def calculate_sequential_cheapest_hours(
             max_price = max_temp
             min_price = min_temp
             cheapest_price = counter
-            mean_price = counter / number_of_hours
-            delta = timedelta(hours=i - number_of_hours)
+            mean_price = counter / number_of_slots
+            delta = timedelta(hours=i - number_of_slots)
 
             if mtu == 15:
-                delta = timedelta(minutes=15 * (i - number_of_hours))
+                delta = timedelta(minutes=15 * (i - number_of_slots))
 
             cheapest_hour = dt_util.start_of_local_day() + delta
 
-    delta = timedelta(hours=number_of_hours)
+    delta = timedelta(hours=number_of_slots)
     if mtu == 15:
-        delta = timedelta(minutes=15 * number_of_hours)
+        delta = timedelta(minutes=15 * number_of_slots)
 
     fd["list"] = [{"start": cheapest_hour, "end": cheapest_hour + delta}]
 
@@ -119,7 +118,7 @@ def calculate_sequential_cheapest_hours(
 def calculate_non_sequential_cheapest_hours(
     today: list,
     tomorrow: list,
-    number_of_hours: int,
+    number_of_slots: int,
     starting_today: bool,
     first_hour: int,
     last_hour: int,
@@ -130,7 +129,7 @@ def calculate_non_sequential_cheapest_hours(
     """Calculate non-sequential cheapest hours."""
     if (
         _is_cheapest_hours_input_valid(
-            number_of_hours, starting_today, first_hour, last_hour
+            number_of_slots, starting_today, first_hour, last_hour, mtu
         )
         is False
     ):
@@ -179,10 +178,7 @@ def calculate_non_sequential_cheapest_hours(
 
     data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
 
-    if mtu == 15:
-        number_of_hours = number_of_hours * 4  # Convert hours to 15min slots
-
-    data = data[:number_of_hours]
+    data = data[:number_of_slots]
     data.sort(key=lambda x: (x["start"]))
     if inversed:
         if mp := price_limit:
@@ -252,10 +248,11 @@ def _get_min(data: list) -> float | None:
 
 
 def _is_cheapest_hours_input_valid(
-    number_of_hours: int,
+    number_of_slots: int,
     starting_today: bool,
     first_hour: int,
     last_hour: int,
+    mtu: int
 ) -> bool:
     if starting_today is False:
         if last_hour < first_hour:
@@ -263,9 +260,13 @@ def _is_cheapest_hours_input_valid(
     if starting_today is True:
         if first_hour < last_hour:
             return False
-    if number_of_hours > 24:
-        return False
 
+    if mtu == 15:
+        if number_of_slots > 96:
+            return False
+    else:
+        if number_of_slots > 24:
+            return False
     return True
 
 

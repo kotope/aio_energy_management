@@ -67,7 +67,8 @@ Configuration parameters are shown below:
 | nordpool_official_config_entry  | no       | Configuration entry id of Nord Pool official integration |
 | unique_id        | yes       | Unique id to identify newly created entity |
 | name             | yes       | Friendly name of the created entity |
-| number_of_hours  | yes       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number |
+| number_of_hours  | no       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number *deprecated: use number_of_slots instead* |
+| number_of_slots  | yes       |  Number of slots required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number. This configuration will match the selected MTU |
 | first_hour       | yes       | Starting hour used by cheapest hours calculation. If used 'starting_today' as true, must be AFTER Nord Pool price publishing. |
 | last_hour        | yes       | Last hour used by cheapest hours calculation |
 | starting_today   | yes       | First_hour should be already on the same day. False if next day calculations only |
@@ -100,7 +101,7 @@ aio_energy_management:
         first_hour: 21
         last_hour: 12
         starting_today: true
-        number_of_hours: 3
+        number_of_slots: 3
         sequential: false
         failsafe_starting_hour: 1
       - nordpool_entity: sensor.nordpool
@@ -109,7 +110,7 @@ aio_energy_management:
         first_hour: 0
         last_hour: 22
         starting_today: false
-        number_of_hours: 4
+        number_of_slots: 4
         sequential: false
         failsafe_starting_hour: 1
         inversed: true
@@ -119,7 +120,7 @@ aio_energy_management:
         first_hour: 21
         last_hour: 10
         starting_today: true
-        number_of_hours: 5
+        number_of_slots: 5
         sequential: false
       - nordpool_entity: sensor.nordpool
         unique_id: my_cheapest_hours_offset
@@ -127,7 +128,7 @@ aio_energy_management:
         first_hour: 21
         last_hour: 10
         starting_today: true
-        number_of_hours: 5
+        number_of_slots: 5
         sequential: True
         offset:
           start:
@@ -156,7 +157,7 @@ aio_energy_management:
         first_hour: 21
         last_hour: 12
         starting_today: true
-        number_of_hours: 3
+        number_of_slots: 3
         sequential: false
         failsafe_starting_hour: 1
         price_modifications: >
@@ -222,7 +223,7 @@ aio_energy_management:
         first_hour: 21
         last_hour: 12
         starting_today: true
-        number_of_hours: 3
+        number_of_slots: 3
         sequential: false
         failsafe_starting_hour: 1
       - nordpool_entity: sensor.nordpool
@@ -231,7 +232,7 @@ aio_energy_management:
         first_hour: 0
         last_hour: 22
         starting_today: false
-        number_of_hours: 4
+        number_of_slots: 4
         sequential: false
         failsafe_starting_hour: 1
         inversed: true
