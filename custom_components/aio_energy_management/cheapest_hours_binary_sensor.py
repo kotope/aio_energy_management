@@ -4,11 +4,13 @@ from datetime import date, datetime, timedelta
 import logging
 
 from jinja2 import Template
+from voluptuous import Boolean
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import template
 import homeassistant.util.dt as dt_util
 
 from .coordinator import EnergyManagementCoordinator
@@ -45,9 +47,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         hass: HomeAssistant,
         unique_id,
         name,
-        first_hour,
-        last_hour,
-        starting_today,
+        first_hour: int,
+        last_hour: int,
+        starting_today: Boolean | None,
         sequential,
         coordinator: EnergyManagementCoordinator,
         number_of_hours=None,
@@ -78,7 +80,17 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._coordinator = coordinator
         self._first_hour = first_hour
         self._last_hour = last_hour
-        self._starting_today = starting_today
+        self._starting_today = None
+
+        # Initialize starting_today if not provided
+        if starting_today is None:
+            if last_hour >= first_hour:
+                self._starting_today = False
+            else:
+                self._starting_today = True
+        else:
+            self._starting_today = starting_today
+
         self._sequential = sequential
         self._failsafe_starting_hour = failsafe_starting_hour
         self._number_of_hours = number_of_hours
@@ -808,9 +820,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         """Get int value from another entity."""
         if entity_id is None:
             return None
-
         if isinstance(entity_id, int):
             return entity_id
+        if isinstance(entity_id, float):
+            return int(entity_id)
 
         value = self.hass.states.get(entity_id).state
         if value is not None:

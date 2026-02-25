@@ -179,7 +179,7 @@ def calculate_non_sequential_cheapest_hours(
     data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
 
     data = data[:number_of_slots]
-    data.sort(key=lambda x: (x["start"]))
+    data.sort(key=lambda x: x["start"])
     if inversed:
         if mp := price_limit:
             data = [d for d in data if d["price"] >= mp]
@@ -252,7 +252,7 @@ def _is_cheapest_hours_input_valid(
     starting_today: bool,
     first_hour: int,
     last_hour: int,
-    mtu: int
+    mtu: int,
 ) -> bool:
     if starting_today is False:
         if last_hour < first_hour:

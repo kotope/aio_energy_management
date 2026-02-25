@@ -1,10 +1,13 @@
 """Binary sensor(s) for aio energy management."""
 
+from __future__ import annotations
+
 import logging
 
 import voluptuous as vol
 from voluptuous import ALLOW_EXTRA, Invalid, Schema
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -30,6 +33,7 @@ from .const import (
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
     CONF_NUMBER_OF_HOURS,
     CONF_NUMBER_OF_SLOTS,
+    CONF_NUMBER_OF_SLOTS_ENTITY,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_MODIFICATIONS,
@@ -53,7 +57,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_ENTSOE_ENTITY): cv.entity_id,
         vol.Required(CONF_UNIQUE_ID): vol.All(vol.Coerce(str)),
         vol.Required(CONF_NAME): vol.All(vol.Coerce(str)),
-        vol.Required(CONF_STARTING_TODAY): bool,
+        vol.Optional(CONF_STARTING_TODAY): bool,
         vol.Required(CONF_FIRST_HOUR): int,
         vol.Required(CONF_LAST_HOUR): int,
         vol.Required(CONF_SEQUENTIAL): bool,
@@ -84,13 +88,29 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
 )
 
 
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up binary sensor from a config entry."""
+    try:
+        entity = _create_cheapest_hours_entity(hass, entry.data)
+        async_add_entities([entity])
+    except Exception as e:
+        _LOGGER.error(
+            "Error setting up cheapest hours sensor from config entry: %s",
+            e,
+        )
+
+
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Sensor containing amount of cheapest hours marked in the configuration."""
+    """Sensor containing amount of cheapest hours marked in the configuration (YAML legacy)."""
     entry_type = discovery_info["entry_type"]
 
     entities = []
@@ -120,10 +140,12 @@ def _create_cheapest_hours_entity(
     name = discovery_info[CONF_NAME]
     first_hour = discovery_info[CONF_FIRST_HOUR]
     last_hour = discovery_info[CONF_LAST_HOUR]
-    starting_today = discovery_info[CONF_STARTING_TODAY]
+    starting_today = discovery_info.get(CONF_STARTING_TODAY)
     sequential = discovery_info[CONF_SEQUENTIAL]
     number_of_hours = discovery_info.get(CONF_NUMBER_OF_HOURS)
-    number_of_slots = discovery_info.get(CONF_NUMBER_OF_SLOTS)
+    number_of_slots = discovery_info.get(
+        CONF_NUMBER_OF_SLOTS_ENTITY
+    ) or discovery_info.get(CONF_NUMBER_OF_SLOTS)
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
