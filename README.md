@@ -6,6 +6,18 @@ Later AIO Energy Management is planned to integrate into solar forecast to get s
 
 Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
 
+## 🎉 New in Version 0.8.0: UI Configuration Flow!
+# TODO: Move this to configuration section
+AIO Energy Management now supports **UI-based configuration** through Home Assistant's interface! You can now:
+- ✨ Configure entities through the UI (Settings → Devices & Services)
+- 🔧 Modify existing entities without editing YAML
+- 📋 Use a step-by-step wizard for easy setup
+- 🔄 Keep using YAML configuration if you prefer (fully backward compatible)
+
+**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
+
+**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
+
 ## Installation
 ### Option 1: HACS
 - Follow [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration) and install it
@@ -46,7 +58,7 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 
 ### Nord Pool Official integration Prerequisites (if using Nord Pool official integration)
 Installed and configured [Nord Pool official integration](https://www.home-assistant.io/integrations/nordpool/)
-#### Getting configuration entry id
+#### Getting configuration entry id (not needed for UI configuration)
 1. Go to Developer Tools > Actions.
 2. In the “Service” dropdown, select Nord Pool: Get prices.
 3. Choose your newly created config entry from the UI.
@@ -54,7 +66,10 @@ Installed and configured [Nord Pool official integration](https://www.home-assis
 5. Voila! The config_entry ID will be displayed. Copy this value for the next steps. (configuration id is something like '01JPHC0B39ST11081WFZQCKMVC')
 
 ### Configuration
-Configuration is done through configuration.yaml.<br>
+
+**🆕 UI Configuration (Recommended)**: Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
+
+**Legacy YAML Configuration**: Configuration can also be done through configuration.yaml (still fully supported).<br>
 
 Either nordpool_entity or entsoe_entity must be set, depending on which integration you want to use.
 

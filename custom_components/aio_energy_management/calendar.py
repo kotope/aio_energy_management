@@ -1,5 +1,7 @@
 """Calendar component for aio energy management platform."""
 
+from __future__ import annotations
+
 from datetime import datetime
 import logging
 
@@ -7,6 +9,7 @@ import voluptuous as vol
 from voluptuous import ALLOW_EXTRA, Invalid, Schema
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
@@ -26,13 +29,39 @@ ENERGY_MANAGEMENT_CALENDAR_PLATFORM_SCHEMA = Schema(
 )
 
 
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up calendar from a config entry."""
+    _LOGGER.debug("Create energy management calendar entity from config entry")
+
+    try:
+        async_add_entities(
+            [
+                EnergyManagementCalendar(
+                    hass=hass,
+                    unique_id=entry.data[CONF_UNIQUE_ID],
+                    name=entry.data[CONF_NAME],
+                    coordinator=hass.data[DOMAIN][COORDINATOR],
+                )
+            ]
+        )
+    except Exception as e:
+        _LOGGER.error(
+            "Error setting up calendar from config entry: %s",
+            e,
+        )
+
+
 async def async_setup_platform(
     hass: HomeAssistant,
     config: ConfigType,
     async_add_entities: AddEntitiesCallback,
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
-    """Sensor containing amount of cheapest hours marked in the configuration."""
+    """Sensor containing amount of cheapest hours marked in the configuration (YAML legacy)."""
     entry_type = discovery_info["entry_type"]
     # Configure cheapest hours binary sensor
     if entry_type == CONF_ENTITY_CALENDAR:

@@ -1,0 +1,389 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add AIO Energy Management",
+        "description": "Select the type of entity to create",
+        "data": {
+          "entry_type": "Entity type"
+        },
+        "data_description": {
+          "entry_type": "Choose between cheapest hours sensor or calendar entity"
+        }
+      },
+      "cheapest_hours_data_provider": {
+        "title": "Price source",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "data": {
+          "data_provider_type": "Data provider type"
+        },
+        "data_description": {
+          "data_provider_type": "Select the integration that provides electricity price data"
+        }
+      },
+      "cheapest_hours_nordpool": {
+        "title": "Nord Pool configuration",
+        "description": "Configure Nord Pool entity settings",
+        "data": {
+          "nordpool_entity": "Nord Pool entity",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "nordpool_entity": "Entity ID from Nord Pool custom integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_nordpool_official": {
+        "title": "Nord Pool official configuration",
+        "description": "Configure Nord Pool official integration settings",
+        "data": {
+          "nordpool_official_config_entry": "Nord Pool official config entry",
+          "area": "Area",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "nordpool_official_config_entry": "Configuration entry from Nord Pool official integration",
+          "area": "Market area for Nord Pool official integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_entsoe": {
+        "title": "Entso-E configuration",
+        "description": "Configure Entso-E entity settings",
+        "data": {
+          "entsoe_entity": "Entso-E entity",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "entsoe_entity": "Average price sensor entity ID from Entso-E integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_price_source": {
+        "title": "Price source",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "data": {
+          "nordpool_entity": "Nord Pool entity",
+          "nordpool_official_config_entry": "Nord Pool official config entry ID",
+          "entsoe_entity": "Entso-E entity"
+        },
+        "data_description": {
+          "nordpool_entity": "Entity ID from Nord Pool custom integration",
+          "nordpool_official_config_entry": "Configuration entry ID from Nord Pool official integration",
+          "entsoe_entity": "Average price sensor entity ID from Entso-E integration"
+        }
+      },
+      "cheapest_hours_basic": {
+        "title": "Basic settings",
+        "description": "Configure basic cheapest hours settings",
+        "data": {
+          "name": "Name",
+          "number_of_slots": "Number of slots (static value)",
+          "number_of_slots_entity": "Number of slots (dynamic entity)",
+          "first_hour": "First hour",
+          "last_hour": "Last hour",
+          "starting_today": "Starting today",
+          "sequential": "Sequential"
+        },
+        "data_description": {
+          "name": "Friendly name for the entity",
+          "number_of_slots": "Static number of time slots to find (matches selected MTU). Leave at 0 to use entity instead",
+          "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number). Overrides static value if set",
+          "first_hour": "Starting hour for calculation (0-23)",
+          "last_hour": "Last hour for calculation (0-23)",
+          "starting_today": "Include hours from today in calculation",
+          "sequential": "Find sequential hours only"
+        }
+      },
+      "cheapest_hours_advanced": {
+        "title": "Advanced settings",
+        "description": "Configure advanced options (all optional)",
+        "data": {
+          "failsafe_starting_hour": "Failsafe starting hour",
+          "inversed": "Inversed (find expensive hours)",
+          "trigger_hour": "Trigger hour (static value)",
+          "trigger_hour_entity": "Trigger hour (dynamic entity)",
+          "price_limit": "Price limit (static value)",
+          "price_limit_entity": "Price limit (dynamic entity)",
+          "calendar": "Add to calendar",
+          "mtu": "MTU (minutes)",
+          "retention_days": "Retention days",
+          "area": "Area",
+          "price_modifications": "Price modifications",
+          "use_offset": "Configure time offset"
+        },
+        "data_description": {
+          "failsafe_starting_hour": "Fallback hour if price data unavailable",
+          "inversed": "Find most expensive hours instead of cheapest",
+          "trigger_hour": "Static: Earliest hour to create next cheapest hours",
+          "trigger_hour_entity": "Optional: Entity to dynamically set trigger hour (sensor or input_number). Overrides static value if set",
+          "price_limit": "Static: Only accept prices below this value (or above if inversed)",
+          "price_limit_entity": "Optional: Entity to dynamically set price limit (sensor or input_number). Overrides static value if set",
+          "calendar": "Show this entity in the calendar",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "retention_days": "Number of days to keep calendar history",
+          "area": "Market area for Nord Pool official integration",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)",
+          "use_offset": "Enable time offset configuration for start and end times"
+        }
+      },
+      "cheapest_hours_offset": {
+        "title": "Time offset",
+        "description": "Configure optional start and end time offsets",
+        "data": {
+          "start_hours": "Start offset hours (static value)",
+          "start_hours_entity": "Start offset hours (dynamic entity)",
+          "start_minutes": "Start offset minutes (static value)",
+          "start_minutes_entity": "Start offset minutes (dynamic entity)",
+          "end_hours": "End offset hours (static value)",
+          "end_hours_entity": "End offset hours (dynamic entity)",
+          "end_minutes": "End offset minutes (static value)",
+          "end_minutes_entity": "End offset minutes (dynamic entity)"
+        },
+        "data_description": {
+          "start_hours": "Static: Hours to add to start time",
+          "start_hours_entity": "Optional: Entity to dynamically set start hours offset (sensor or input_number). Overrides static value if set",
+          "start_minutes": "Static: Minutes to add to start time",
+          "start_minutes_entity": "Optional: Entity to dynamically set start minutes offset (sensor or input_number). Overrides static value if set",
+          "end_hours": "Static: Hours to add to end time",
+          "end_hours_entity": "Optional: Entity to dynamically set end hours offset (sensor or input_number). Overrides static value if set",
+          "end_minutes": "Static: Minutes to add to end time",
+          "end_minutes_entity": "Optional: Entity to dynamically set end minutes offset (sensor or input_number). Overrides static value if set"
+        }
+      },
+      "calendar": {
+        "title": "Calendar",
+        "description": "Configure energy management calendar",
+        "data": {
+          "name": "Name"
+        },
+        "data_description": {
+          "name": "Friendly name for the calendar"
+        }
+      }
+    },
+    "error": {
+      "no_price_source": "Please select one price source",
+      "multiple_price_sources": "Please select only one price source",
+      "both_slots_configured": "Please configure only one: either static value or entity, not both",
+      "no_slots_configured": "Please configure at least one: either static value (greater than 0) or entity",
+      "number_of_slots_negative": "Number of slots must be 0 or greater",
+      "first_hour_out_of_range": "First hour must be between 0 and 23",
+      "last_hour_out_of_range": "Last hour must be between 0 and 23",
+      "last_hour_before_first_hour": "Last hour must be greater than or equal to first hour",
+      "both_trigger_hour_configured": "Please configure only one: either static trigger hour or entity, not both",
+      "both_price_limit_configured": "Please configure only one: either static price limit or entity, not both",
+      "failsafe_starting_hour_out_of_range": "Failsafe starting hour must be between 0 and 23",
+      "trigger_hour_out_of_range": "Trigger hour must be between 0 and 23",
+      "both_start_hours_configured": "Please configure only one: either static start hours or entity, not both",
+      "both_start_minutes_configured": "Please configure only one: either static start minutes or entity, not both",
+      "both_end_hours_configured": "Please configure only one: either static end hours or entity, not both",
+      "both_end_minutes_configured": "Please configure only one: either static end minutes or entity, not both",
+      "start_minutes_out_of_range": "Start offset minutes must be between 0 and 59",
+      "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This entity is already configured",
+      "unknown_entry_type": "Unknown entry type"
+    }
+  },
+  "options": {
+    "step": {
+      "cheapest_hours_data_provider": {
+        "title": "Price source",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "data": {
+          "data_provider_type": "Data provider type"
+        },
+        "data_description": {
+          "data_provider_type": "Select the integration that provides electricity price data"
+        }
+      },
+      "cheapest_hours_nordpool": {
+        "title": "Nord Pool configuration",
+        "description": "Configure Nord Pool entity settings",
+        "data": {
+          "nordpool_entity": "Nord Pool entity",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "nordpool_entity": "Entity ID from Nord Pool custom integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_nordpool_official": {
+        "title": "Nord Pool official configuration",
+        "description": "Configure Nord Pool official integration settings",
+        "data": {
+          "nordpool_official_config_entry": "Nord Pool official config entry",
+          "area": "Area",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "nordpool_official_config_entry": "Configuration entry from Nord Pool official integration",
+          "area": "Market area for Nord Pool official integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_entsoe": {
+        "title": "Entso-E configuration",
+        "description": "Configure Entso-E entity settings",
+        "data": {
+          "entsoe_entity": "Entso-E entity",
+          "mtu": "MTU (minutes)",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations"
+        },
+        "data_description": {
+          "entsoe_entity": "Average price sensor entity ID from Entso-E integration",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_basic": {
+        "title": "Basic settings",
+        "description": "Configure basic cheapest hours settings",
+        "data": {
+          "name": "Name",
+          "number_of_slots": "Number of slots (static value)",
+          "number_of_slots_entity": "Number of slots (dynamic entity)",
+          "first_hour": "First hour",
+          "last_hour": "Last hour",
+          "sequential": "Sequential"
+        },
+        "data_description": {
+          "name": "Friendly name for the entity",
+          "number_of_slots": "Static number of time slots to find (matches selected MTU). Leave at 0 to use entity instead",
+          "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number). Overrides static value if set",
+          "first_hour": "Starting hour for calculation (0-23)",
+          "last_hour": "Last hour for calculation (0-23)",
+          "sequential": "Find sequential hours only"
+        }
+      },
+      "cheapest_hours_advanced": {
+        "title": "Advanced settings",
+        "description": "Configure advanced options (all optional)",
+        "data": {
+          "failsafe_starting_hour": "Failsafe starting hour",
+          "inversed": "Inversed (find expensive hours)",
+          "trigger_hour": "Trigger hour (static value)",
+          "trigger_hour_entity": "Trigger hour (dynamic entity)",
+          "price_limit": "Price limit (static value)",
+          "price_limit_entity": "Price limit (dynamic entity)",
+          "calendar": "Add to calendar",
+          "retention_days": "Retention days",
+          "price_modifications": "Price modifications",
+          "use_offset": "Configure time offset"
+        },
+        "data_description": {
+          "failsafe_starting_hour": "Fallback hour if price data unavailable",
+          "inversed": "Find most expensive hours instead of cheapest",
+          "trigger_hour": "Static: Earliest hour to create next cheapest hours",
+          "trigger_hour_entity": "Optional: Entity to dynamically set trigger hour (sensor or input_number). Overrides static value if set",
+          "price_limit": "Static: Only accept prices below this value (or above if inversed)",
+          "price_limit_entity": "Optional: Entity to dynamically set price limit (sensor or input_number). Overrides static value if set",
+          "calendar": "Show this entity in the calendar",
+          "retention_days": "Number of days to keep calendar history",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)",
+          "use_offset": "Enable time offset configuration for start and end times"
+        }
+      },
+      "cheapest_hours_offset": {
+        "title": "Time offset",
+        "description": "Configure optional start and end time offsets",
+        "data": {
+          "start_hours": "Start offset hours (static value)",
+          "start_hours_entity": "Start offset hours (dynamic entity)",
+          "start_minutes": "Start offset minutes (static value)",
+          "start_minutes_entity": "Start offset minutes (dynamic entity)",
+          "end_hours": "End offset hours (static value)",
+          "end_hours_entity": "End offset hours (dynamic entity)",
+          "end_minutes": "End offset minutes (static value)",
+          "end_minutes_entity": "End offset minutes (dynamic entity)"
+        },
+        "data_description": {
+          "start_hours": "Static: Hours to add to start time",
+          "start_hours_entity": "Optional: Entity to dynamically set start hours offset (sensor or input_number). Overrides static value if set",
+          "start_minutes": "Static: Minutes to add to start time",
+          "start_minutes_entity": "Optional: Entity to dynamically set start minutes offset (sensor or input_number). Overrides static value if set",
+          "end_hours": "Static: Hours to add to end time",
+          "end_hours_entity": "Optional: Entity to dynamically set end hours offset (sensor or input_number). Overrides static value if set",
+          "end_minutes": "Static: Minutes to add to end time",
+          "end_minutes_entity": "Optional: Entity to dynamically set end minutes offset (sensor or input_number). Overrides static value if set"
+        }
+      },
+      "cheapest_hours_options": {
+        "title": "Cheapest hours options",
+        "description": "Update cheapest hours settings",
+        "data": {
+          "number_of_slots": "Number of slots (static value)",
+          "number_of_slots_entity": "Number of slots (dynamic entity)",
+          "first_hour": "First hour",
+          "last_hour": "Last hour",
+          "starting_today": "Starting today",
+          "sequential": "Sequential",
+          "failsafe_starting_hour": "Failsafe starting hour",
+          "inversed": "Inversed (find expensive hours)",
+          "trigger_hour": "Trigger hour (static value)",
+          "trigger_hour_entity": "Trigger hour (dynamic entity)",
+          "price_limit": "Price limit (static value)",
+          "price_limit_entity": "Price limit (dynamic entity)",
+          "calendar": "Add to calendar",
+          "mtu": "MTU (minutes)",
+          "retention_days": "Retention days",
+          "area": "Area",
+          "price_modifications": "Price modifications",
+          "start_hours": "Start offset hours (static value)",
+          "start_hours_entity": "Start offset hours (dynamic entity)",
+          "start_minutes": "Start offset minutes (static value)",
+          "start_minutes_entity": "Start offset minutes (dynamic entity)",
+          "end_hours": "End offset hours (static value)",
+          "end_hours_entity": "End offset hours (dynamic entity)",
+          "end_minutes": "End offset minutes (static value)",
+          "end_minutes_entity": "End offset minutes (dynamic entity)"
+        },
+        "data_description": {
+          "number_of_slots": "Static number of time slots to find (matches selected MTU). Leave at 0 to use entity instead",
+          "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number). Overrides static value if set",
+          "first_hour": "Starting hour for calculation (0-23)",
+          "last_hour": "Last hour for calculation (0-23)",
+          "starting_today": "Include hours from today in calculation",
+          "sequential": "Find sequential hours only",
+          "failsafe_starting_hour": "Fallback hour if price data unavailable",
+          "inversed": "Find most expensive hours instead of cheapest",
+          "trigger_hour": "Static: Earliest hour to create next cheapest hours",
+          "trigger_hour_entity": "Optional: Entity to dynamically set trigger hour (sensor or input_number). Overrides static value if set",
+          "price_limit": "Static: Only accept prices below this value (or above if inversed)",
+          "price_limit_entity": "Optional: Entity to dynamically set price limit (sensor or input_number). Overrides static value if set",
+          "calendar": "Show this entity in the calendar",
+          "mtu": "Market time unit in minutes (15 or 60)",
+          "retention_days": "Number of days to keep calendar history",
+          "area": "Market area for Nord Pool official integration",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)",
+          "start_hours": "Static: Hours to add to start time",
+          "start_hours_entity": "Optional: Entity to dynamically set start hours offset (sensor or input_number). Overrides static value if set",
+          "start_minutes": "Static: Minutes to add to start time",
+          "start_minutes_entity": "Optional: Entity to dynamically set start minutes offset (sensor or input_number). Overrides static value if set",
+          "end_hours": "Static: Hours to add to end time",
+          "end_hours_entity": "Optional: Entity to dynamically set end hours offset (sensor or input_number). Overrides static value if set",
+          "end_minutes": "Static: Minutes to add to end time",
+          "end_minutes_entity": "Optional: Entity to dynamically set end minutes offset (sensor or input_number). Overrides static value if set"
+        }
+      },
+      "calendar_options": {
+        "title": "Calendar options",
+        "description": "Calendar configuration has no additional options."
+      }
+    }
+  }
+}
