@@ -773,8 +773,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _update_entity_variables(self) -> None:
         if number_of_hours := self._number_of_hours:
-            self._data["active_number_of_slots"] = (
-                self._int_from_entity(number_of_hours) * 4
+            self._data["active_number_of_slots"] = self._int_from_entity(
+                number_of_hours
             )
         else:
             self._data["active_number_of_slots"] = self._int_from_entity(
