@@ -773,9 +773,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _update_entity_variables(self) -> None:
         if number_of_hours := self._number_of_hours:
-            self._data["active_number_of_slots"] = self._int_from_entity(
-                number_of_hours
-            )
+            if self._mtu == 15:
+                self._data["active_number_of_slots"] = (
+                    self._int_from_entity(number_of_hours) * 4
+                )  # 15min mtu is 4 times more granular than 60min
+            else:
+                self._data["active_number_of_slots"] = self._int_from_entity(
+                    number_of_hours
+                )
         else:
             self._data["active_number_of_slots"] = self._int_from_entity(
                 self._number_of_slots
