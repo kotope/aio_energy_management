@@ -6,18 +6,6 @@ Later AIO Energy Management is planned to integrate into solar forecast to get s
 
 Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
 
-## 🎉 New in Version 0.8.0: UI Configuration Flow!
-# TODO: Move this to configuration section
-AIO Energy Management now supports **UI-based configuration** through Home Assistant's interface! You can now:
-- ✨ Configure entities through the UI (Settings → Devices & Services)
-- 🔧 Modify existing entities without editing YAML
-- 📋 Use a step-by-step wizard for easy setup
-- 🔄 Keep using YAML configuration if you prefer (fully backward compatible)
-
-**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
-
-**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
-
 ## Installation
 ### Option 1: HACS
 - Follow [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration) and install it
@@ -66,6 +54,16 @@ Installed and configured [Nord Pool official integration](https://www.home-assis
 5. Voila! The config_entry ID will be displayed. Copy this value for the next steps. (configuration id is something like '01JPHC0B39ST11081WFZQCKMVC')
 
 ### Configuration
+## 🎉 New in Version 0.8.0: UI Configuration Flow!
+AIO Energy Management now supports **UI-based configuration** through Home Assistant's interface! You can now:
+- ✨ Configure entities through the UI (Settings → Devices & Services)
+- 🔧 Modify existing entities without editing YAML
+- 📋 Use a step-by-step wizard for easy setup
+- 🔄 Keep using YAML configuration if you prefer (fully backward compatible)
+
+**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
+
+**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
 
 **🆕 UI Configuration (Recommended)**: Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
 
