@@ -54,7 +54,7 @@ Installed and configured [Nord Pool official integration](https://www.home-assis
 5. Voila! The config_entry ID will be displayed. Copy this value for the next steps. (configuration id is something like '01JPHC0B39ST11081WFZQCKMVC')
 
 ### Configuration
-## 🎉 New in Version 0.8.0: UI Configuration Flow!
+**🎉 New in Version 0.8.0: UI Configuration Flow!**
 AIO Energy Management now supports **UI-based configuration** through Home Assistant's interface! You can now:
 - ✨ Configure entities through the UI (Settings → Devices & Services)
 - 🔧 Modify existing entities without editing YAML
@@ -65,9 +65,9 @@ AIO Energy Management now supports **UI-based configuration** through Home Assis
 
 **Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
 
-**🆕 UI Configuration (Recommended)**: Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
+#### 🆕 UI Configuration (Recommended): Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
 
-**Legacy YAML Configuration**: Configuration can also be done through configuration.yaml (still fully supported).<br>
+#### Legacy YAML Configuration: Configuration can also be done through configuration.yaml (still fully supported).<br>
 
 Either nordpool_entity or entsoe_entity must be set, depending on which integration you want to use.
 
@@ -84,7 +84,7 @@ Configuration parameters are shown below:
 | number_of_slots  | yes       |  Number of slots required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number. This configuration will match the selected MTU |
 | first_hour       | yes       | Starting hour used by cheapest hours calculation. If used 'starting_today' as true, must be AFTER Nord Pool price publishing. |
 | last_hour        | yes       | Last hour used by cheapest hours calculation |
-| starting_today   | yes       | First_hour should be already on the same day. False if next day calculations only |
+| starting_today   | no       | First_hour should be already on the same day. False if next day calculations only (**depreceted** determined automatically since 0.9.0) |
 | sequential       | yes       | True if trying to calculate sequential cheapest hours timeframe. False if multiple values are acceptable. |
 | failsafe_starting_hour | no        | If for some reason Nord Pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
