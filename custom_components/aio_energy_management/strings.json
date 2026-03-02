@@ -176,7 +176,6 @@
       "number_of_slots_negative": "Number of slots must be 0 or greater",
       "first_hour_out_of_range": "First hour must be between 0 and 23",
       "last_hour_out_of_range": "Last hour must be between 0 and 23",
-      "last_hour_before_first_hour": "Last hour must be greater than or equal to first hour",
       "both_trigger_hour_configured": "Please configure only one: either static trigger hour or entity, not both",
       "both_price_limit_configured": "Please configure only one: either static price limit or entity, not both",
       "failsafe_starting_hour_out_of_range": "Failsafe starting hour must be between 0 and 23",

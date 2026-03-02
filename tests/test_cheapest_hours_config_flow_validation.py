@@ -97,28 +97,27 @@ class TestValidateBasicIntegerFields:
         assert CONF_LAST_HOUR in errors
         assert errors[CONF_LAST_HOUR] == "last_hour_out_of_range"
 
-    def test_invalid_last_hour_before_first_hour(self):
-        errors = _validate_basic_integer_fields(self._make_input(10, 5, 1))
-        assert CONF_LAST_HOUR in errors
-        assert errors[CONF_LAST_HOUR] == "last_hour_before_first_hour"
+    def test_valid_last_hour_before_first_hour_overnight_window(self):
+        # last_hour < first_hour is allowed to support overnight windows
+        # e.g. first_hour=22, last_hour=6 means 22:00 -> 06:00
+        errors = _validate_basic_integer_fields(self._make_input(22, 6, 1))
+        assert not errors
 
-    def test_last_hour_before_first_hour_not_reported_when_last_hour_itself_out_of_range(
+    def test_last_hour_out_of_range_not_reported_as_before_first_hour(
         self,
     ):
-        # If last_hour is already flagged as out of range, don't also flag it
-        # as before first_hour.
+        # If last_hour is already flagged as out of range, it is the only error
+        # (the removed cross-field check would never have fired anyway for this case).
         errors = _validate_basic_integer_fields(self._make_input(10, 25, 1))
         assert errors[CONF_LAST_HOUR] == "last_hour_out_of_range"
-        # Should NOT additionally have the "before first" message
-        assert errors[CONF_LAST_HOUR] != "last_hour_before_first_hour"
 
-    def test_last_hour_before_first_hour_not_reported_when_first_hour_also_out_of_range(
+    def test_first_hour_out_of_range_does_not_prevent_last_hour_range_check(
         self,
     ):
-        # When first_hour is invalid, skip the cross-field check entirely.
+        # When first_hour is invalid, last_hour is still checked independently.
         errors = _validate_basic_integer_fields(self._make_input(25, 5, 1))
         assert CONF_FIRST_HOUR in errors
-        # last_hour itself is in-range, no cross-field error expected
+        # last_hour 5 is in-range, so no error expected for it
         assert CONF_LAST_HOUR not in errors
 
     # --- number_of_slots ---

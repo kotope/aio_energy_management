@@ -613,8 +613,10 @@ def _validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]
     Checks:
     - first_hour: 0-23
     - last_hour: 0-23
-    - last_hour must be >= first_hour
     - number_of_slots: >= 0
+
+    Note: last_hour may be less than first_hour to support overnight windows
+    (e.g. first_hour=22, last_hour=6).
     """
     errors: dict[str, str] = {}
 
@@ -627,13 +629,6 @@ def _validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]
 
     if last_hour is not None and not (0 <= last_hour <= 23):
         errors[CONF_LAST_HOUR] = "last_hour_out_of_range"
-    elif (
-        first_hour is not None
-        and last_hour is not None
-        and CONF_FIRST_HOUR not in errors
-        and last_hour < first_hour
-    ):
-        errors[CONF_LAST_HOUR] = "last_hour_before_first_hour"
 
     if number_of_slots is not None and number_of_slots < 0:
         errors[CONF_NUMBER_OF_SLOTS] = "number_of_slots_negative"
