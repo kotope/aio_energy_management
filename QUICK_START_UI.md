@@ -231,5 +231,4 @@ Changes take effect immediately!
 ### Support
 
 - 🐛 Report issues: [GitHub Issues](https://github.com/kotope/aio_energy_management/issues)
-- 💬 Get help: [Home Assistant Community](https://community.home-assistant.io/)
 - ☕ Support the developer: [Buy Me A Coffee](https://www.buymeacoffee.com/tokorhon)
