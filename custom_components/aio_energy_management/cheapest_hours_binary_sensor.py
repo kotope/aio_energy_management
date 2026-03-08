@@ -772,6 +772,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "is_sequential": self._sequential,
             "failsafe_active": self._is_failsafe(),
             "inversed": self._inversed,
+            "unique_id": self._attr_unique_id,
         }
 
         if price_limit := self._price_limit:
