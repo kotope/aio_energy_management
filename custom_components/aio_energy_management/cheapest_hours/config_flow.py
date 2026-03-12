@@ -12,7 +12,7 @@ from homeassistant.const import CONF_NAME
 from homeassistant.helpers import selector
 import homeassistant.helpers.config_validation as cv
 
-from .const import (
+from ..const import (
     CONF_ALLOW_DYNAMIC_ENTITIES,
     CONF_AREA,
     CONF_CALENDAR,
