@@ -17,7 +17,7 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 
-from .cheapest_hours_config_flow import (
+from .cheapest_hours import (
     ENTRY_TYPE_CHEAPEST_HOURS,
     CheapestHoursConfigFlowMixin,
 )

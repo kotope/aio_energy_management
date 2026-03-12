@@ -23,16 +23,23 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_AREA,
+    CONF_BUFFER,
     CONF_CALENDAR,
+    CONF_CONSUMPTION,
     CONF_END,
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTSOE_ENTITY,
+    CONF_EXCESS_SOLAR,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
+    CONF_GRID_POWER_SENSOR,
     CONF_HOURS,
     CONF_INVERSED,
+    CONF_IS_FULL,
+    CONF_IS_ON_SCHEDULE,
     CONF_LAST_HOUR,
+    CONF_MINIMUM_PERIOD,
     CONF_MINUTES,
     CONF_MTU,
     CONF_NAME,
@@ -41,24 +48,30 @@ from .const import (
     CONF_NUMBER_OF_HOURS,
     CONF_NUMBER_OF_SLOTS,
     CONF_OFFSET,
+    CONF_POWER_DEVICES,
     CONF_PRICE_LIMIT,
     CONF_PRICE_MODIFICATIONS,
+    CONF_PRIORITY,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
     CONF_START,
     CONF_STARTING_TODAY,
     CONF_TRIGGER_HOUR,
+    CONF_TURN_ON_DELAY,
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
+    EXCESS_SOLAR_MANAGER,
+    EXCESS_SOLAR_SWITCH,
 )
 from .coordinator import EnergyManagementCoordinator
+from .excess_solar import build_sensors_from_config, create_manager_from_config, ExcessSolarMasterSwitch
 from .services import async_setup_services
 
 if TYPE_CHECKING:
     pass
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.SWITCH]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +84,29 @@ CALENDAR_SCHEMA = vol.Schema(
     {
         vol.Optional(CONF_UNIQUE_ID): cv.string,
         vol.Optional(CONF_NAME): cv.string,
+    }
+)
+
+# Excess solar YAML schema
+POWER_DEVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity"): cv.entity_id,
+        vol.Required(CONF_CONSUMPTION): vol.Any(vol.Coerce(int), cv.entity_id),
+        vol.Optional(CONF_PRIORITY, default=100): cv.positive_int,
+        vol.Optional(CONF_IS_FULL): cv.entity_id,
+        vol.Optional(CONF_IS_ON_SCHEDULE): cv.entity_id,
+        vol.Optional("enabled"): cv.entity_id,
+        vol.Optional(CONF_MINIMUM_PERIOD, default=0): cv.positive_int,
+        vol.Optional(CONF_TURN_ON_DELAY): cv.positive_int,
+    }
+)
+
+EXCESS_SOLAR_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_GRID_POWER_SENSOR): cv.entity_id,
+        vol.Required(CONF_POWER_DEVICES): vol.All(cv.ensure_list, [POWER_DEVICE_SCHEMA]),
+        vol.Optional(CONF_BUFFER, default=0): cv.positive_int,
+        vol.Optional(CONF_TURN_ON_DELAY, default=60): cv.positive_int,
     }
 )
 
@@ -90,6 +126,8 @@ async def async_setup(hass: core.HomeAssistant, config: ConfigType) -> bool:
             conf = await async_integration_yaml_config(hass, DOMAIN)
         if conf is None:
             return
+        # Stop existing excess solar manager if any before reload
+        await _async_stop_excess_solar(hass)
         await async_reload_integration_platforms(hass, DOMAIN, PLATFORMS)
         coordinator = hass.data[DOMAIN][COORDINATOR]
         await coordinator.async_load_data()
@@ -187,4 +225,48 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
             async_load_platform(hass, Platform.CALENDAR, DOMAIN, calendar_entry, config)
         )
 
+    # Excess solar
+    if excess_solar_config := config[DOMAIN].get(CONF_EXCESS_SOLAR):
+        try:
+            validated = EXCESS_SOLAR_SCHEMA(excess_solar_config)
+            sensors = build_sensors_from_config(hass, validated)
+            manager = create_manager_from_config(hass, validated, sensors)
+            # Master switch
+            master_switch = ExcessSolarMasterSwitch(
+                manager=manager,
+                unique_id="excess_solar_master_switch",
+                name="Excess Solar",
+            )
+            hass.data[DOMAIN][EXCESS_SOLAR_MANAGER] = manager
+            hass.data[DOMAIN]["excess_solar_sensors"] = sensors
+            hass.data[DOMAIN][EXCESS_SOLAR_SWITCH] = master_switch
+            # Load binary sensor platform
+            discovery = {"entry_type": CONF_EXCESS_SOLAR}
+            hass.async_create_task(
+                async_load_platform(
+                    hass, Platform.BINARY_SENSOR, DOMAIN, discovery, config
+                )
+            )
+            # Load switch platform
+            hass.async_create_task(
+                async_load_platform(
+                    hass, Platform.SWITCH, DOMAIN, discovery, config
+                )
+            )
+            await manager.async_start()
+            _LOGGER.info(
+                "Excess solar manager started with %d sensor(s) and master switch",
+                len(sensors),
+            )
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("Failed to set up excess solar: %s", e)
+
     return True
+
+
+async def _async_stop_excess_solar(hass: HomeAssistant) -> None:
+    """Stop and remove the excess solar manager if running."""
+    if DOMAIN in hass.data:
+        manager = hass.data[DOMAIN].pop(EXCESS_SOLAR_MANAGER, None)
+        if manager is not None:
+            await manager.async_stop()

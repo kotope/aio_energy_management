@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import zoneinfo
 
 from custom_components.aio_energy_management.exceptions import InvalidInput
-from custom_components.aio_energy_management.math import (
+from custom_components.aio_energy_management.cheapest_hours.math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )

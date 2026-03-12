@@ -7,8 +7,8 @@ import numpy as np
 
 import homeassistant.util.dt as dt_util
 
-from .exceptions import InvalidInput, ValueNotFound
-from .models.hour_price import HourPrice
+from ..exceptions import InvalidInput, ValueNotFound
+from ..models.hour_price import HourPrice
 
 _LOGGER = logging.getLogger(__name__)
 
