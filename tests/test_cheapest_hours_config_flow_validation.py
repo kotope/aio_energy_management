@@ -9,7 +9,7 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), "..", "custom_components"),
 )
 
-from aio_energy_management.cheapest_hours_config_flow import (  # noqa: E402
+from aio_energy_management.cheapest_hours.config_flow import (  # noqa: E402
     _validate_advanced_integer_fields,
     _validate_basic_integer_fields,
     _validate_offset_integer_fields,

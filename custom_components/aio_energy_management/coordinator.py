@@ -151,36 +151,33 @@ class EnergyManagementCoordinator:
             dictionary[k] = self._convert_datetimes_of_item(v)
         return dictionary
 
-    # TODO: Better technic for converting all the date times between str and datetimes
     def _convert_datetimes_of_item(self, dictionary: dict) -> dict:
-        if expires := dictionary.get("expiration"):
-            if expires is not datetime:
-                dictionary["expiration"] = from_str_to_datetime(expires)
-            else:
-                dictionary["expiration"] = expires
+        """Convert stored datetime strings back to datetime objects."""
+        datetime_fields = {"expiration", "updated_at"}
+        date_fields = {"fetch_date"}
+        list_fields = {"list", "archived"}
 
-        if fetch_date := dictionary.get("fetch_date"):
-            if isinstance(fetch_date, str):
-                dictionary["fetch_date"] = dt_util.parse_date(fetch_date)
-        if updated_at := dictionary.get("updated_at"):
-            if updated_at is not datetime:
-                dictionary["updated_at"] = from_str_to_datetime(updated_at)
-            else:
-                dictionary["updated_at"] = updated_at
-        if data_list := dictionary.get("list"):
-            dictionary["list"] = convert_datetime(data_list)
-        if archived_list := dictionary.get("archived"):
-            dictionary["archived"] = convert_datetime(archived_list)
+        for field in datetime_fields:
+            if value := dictionary.get(field):
+                if isinstance(value, str):
+                    dictionary[field] = from_str_to_datetime(value)
+
+        for field in date_fields:
+            if value := dictionary.get(field):
+                if isinstance(value, str):
+                    dictionary[field] = dt_util.parse_date(value)
+
+        for field in list_fields:
+            if value := dictionary.get(field):
+                dictionary[field] = convert_datetime(value)
 
         if data_next := dictionary.get("next"):
             if list_next := data_next.get("list"):
                 dictionary["next"]["list"] = convert_datetime(list_next)
-            if data_expiration_next := data_next.get("expiration"):
-                if data_expiration_next is not datetime:
+            if expiration_next := data_next.get("expiration"):
+                if isinstance(expiration_next, str):
                     dictionary["next"]["expiration"] = from_str_to_datetime(
-                        data_expiration_next
+                        expiration_next
                     )
-                else:
-                    dictionary["next"]["expiration"] = data_expiration_next
 
         return dictionary

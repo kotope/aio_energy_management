@@ -61,3 +61,17 @@ CONF_NAME = "name"
 
 # Data
 COORDINATOR = "coordinator"
+
+# Excess solar feature
+CONF_EXCESS_SOLAR = "excess_solar"
+CONF_GRID_POWER_SENSOR = "sensor"
+CONF_POWER_DEVICES = "power_devices"
+CONF_BUFFER = "buffer"
+CONF_IS_FULL = "is_full"
+CONF_CONSUMPTION = "consumption"
+CONF_PRIORITY = "priority"
+CONF_IS_ON_SCHEDULE = "is_on_schedule"
+CONF_MINIMUM_PERIOD = "minimum_period"
+CONF_TURN_ON_DELAY = "turn_on_delay"
+EXCESS_SOLAR_MANAGER = "excess_solar_manager"
+EXCESS_SOLAR_SWITCH = "excess_solar_switch"

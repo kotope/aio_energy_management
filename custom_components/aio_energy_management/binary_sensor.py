@@ -13,13 +13,14 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
-from .cheapest_hours_binary_sensor import CheapestHoursBinarySensor
+from .cheapest_hours import CheapestHoursBinarySensor
 from .const import (
     CONF_AREA,
     CONF_CALENDAR,
     CONF_END,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTSOE_ENTITY,
+    CONF_EXCESS_SOLAR,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
     CONF_HOURS,
@@ -49,6 +50,7 @@ from .const import (
     COORDINATOR,
     DOMAIN,
 )
+from .excess_solar import ExcessSolarBinarySensor
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -129,9 +131,20 @@ async def async_setup_platform(
                 e,
             )
 
+    elif entry_type == CONF_EXCESS_SOLAR:
+        # Sensors were pre-built by __init__.py and stored in hass.data
+        excess_sensors: list[ExcessSolarBinarySensor] = (
+            hass.data.get(DOMAIN, {}).get("excess_solar_sensors", [])
+        )
+        if not excess_sensors:
+            _LOGGER.warning(
+                "Excess solar platform loaded but no sensors found in hass.data"
+            )
+        entities.extend(excess_sensors)
+
     async_add_entities(entities)
 
-
+# Cheapest hours
 def _create_cheapest_hours_entity(
     hass: HomeAssistant, discovery_info: DiscoveryInfoType | None = None
 ) -> CheapestHoursBinarySensor:
