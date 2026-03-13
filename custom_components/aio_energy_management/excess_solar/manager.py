@@ -53,14 +53,36 @@ class ExcessSolarManager:
         self._hass = hass
         self._grid_sensor = grid_sensor
         self._buffer = buffer
-        # Sorted ascending by priority: lower number → higher priority
-        self._sensors: list[ExcessSolarBinarySensor] = sorted(
-            sensors, key=lambda s: s.priority
-        )
+        self._sensors: list[ExcessSolarBinarySensor] = sensors
+        self.sort_sensors()
         self._cancel_listener = None
         self._pending_handle: Any = None
         self._last_grid_power: float | None = None  # most recent reading
         self._enabled: bool = True  # master switch state
+
+    @property
+    def sensors(self) -> list[ExcessSolarBinarySensor]:
+        """Return the list of sensors."""
+        return self._sensors
+
+    @sensors.setter
+    def sensors(self, value: list[ExcessSolarBinarySensor]) -> None:
+        """Set the list of sensors."""
+        self._sensors = value
+
+    def sort_sensors(self) -> None:
+        """Sort sensors by priority (lower number = higher priority)."""
+        self._sensors.sort(key=lambda s: s.priority)
+        _LOGGER.debug(
+            "Sensors sorted by priority: %s",
+            [(s.name, s.priority) for s in self._sensors],
+        )
+
+    @callback
+    def on_priority_changed(self) -> None:
+        """Handle priority change - re-sort sensors."""
+        _LOGGER.info("Priority changed, re-sorting sensors")
+        self.sort_sensors()
 
     async def async_start(self) -> None:
         """Subscribe to grid sensor state changes."""
@@ -84,7 +106,7 @@ class ExcessSolarManager:
         if self._pending_handle is not None:
             self._pending_handle()  # async_call_later returns a cancel callable
             self._pending_handle = None
-        _LOGGER.debug("ExcessSolarManager stopped.")
+        _LOGGER.debug("ExcessSolarManager stopped")
 
     def async_enable(self) -> None:
         """Enable the manager (master switch on)."""
@@ -212,9 +234,7 @@ class ExcessSolarManager:
                 continue
             # Don't interfere with schedule-controlled devices
             if sensor.is_on_schedule():
-                _LOGGER.debug(
-                    "%s is on schedule, not deactivating", sensor.name
-                )
+                _LOGGER.debug("%s is on schedule, not deactivating", sensor.name)
                 continue
             # Minimum period guard
             if not sensor.can_turn_off():
@@ -247,43 +267,62 @@ class ExcessSolarManager:
 
 
 def build_sensors_from_config(
-    hass: HomeAssistant, config: dict
-) -> list[ExcessSolarBinarySensor]:
-    """Build ``ExcessSolarBinarySensor`` objects from validated YAML config."""
+    hass: HomeAssistant, config: dict, manager: ExcessSolarManager | None = None
+) -> tuple[list[ExcessSolarBinarySensor], list]:
+    """Build ``ExcessSolarBinarySensor`` and priority number entities from config.
+
+    Returns:
+        Tuple of (binary_sensors, number_entities)
+    """
     from ..const import (  # noqa: PLC0415
         CONF_CONSUMPTION,
         CONF_IS_FULL,
         CONF_IS_ON_SCHEDULE,
         CONF_MINIMUM_PERIOD,
+        CONF_NAME,
         CONF_PRIORITY,
         CONF_TURN_ON_DELAY,
     )
+    from .number import ExcessSolarPriorityNumber  # noqa: PLC0415
 
     global_turn_on_delay = config.get(CONF_TURN_ON_DELAY, 60)
     sensors: list[ExcessSolarBinarySensor] = []
+    number_entities: list[ExcessSolarPriorityNumber] = []
 
     for idx, dev_conf in enumerate(config.get("power_devices", [])):
-        device_entity = dev_conf["entity"]
-        slug = device_entity.replace(".", "_").replace("-", "_")
+        device_name = dev_conf[CONF_NAME]
+        slug = device_name.replace(" ", "_").lower()
         unique_id = f"excess_solar_{slug}"
-        name = f"Excess Solar – {device_entity}"
+        initial_priority = dev_conf.get(CONF_PRIORITY, 100)
+
+        priority_number = ExcessSolarPriorityNumber(
+            hass=hass,
+            device_name=device_name,
+            unique_id=unique_id,
+            initial_priority=initial_priority,
+            on_priority_change_callback=(
+                manager.on_priority_changed if manager else None
+            ),
+        )
+        number_entities.append(priority_number)
 
         sensor = ExcessSolarBinarySensor(
             hass=hass,
-            device_entity_id=device_entity,
+            device_entity_id=device_name,
             consumption=dev_conf[CONF_CONSUMPTION],
             unique_id=unique_id,
-            name=name,
-            priority=dev_conf.get(CONF_PRIORITY, 100),
+            name=device_name,
+            priority=initial_priority,
             is_full_entity=dev_conf.get(CONF_IS_FULL),
             is_on_schedule_entity=dev_conf.get(CONF_IS_ON_SCHEDULE),
             enabled_entity=dev_conf.get("enabled"),
             minimum_period=dev_conf.get(CONF_MINIMUM_PERIOD, 0),
             turn_on_delay=dev_conf.get(CONF_TURN_ON_DELAY, global_turn_on_delay),
+            priority_number_entity=priority_number,
         )
         sensors.append(sensor)
 
-    return sensors
+    return sensors, number_entities
 
 
 def create_manager_from_config(

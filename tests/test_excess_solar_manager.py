@@ -6,16 +6,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.aio_energy_management.excess_solar import (
     ExcessSolarBinarySensor,
     ExcessSolarManager,
+    ExcessSolarMasterSwitch,
     build_sensors_from_config,
     create_manager_from_config,
-    ExcessSolarMasterSwitch,
 )
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
 
 from homeassistant.core import HomeAssistant
-import homeassistant.util.dt as dt_util
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -375,10 +373,18 @@ async def test_manager_priority_order_activation(hass: HomeAssistant) -> None:
 async def test_manager_budget_skips_too_large_device(hass: HomeAssistant) -> None:
     """A device whose consumption exceeds available solar is skipped."""
     big = _make_sensor(
-        hass, device_entity_id="switch.big", consumption=2000, priority=1, turn_on_delay=0
+        hass,
+        device_entity_id="switch.big",
+        consumption=2000,
+        priority=1,
+        turn_on_delay=0,
     )
     small = _make_sensor(
-        hass, device_entity_id="switch.small", consumption=400, priority=2, turn_on_delay=0
+        hass,
+        device_entity_id="switch.small",
+        consumption=400,
+        priority=2,
+        turn_on_delay=0,
     )
     for s in [big, small]:
         s.async_write_ha_state = MagicMock()
@@ -425,26 +431,26 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
         "turn_on_delay": 30,
         "power_devices": [
             {
-                "entity": "switch.water_heater",
+                "name": "Water Heater",
                 "consumption": 2000,
                 "priority": 1,
                 "minimum_period": 10,
                 "is_full": "binary_sensor.heater_full",
             },
             {
-                "entity": "switch.ev_charger",
+                "name": "EV Charger",
                 "consumption": 7400,
                 "priority": 2,
                 "minimum_period": 30,
             },
         ],
     }
-    sensors = build_sensors_from_config(hass, config)
+    sensors, number_entities = build_sensors_from_config(hass, config)
     assert len(sensors) == 2
-    assert sensors[0].device_entity_id == "switch.water_heater"
+    assert sensors[0].device_entity_id == "Water Heater"
     assert sensors[0].get_consumption() == 2000.0
     assert sensors[0].priority == 1
-    assert sensors[1].device_entity_id == "switch.ev_charger"
+    assert sensors[1].device_entity_id == "EV Charger"
     assert sensors[1].priority == 2
 
 
@@ -553,3 +559,482 @@ async def test_master_switch_entity_turn_on(hass: HomeAssistant) -> None:
     assert switch.is_on is True
     assert manager._enabled is True
 
+
+# ---------------------------------------------------------------------------
+# Priority Number Entity tests
+# ---------------------------------------------------------------------------
+
+
+async def test_priority_number_entity_creation(hass: HomeAssistant) -> None:
+    """Priority number entity is created with correct attributes."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Water Heater",
+        unique_id="excess_solar_water_heater",
+        initial_priority=50,
+    )
+
+    assert number._attr_unique_id == "excess_solar_water_heater_priority"
+    assert number._attr_name == "Water Heater Priority"
+    assert number._attr_native_value == 50.0
+    assert number._attr_native_min_value == 1
+    assert number._attr_native_max_value == 100
+    assert number._attr_native_step == 1
+    assert number.get_priority() == 50
+
+
+async def test_priority_number_entity_set_value(hass: HomeAssistant) -> None:
+    """Priority number entity value can be changed."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="EV Charger",
+        unique_id="excess_solar_ev",
+        initial_priority=10,
+    )
+    number.async_write_ha_state = MagicMock()
+
+    await number.async_set_native_value(25.0)
+
+    assert number._attr_native_value == 25.0
+    assert number.get_priority() == 25
+    number.async_write_ha_state.assert_called_once()
+
+
+async def test_priority_number_entity_callback_triggered(hass: HomeAssistant) -> None:
+    """Priority change callback is triggered when value changes."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    callback_triggered = False
+
+    def priority_changed_callback():
+        nonlocal callback_triggered
+        callback_triggered = True
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device",
+        unique_id="excess_solar_device",
+        initial_priority=5,
+        on_priority_change_callback=priority_changed_callback,
+    )
+    number.async_write_ha_state = MagicMock()
+
+    await number.async_set_native_value(15.0)
+
+    assert callback_triggered is True
+
+
+async def test_binary_sensor_reads_priority_from_number_entity(
+    hass: HomeAssistant,
+) -> None:
+    """Binary sensor reads priority from linked number entity."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device",
+        unique_id="excess_solar_device",
+        initial_priority=10,
+    )
+
+    sensor = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device",
+        consumption=1000,
+        unique_id="excess_solar_device",
+        name="Device",
+        priority=10,  # Initial priority
+        priority_number_entity=number,
+    )
+
+    # Initially reads from number entity
+    assert sensor.priority == 10
+
+    # Change number entity value
+    number._attr_native_value = 25.0
+
+    # Sensor now reads new priority
+    assert sensor.priority == 25
+
+
+async def test_binary_sensor_priority_without_number_entity(
+    hass: HomeAssistant,
+) -> None:
+    """Binary sensor uses initial priority when no number entity is linked."""
+    sensor = _make_sensor(hass, priority=15)
+    assert sensor.priority == 15
+
+
+async def test_manager_sorts_sensors_by_priority(hass: HomeAssistant) -> None:
+    """Manager sorts sensors by priority (lower = higher priority)."""
+    sensor_low = _make_sensor(hass, device_entity_id="switch.low", priority=1)
+    sensor_mid = _make_sensor(hass, device_entity_id="switch.mid", priority=5)
+    sensor_high = _make_sensor(hass, device_entity_id="switch.high", priority=10)
+
+    # Create in wrong order
+    manager = _make_manager(hass, sensors=[sensor_high, sensor_low, sensor_mid])
+
+    # Manager should sort them: low (1), mid (5), high (10)
+    assert manager._sensors[0] == sensor_low
+    assert manager._sensors[1] == sensor_mid
+    assert manager._sensors[2] == sensor_high
+
+
+async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
+    """Manager re-sorts sensors when priority changes."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    # Create manager first
+    manager = ExcessSolarManager(
+        hass=hass,
+        grid_sensor="sensor.grid_power",
+        sensors=[],
+        buffer=50,
+    )
+
+    # Create sensors with number entities linked to manager
+    number1 = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device 1",
+        unique_id="excess_solar_device1",
+        initial_priority=1,
+        on_priority_change_callback=manager.on_priority_changed,
+    )
+    sensor1 = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device1",
+        consumption=1000,
+        unique_id="excess_solar_device1",
+        name="Device 1",
+        priority=1,
+        priority_number_entity=number1,
+    )
+
+    number2 = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device 2",
+        unique_id="excess_solar_device2",
+        initial_priority=5,
+        on_priority_change_callback=manager.on_priority_changed,
+    )
+    sensor2 = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device2",
+        consumption=1000,
+        unique_id="excess_solar_device2",
+        name="Device 2",
+        priority=5,
+        priority_number_entity=number2,
+    )
+
+    # Add sensors to manager
+    manager.sensors = [sensor1, sensor2]
+    manager.sort_sensors()
+
+    # Initial order: sensor1 (priority 1), sensor2 (priority 5)
+    assert manager._sensors[0] == sensor1
+    assert manager._sensors[1] == sensor2
+
+    # Change priority of sensor1 to 10 (lower priority than sensor2)
+    number1._attr_native_value = 10.0
+    number1.async_write_ha_state = MagicMock()
+    await number1.async_set_native_value(10.0)
+
+    # Manager should have re-sorted: sensor2 (priority 5), sensor1 (priority 10)
+    assert manager._sensors[0] == sensor2
+    assert manager._sensors[1] == sensor1
+
+
+async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> None:
+    """Changing priority affects which device gets activated first."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    # Create manager
+    manager = ExcessSolarManager(
+        hass=hass,
+        grid_sensor="sensor.grid_power",
+        sensors=[],
+        buffer=0,
+    )
+
+    # Device 1: initially priority 10 (lower priority)
+    number1 = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device 1",
+        unique_id="excess_solar_device1",
+        initial_priority=10,
+        on_priority_change_callback=manager.on_priority_changed,
+    )
+    sensor1 = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device1",
+        consumption=500,
+        unique_id="excess_solar_device1",
+        name="Device 1",
+        priority=10,
+        turn_on_delay=0,
+        priority_number_entity=number1,
+    )
+    sensor1.async_write_ha_state = MagicMock()
+
+    # Device 2: priority 5 (higher priority)
+    number2 = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device 2",
+        unique_id="excess_solar_device2",
+        initial_priority=5,
+        on_priority_change_callback=manager.on_priority_changed,
+    )
+    sensor2 = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device2",
+        consumption=500,
+        unique_id="excess_solar_device2",
+        name="Device 2",
+        priority=5,
+        turn_on_delay=0,
+        priority_number_entity=number2,
+    )
+    sensor2.async_write_ha_state = MagicMock()
+
+    manager.sensors = [sensor1, sensor2]
+    manager.sort_sensors()
+
+    # With 1000W excess, sensor2 (priority 5) should activate first
+    await manager._async_evaluate(-1000.0)
+    assert sensor2.is_on is True
+    assert sensor1.is_on is False
+
+    # Reset
+    sensor2.deactivate()
+
+    # Change sensor1 priority to 1 (now highest priority)
+    number1._attr_native_value = 1.0
+    number1.async_write_ha_state = MagicMock()
+    await number1.async_set_native_value(1.0)
+
+    # Now sensor1 should activate first
+    await manager._async_evaluate(-1000.0)
+    assert sensor1.is_on is True
+    assert sensor2.is_on is False
+
+
+async def test_priority_in_extra_state_attributes(hass: HomeAssistant) -> None:
+    """Priority is included in binary sensor extra state attributes."""
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device",
+        unique_id="excess_solar_device",
+        initial_priority=7,
+    )
+
+    sensor = ExcessSolarBinarySensor(
+        hass=hass,
+        device_entity_id="switch.device",
+        consumption=1000,
+        unique_id="excess_solar_device",
+        name="Device",
+        priority=7,
+        priority_number_entity=number,
+    )
+
+    attrs = sensor.extra_state_attributes
+
+    assert "priority" in attrs
+    assert attrs["priority"] == 7
+    assert "priority_entity" in attrs
+    assert attrs["priority_entity"] == "excess_solar_device_priority"
+
+
+async def test_build_sensors_from_config_creates_number_entities(
+    hass: HomeAssistant,
+) -> None:
+    """build_sensors_from_config creates both sensors and number entities."""
+    config = {
+        "sensor": "sensor.grid_power",
+        "buffer": 100,
+        "turn_on_delay": 60,
+        "power_devices": [
+            {
+                "name": "Water Heater",
+                "consumption": 400,
+                "priority": 1,
+            },
+            {
+                "name": "EV Charger",
+                "consumption": 1000,
+                "priority": 2,
+            },
+        ],
+    }
+
+    manager = ExcessSolarManager(
+        hass=hass,
+        grid_sensor="sensor.grid_power",
+        sensors=[],
+        buffer=100,
+    )
+
+    sensors, number_entities = build_sensors_from_config(hass, config, manager)
+
+    assert len(sensors) == 2
+    assert len(number_entities) == 2
+
+    # Check first sensor and number entity
+    assert sensors[0].name == "Water Heater"
+    assert sensors[0].priority == 1
+    assert number_entities[0]._attr_name == "Water Heater Priority"
+    assert number_entities[0].get_priority() == 1
+
+    # Check second sensor and number entity
+    assert sensors[1].name == "EV Charger"
+    assert sensors[1].priority == 2
+    assert number_entities[1]._attr_name == "EV Charger Priority"
+    assert number_entities[1].get_priority() == 2
+
+    # Verify sensors are linked to number entities
+    assert sensors[0]._priority_number_entity == number_entities[0]
+    assert sensors[1]._priority_number_entity == number_entities[1]
+
+
+async def test_priority_number_entity_state_restoration(
+    hass: HomeAssistant,
+) -> None:
+    """Priority number entity restores previous state after restart."""
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+    from homeassistant.core import State
+
+    # Create number entity with initial priority 10
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Test Device",
+        unique_id="excess_solar_test",
+        initial_priority=10,
+    )
+
+    # Mock the restored state (priority was changed to 25)
+    mock_state = State(
+        entity_id="number.test_device_priority",
+        state="25.0",
+    )
+
+    with patch.object(number, "async_get_last_state", return_value=mock_state):
+        await number.async_added_to_hass()
+
+    # Verify restored value is used instead of initial value
+    assert number._attr_native_value == 25.0
+    assert number.get_priority() == 25
+
+
+async def test_priority_number_entity_no_previous_state(
+    hass: HomeAssistant,
+) -> None:
+    """Priority number entity uses initial value when no previous state exists."""
+    from unittest.mock import patch
+
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="New Device",
+        unique_id="excess_solar_new",
+        initial_priority=15,
+    )
+
+    # Mock no previous state
+    with patch.object(number, "async_get_last_state", return_value=None):
+        await number.async_added_to_hass()
+
+    # Verify initial value is used
+    assert number._attr_native_value == 15.0
+    assert number.get_priority() == 15
+
+
+async def test_priority_number_entity_invalid_restored_state(
+    hass: HomeAssistant,
+) -> None:
+    """Priority number entity handles invalid restored state gracefully."""
+    from unittest.mock import patch
+
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+    from homeassistant.core import State
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device",
+        unique_id="excess_solar_device",
+        initial_priority=20,
+    )
+
+    # Mock invalid restored state
+    mock_state = State(
+        entity_id="number.device_priority",
+        state="invalid",
+    )
+
+    with patch.object(number, "async_get_last_state", return_value=mock_state):
+        await number.async_added_to_hass()
+
+    # Verify initial value is used when restoration fails
+    assert number._attr_native_value == 20.0
+    assert number.get_priority() == 20
+
+
+async def test_priority_number_entity_out_of_bounds_restored_state(
+    hass: HomeAssistant,
+) -> None:
+    """Priority number entity rejects out-of-bounds restored values."""
+    from unittest.mock import patch
+
+    from custom_components.aio_energy_management.excess_solar.number import (
+        ExcessSolarPriorityNumber,
+    )
+    from homeassistant.core import State
+
+    number = ExcessSolarPriorityNumber(
+        hass=hass,
+        device_name="Device",
+        unique_id="excess_solar_device",
+        initial_priority=50,
+    )
+
+    # Mock out-of-bounds restored state (150 > max of 100)
+    mock_state = State(
+        entity_id="number.device_priority",
+        state="150.0",
+    )
+
+    with patch.object(number, "async_get_last_state", return_value=mock_state):
+        await number.async_added_to_hass()
+
+    # Verify initial value is used when restored value is out of bounds
+    assert number._attr_native_value == 50.0
+    assert number.get_priority() == 50

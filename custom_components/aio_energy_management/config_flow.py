@@ -17,10 +17,7 @@ from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 
-from .cheapest_hours import (
-    ENTRY_TYPE_CHEAPEST_HOURS,
-    CheapestHoursConfigFlowMixin,
-)
+from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import CONF_CALENDAR, CONF_UNIQUE_ID, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)

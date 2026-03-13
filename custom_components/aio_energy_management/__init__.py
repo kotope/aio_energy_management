@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from typing import TYPE_CHECKING
 
 import voluptuous as vol
 
@@ -67,13 +66,14 @@ from .const import (
     EXCESS_SOLAR_SWITCH,
 )
 from .coordinator import EnergyManagementCoordinator
-from .excess_solar import build_sensors_from_config, create_manager_from_config, ExcessSolarMasterSwitch
+from .excess_solar import (
+    ExcessSolarMasterSwitch,
+    build_sensors_from_config,
+    create_manager_from_config,
+)
 from .services import async_setup_services
 
-if TYPE_CHECKING:
-    pass
-
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.SWITCH]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.NUMBER, Platform.SWITCH]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ CALENDAR_SCHEMA = vol.Schema(
 # Excess solar YAML schema
 POWER_DEVICE_SCHEMA = vol.Schema(
     {
-        vol.Required("entity"): cv.entity_id,
+        vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_CONSUMPTION): vol.Any(vol.Coerce(int), cv.entity_id),
         vol.Optional(CONF_PRIORITY, default=100): cv.positive_int,
         vol.Optional(CONF_IS_FULL): cv.entity_id,
@@ -106,7 +106,9 @@ POWER_DEVICE_SCHEMA = vol.Schema(
 EXCESS_SOLAR_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_GRID_POWER_SENSOR): cv.entity_id,
-        vol.Required(CONF_POWER_DEVICES): vol.All(cv.ensure_list, [POWER_DEVICE_SCHEMA]),
+        vol.Required(CONF_POWER_DEVICES): vol.All(
+            cv.ensure_list, [POWER_DEVICE_SCHEMA]
+        ),
         vol.Optional(CONF_BUFFER, default=0): cv.positive_int,
         vol.Optional(CONF_TURN_ON_DELAY, default=60): cv.positive_int,
     }
@@ -231,8 +233,13 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
     if excess_solar_config := config[DOMAIN].get(CONF_EXCESS_SOLAR):
         try:
             validated = EXCESS_SOLAR_SCHEMA(excess_solar_config)
-            sensors = build_sensors_from_config(hass, validated)
-            manager = create_manager_from_config(hass, validated, sensors)
+            # Create manager first (without sensors)
+            manager = create_manager_from_config(hass, validated, [])
+            # Build sensors and number entities with manager reference
+            sensors, number_entities = build_sensors_from_config(hass, validated, manager)
+            # Update manager with sensors
+            manager.sensors = sensors
+            manager.sort_sensors()
             # Master switch
             master_switch = ExcessSolarMasterSwitch(
                 manager=manager,
@@ -241,6 +248,7 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
             )
             hass.data[DOMAIN][EXCESS_SOLAR_MANAGER] = manager
             hass.data[DOMAIN]["excess_solar_sensors"] = sensors
+            hass.data[DOMAIN]["excess_solar_number_entities"] = number_entities
             hass.data[DOMAIN][EXCESS_SOLAR_SWITCH] = master_switch
             # Load binary sensor platform
             discovery = {"entry_type": CONF_EXCESS_SOLAR}
@@ -249,16 +257,19 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
                     hass, Platform.BINARY_SENSOR, DOMAIN, discovery, config
                 )
             )
+            # Load number platform
+            hass.async_create_task(
+                async_load_platform(hass, Platform.NUMBER, DOMAIN, discovery, config)
+            )
             # Load switch platform
             hass.async_create_task(
-                async_load_platform(
-                    hass, Platform.SWITCH, DOMAIN, discovery, config
-                )
+                async_load_platform(hass, Platform.SWITCH, DOMAIN, discovery, config)
             )
             await manager.async_start()
             _LOGGER.info(
-                "Excess solar manager started with %d sensor(s) and master switch",
+                "Excess solar manager started with %d sensor(s), %d number entities, and master switch",
                 len(sensors),
+                len(number_entities),
             )
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Failed to set up excess solar: %s", e)
