@@ -13,7 +13,7 @@ import homeassistant.util.dt as dt_util
 _LOGGER = logging.getLogger(__name__)
 
 # Default delays
-DEFAULT_TURN_ON_DELAY = 60   # seconds: minimum wait after "off" before turning "on"
+DEFAULT_TURN_ON_DELAY = 60  # seconds: minimum wait after "off" before turning "on"
 
 
 class ExcessSolarBinarySensor(BinarySensorEntity):
@@ -39,8 +39,9 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         is_full_entity: str | None = None,
         is_on_schedule_entity: str | None = None,
         enabled_entity: str | None = None,
-        minimum_period: int = 0,       # minutes
+        minimum_period: int = 0,  # minutes
         turn_on_delay: int = DEFAULT_TURN_ON_DELAY,  # seconds
+        priority_number_entity: Any = None,
     ) -> None:
         """Initialise the excess solar binary sensor."""
         self.hass = hass
@@ -49,7 +50,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self._attr_unique_id = unique_id
         self._attr_name = name
         self._attr_icon = "mdi:solar-power-variant"
-        self.priority = priority
+        self._initial_priority = priority
+        self._priority_number_entity = priority_number_entity
         self.is_full_entity = is_full_entity
         self.is_on_schedule_entity = is_on_schedule_entity
         self.enabled_entity = enabled_entity
@@ -64,6 +66,13 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
     # State helpers used by the manager
     # ------------------------------------------------------------------
 
+    @property
+    def priority(self) -> int:
+        """Return current priority from number entity or initial value."""
+        if self._priority_number_entity is not None:
+            return self._priority_number_entity.get_priority()
+        return self._initial_priority
+
     def get_consumption(self) -> float:
         """Return device consumption in Watts (static int or entity state)."""
         if (
@@ -75,7 +84,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
                 _LOGGER.warning(
                     "Consumption entity %s not found for %s, assuming 0W",
                     self._consumption,
-                    self.device_entity_id,
+                    self.name,
                 )
                 return 0.0
             try:
@@ -157,7 +166,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         """Return extra attributes."""
-        return {
+        attrs = {
             "device_entity": self.device_entity_id,
             "priority": self.priority,
             "consumption_w": self.get_consumption(),
@@ -171,3 +180,10 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
                 self._last_turned_off.isoformat() if self._last_turned_off else None
             ),
         }
+        if self._priority_number_entity is not None:
+            # Use entity_id if available (when registered), otherwise unique_id
+            entity_ref = getattr(
+                self._priority_number_entity, "entity_id", None
+            ) or self._priority_number_entity._attr_unique_id
+            attrs["priority_entity"] = entity_ref
+        return attrs
