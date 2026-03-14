@@ -56,7 +56,6 @@ CONF_ENTRY_TYPE = "entry_type"
 ENTRY_TYPE_CHEAPEST_HOURS = "cheapest_hours"
 
 
-
 def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
     """Get data provider type selection schema."""
     if default:
@@ -137,7 +136,7 @@ def _get_nordpool_official_schema(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
                 if user_input
-                else True,
+                else False,
             ): cv.boolean,
         }
     )
@@ -167,7 +166,7 @@ def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
                 if user_input
-                else True,
+                else False,
             ): cv.boolean,
         }
     )
