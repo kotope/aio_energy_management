@@ -84,7 +84,7 @@ class AIOEnergyManagementConfigFlow(
                 {
                     vol.Required(CONF_ENTRY_TYPE): vol.In(
                         {
-                            ENTRY_TYPE_CHEAPEST_HOURS: "Cheapest hours sensor",
+                            ENTRY_TYPE_CHEAPEST_HOURS: "Cheapest hours sensor (BETA Configuration)",
                             ENTRY_TYPE_CALENDAR: "Calendar",
                         }
                     ),
