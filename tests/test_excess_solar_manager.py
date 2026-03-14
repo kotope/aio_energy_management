@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.aio_energy_management.excess_solar import (
     ExcessSolarBinarySensor,
+    ExcessSolarDeviceEnabledSwitch,
     ExcessSolarManager,
     ExcessSolarMasterSwitch,
     build_sensors_from_config,
@@ -20,17 +21,27 @@ from homeassistant.core import HomeAssistant
 # ---------------------------------------------------------------------------
 
 
+def _make_enabled_switch(enabled: bool = True) -> ExcessSolarDeviceEnabledSwitch:
+    """Create a device enabled switch with the given state."""
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_test_device_enabled",
+        name="Test Device Enabled",
+    )
+    switch._attr_is_on = enabled
+    return switch
+
+
 def _make_sensor(
     hass: HomeAssistant,
     device_entity_id: str = "switch.device",
     consumption: int = 1000,
     priority: int = 1,
-    is_full_entity: str | None = None,
     is_on_schedule_entity: str | None = None,
-    enabled_entity: str | None = None,
+    enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
     minimum_period: int = 0,
     turn_on_delay: int = 0,  # 0 for tests to avoid timing complexity
 ) -> ExcessSolarBinarySensor:
+    """Create a test binary sensor."""
     return ExcessSolarBinarySensor(
         hass=hass,
         device_entity_id=device_entity_id,
@@ -38,9 +49,8 @@ def _make_sensor(
         unique_id=f"excess_solar_{device_entity_id.replace('.', '_')}",
         name=f"Excess Solar – {device_entity_id}",
         priority=priority,
-        is_full_entity=is_full_entity,
         is_on_schedule_entity=is_on_schedule_entity,
-        enabled_entity=enabled_entity,
+        enabled_switch=enabled_switch,
         minimum_period=minimum_period,
         turn_on_delay=turn_on_delay,
     )
@@ -52,6 +62,7 @@ def _make_manager(
     sensors: list[ExcessSolarBinarySensor] | None = None,
     buffer: int = 50,
 ) -> ExcessSolarManager:
+    """Create a test manager."""
     if sensors is None:
         sensors = [_make_sensor(hass)]
     return ExcessSolarManager(
@@ -90,38 +101,29 @@ async def test_sensor_get_consumption_entity_unavailable(hass: HomeAssistant) ->
     assert sensor.get_consumption() == 0.0
 
 
-async def test_sensor_is_full_true(hass: HomeAssistant) -> None:
-    _set_state(hass, "binary_sensor.full", "on")
-    sensor = _make_sensor(hass, is_full_entity="binary_sensor.full")
-    assert sensor.is_full() is True
-
-
-async def test_sensor_is_full_false(hass: HomeAssistant) -> None:
-    _set_state(hass, "binary_sensor.full", "off")
-    sensor = _make_sensor(hass, is_full_entity="binary_sensor.full")
-    assert sensor.is_full() is False
-
-
-async def test_sensor_is_full_no_entity(hass: HomeAssistant) -> None:
-    """No is_full entity → never full."""
-    sensor = _make_sensor(hass)
-    assert sensor.is_full() is False
-
-
 async def test_sensor_is_on_schedule_true(hass: HomeAssistant) -> None:
+    """Sensor correctly reports on-schedule state."""
     _set_state(hass, "binary_sensor.schedule", "on")
     sensor = _make_sensor(hass, is_on_schedule_entity="binary_sensor.schedule")
     assert sensor.is_on_schedule() is True
 
 
-async def test_sensor_is_enabled_false(hass: HomeAssistant) -> None:
-    _set_state(hass, "input_boolean.enabled", "off")
-    sensor = _make_sensor(hass, enabled_entity="input_boolean.enabled")
+async def test_sensor_is_enabled_false_via_switch(hass: HomeAssistant) -> None:
+    """Sensor is disabled when its enabled switch is off."""
+    switch = _make_enabled_switch(enabled=False)
+    sensor = _make_sensor(hass, enabled_switch=switch)
     assert sensor.is_enabled() is False
 
 
-async def test_sensor_is_enabled_no_entity(hass: HomeAssistant) -> None:
-    """No enabled entity → always enabled."""
+async def test_sensor_is_enabled_true_via_switch(hass: HomeAssistant) -> None:
+    """Sensor is enabled when its enabled switch is on."""
+    switch = _make_enabled_switch(enabled=True)
+    sensor = _make_sensor(hass, enabled_switch=switch)
+    assert sensor.is_enabled() is True
+
+
+async def test_sensor_is_enabled_no_switch(hass: HomeAssistant) -> None:
+    """No enabled switch → always enabled."""
     sensor = _make_sensor(hass)
     assert sensor.is_enabled() is True
 
@@ -177,7 +179,6 @@ async def test_sensor_activate_deactivate_state(hass: HomeAssistant) -> None:
     """Activate/deactivate correctly toggle the sensor state."""
     sensor = _make_sensor(hass)
     sensor.hass = hass
-    # Patch async_write_ha_state so it doesn't require a full HA setup
     sensor.async_write_ha_state = MagicMock()
 
     assert sensor.is_on is False
@@ -197,9 +198,9 @@ async def test_sensor_extra_state_attributes(hass: HomeAssistant) -> None:
     assert "device_entity" in attrs
     assert "priority" in attrs
     assert "consumption_w" in attrs
-    assert "is_full" in attrs
     assert "is_on_schedule" in attrs
     assert "is_enabled" in attrs
+    assert "is_full" not in attrs
 
 
 # ---------------------------------------------------------------------------
@@ -252,28 +253,28 @@ async def test_manager_deactivates_lowest_priority_when_importing(
     assert hi.is_on is True  # high priority remains active
 
 
-async def test_manager_skips_full_sensor(hass: HomeAssistant) -> None:
-    """Full sensor is skipped when turning on."""
-    _set_state(hass, "binary_sensor.full", "on")
-    sensor = _make_sensor(hass, is_full_entity="binary_sensor.full", turn_on_delay=0)
-    sensor.async_write_ha_state = MagicMock()
-    manager = _make_manager(hass, sensors=[sensor], buffer=0)
-
-    await manager._async_evaluate(-500.0)
-
-    assert sensor.is_on is False
-
-
 async def test_manager_skips_disabled_sensor(hass: HomeAssistant) -> None:
-    """Disabled sensor is skipped."""
-    _set_state(hass, "input_boolean.enabled", "off")
-    sensor = _make_sensor(hass, enabled_entity="input_boolean.enabled", turn_on_delay=0)
+    """Disabled sensor is skipped when enabled switch is off."""
+    switch = _make_enabled_switch(enabled=False)
+    sensor = _make_sensor(hass, enabled_switch=switch, turn_on_delay=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
     await manager._async_evaluate(-500.0)
 
     assert sensor.is_on is False
+
+
+async def test_manager_activates_enabled_sensor(hass: HomeAssistant) -> None:
+    """Enabled sensor (switch is on) is activated normally."""
+    switch = _make_enabled_switch(enabled=True)
+    sensor = _make_sensor(hass, consumption=500, enabled_switch=switch, turn_on_delay=0)
+    sensor.async_write_ha_state = MagicMock()
+    manager = _make_manager(hass, sensors=[sensor], buffer=0)
+
+    await manager._async_evaluate(-1000.0)
+
+    assert sensor.is_on is True
 
 
 async def test_manager_skips_scheduled_sensor_on_activation(
@@ -435,7 +436,6 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
                 "consumption": 2000,
                 "priority": 1,
                 "minimum_period": 10,
-                "is_full": "binary_sensor.heater_full",
             },
             {
                 "name": "EV Charger",
@@ -445,8 +445,9 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
             },
         ],
     }
-    sensors, number_entities = build_sensors_from_config(hass, config)
+    sensors, number_entities, enabled_switches = build_sensors_from_config(hass, config)
     assert len(sensors) == 2
+    assert len(enabled_switches) == 2
     assert sensors[0].device_entity_id == "Water Heater"
     assert sensors[0].get_consumption() == 2000.0
     assert sensors[0].priority == 1
@@ -561,6 +562,109 @@ async def test_master_switch_entity_turn_on(hass: HomeAssistant) -> None:
 
 
 # ---------------------------------------------------------------------------
+# ExcessSolarDeviceEnabledSwitch tests
+# ---------------------------------------------------------------------------
+
+
+async def test_device_enabled_switch_defaults_to_on(hass: HomeAssistant) -> None:
+    """Device enabled switch is on by default."""
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+    assert switch.is_on is True
+
+
+async def test_device_enabled_switch_turn_off(hass: HomeAssistant) -> None:
+    """Turning off device enabled switch marks device as disabled."""
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_off()
+
+    assert switch.is_on is False
+    switch.async_write_ha_state.assert_called_once()
+
+
+async def test_device_enabled_switch_turn_on(hass: HomeAssistant) -> None:
+    """Turning on device enabled switch marks device as enabled."""
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+    switch._attr_is_on = False
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_on()
+
+    assert switch.is_on is True
+    switch.async_write_ha_state.assert_called_once()
+
+
+async def test_device_enabled_switch_restores_state(hass: HomeAssistant) -> None:
+    """Device enabled switch restores previous state after restart."""
+    from unittest.mock import patch
+
+    from homeassistant.core import State
+
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+
+    mock_state = State(
+        entity_id="switch.device_enabled",
+        state="off",
+    )
+
+    with patch.object(switch, "async_get_last_state", return_value=mock_state):
+        await switch.async_added_to_hass()
+
+    assert switch.is_on is False
+
+
+async def test_device_enabled_switch_restores_on_state(hass: HomeAssistant) -> None:
+    """Device enabled switch restores 'on' state after restart."""
+    from unittest.mock import patch
+
+    from homeassistant.core import State
+
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+    switch._attr_is_on = False  # start as off
+
+    mock_state = State(
+        entity_id="switch.device_enabled",
+        state="on",
+    )
+
+    with patch.object(switch, "async_get_last_state", return_value=mock_state):
+        await switch.async_added_to_hass()
+
+    assert switch.is_on is True
+
+
+async def test_device_enabled_switch_no_previous_state(hass: HomeAssistant) -> None:
+    """Device enabled switch defaults to on when no previous state exists."""
+    from unittest.mock import patch
+
+    switch = ExcessSolarDeviceEnabledSwitch(
+        unique_id="excess_solar_device_enabled",
+        name="Device Enabled",
+    )
+
+    with patch.object(switch, "async_get_last_state", return_value=None):
+        await switch.async_added_to_hass()
+
+    assert switch.is_on is True
+
+
+# ---------------------------------------------------------------------------
 # Priority Number Entity tests
 # ---------------------------------------------------------------------------
 
@@ -655,17 +759,14 @@ async def test_binary_sensor_reads_priority_from_number_entity(
         consumption=1000,
         unique_id="excess_solar_device",
         name="Device",
-        priority=10,  # Initial priority
+        priority=10,
         priority_number_entity=number,
     )
 
-    # Initially reads from number entity
     assert sensor.priority == 10
 
-    # Change number entity value
     number._attr_native_value = 25.0
 
-    # Sensor now reads new priority
     assert sensor.priority == 25
 
 
@@ -698,7 +799,6 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
         ExcessSolarPriorityNumber,
     )
 
-    # Create manager first
     manager = ExcessSolarManager(
         hass=hass,
         grid_sensor="sensor.grid_power",
@@ -706,7 +806,6 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
         buffer=50,
     )
 
-    # Create sensors with number entities linked to manager
     number1 = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device 1",
@@ -741,20 +840,16 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
         priority_number_entity=number2,
     )
 
-    # Add sensors to manager
     manager.sensors = [sensor1, sensor2]
     manager.sort_sensors()
 
-    # Initial order: sensor1 (priority 1), sensor2 (priority 5)
     assert manager._sensors[0] == sensor1
     assert manager._sensors[1] == sensor2
 
-    # Change priority of sensor1 to 10 (lower priority than sensor2)
     number1._attr_native_value = 10.0
     number1.async_write_ha_state = MagicMock()
     await number1.async_set_native_value(10.0)
 
-    # Manager should have re-sorted: sensor2 (priority 5), sensor1 (priority 10)
     assert manager._sensors[0] == sensor2
     assert manager._sensors[1] == sensor1
 
@@ -765,7 +860,6 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         ExcessSolarPriorityNumber,
     )
 
-    # Create manager
     manager = ExcessSolarManager(
         hass=hass,
         grid_sensor="sensor.grid_power",
@@ -773,7 +867,6 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         buffer=0,
     )
 
-    # Device 1: initially priority 10 (lower priority)
     number1 = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device 1",
@@ -793,7 +886,6 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
     )
     sensor1.async_write_ha_state = MagicMock()
 
-    # Device 2: priority 5 (higher priority)
     number2 = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device 2",
@@ -869,7 +961,7 @@ async def test_priority_in_extra_state_attributes(hass: HomeAssistant) -> None:
 async def test_build_sensors_from_config_creates_number_entities(
     hass: HomeAssistant,
 ) -> None:
-    """build_sensors_from_config creates both sensors and number entities."""
+    """build_sensors_from_config creates sensors, number entities, and enabled switches."""
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 100,
@@ -895,10 +987,13 @@ async def test_build_sensors_from_config_creates_number_entities(
         buffer=100,
     )
 
-    sensors, number_entities = build_sensors_from_config(hass, config, manager)
+    sensors, number_entities, enabled_switches = build_sensors_from_config(
+        hass, config, manager
+    )
 
     assert len(sensors) == 2
     assert len(number_entities) == 2
+    assert len(enabled_switches) == 2
 
     # Check first sensor and number entity
     assert sensors[0].name == "Water Heater"
@@ -912,9 +1007,19 @@ async def test_build_sensors_from_config_creates_number_entities(
     assert number_entities[1]._attr_name == "EV Charger Priority"
     assert number_entities[1].get_priority() == 2
 
-    # Verify sensors are linked to number entities
+    # Verify sensors are linked to number entities and enabled switches
     assert sensors[0]._priority_number_entity == number_entities[0]
     assert sensors[1]._priority_number_entity == number_entities[1]
+    assert sensors[0]._enabled_switch == enabled_switches[0]
+    assert sensors[1]._enabled_switch == enabled_switches[1]
+
+    # Enabled switches should be on by default
+    assert enabled_switches[0].is_on is True
+    assert enabled_switches[1].is_on is True
+
+    # Check switch names and unique IDs
+    assert enabled_switches[0]._attr_name == "Water Heater Enabled"
+    assert enabled_switches[1]._attr_name == "EV Charger Enabled"
 
 
 async def test_priority_number_entity_state_restoration(
@@ -928,7 +1033,6 @@ async def test_priority_number_entity_state_restoration(
     )
     from homeassistant.core import State
 
-    # Create number entity with initial priority 10
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Test Device",
@@ -936,7 +1040,6 @@ async def test_priority_number_entity_state_restoration(
         initial_priority=10,
     )
 
-    # Mock the restored state (priority was changed to 25)
     mock_state = State(
         entity_id="number.test_device_priority",
         state="25.0",
@@ -945,7 +1048,6 @@ async def test_priority_number_entity_state_restoration(
     with patch.object(number, "async_get_last_state", return_value=mock_state):
         await number.async_added_to_hass()
 
-    # Verify restored value is used instead of initial value
     assert number._attr_native_value == 25.0
     assert number.get_priority() == 25
 
@@ -967,11 +1069,9 @@ async def test_priority_number_entity_no_previous_state(
         initial_priority=15,
     )
 
-    # Mock no previous state
     with patch.object(number, "async_get_last_state", return_value=None):
         await number.async_added_to_hass()
 
-    # Verify initial value is used
     assert number._attr_native_value == 15.0
     assert number.get_priority() == 15
 
@@ -994,7 +1094,6 @@ async def test_priority_number_entity_invalid_restored_state(
         initial_priority=20,
     )
 
-    # Mock invalid restored state
     mock_state = State(
         entity_id="number.device_priority",
         state="invalid",
@@ -1003,7 +1102,6 @@ async def test_priority_number_entity_invalid_restored_state(
     with patch.object(number, "async_get_last_state", return_value=mock_state):
         await number.async_added_to_hass()
 
-    # Verify initial value is used when restoration fails
     assert number._attr_native_value == 20.0
     assert number.get_priority() == 20
 
@@ -1026,7 +1124,6 @@ async def test_priority_number_entity_out_of_bounds_restored_state(
         initial_priority=50,
     )
 
-    # Mock out-of-bounds restored state (150 > max of 100)
     mock_state = State(
         entity_id="number.device_priority",
         state="150.0",
@@ -1035,6 +1132,5 @@ async def test_priority_number_entity_out_of_bounds_restored_state(
     with patch.object(number, "async_get_last_state", return_value=mock_state):
         await number.async_added_to_hass()
 
-    # Verify initial value is used when restored value is out of bounds
     assert number._attr_native_value == 50.0
     assert number.get_priority() == 50

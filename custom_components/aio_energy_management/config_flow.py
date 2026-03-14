@@ -19,6 +19,7 @@ from homeassistant.helpers import config_validation as cv
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import CONF_CALENDAR, CONF_UNIQUE_ID, DOMAIN
+from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR, ExcessSolarConfigFlowMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +43,10 @@ def _get_calendar_schema(user_input: dict[str, Any] | None = None) -> vol.Schema
 
 # Configuration flow
 class AIOEnergyManagementConfigFlow(
-    CheapestHoursConfigFlowMixin, ConfigFlow, domain=DOMAIN
+    CheapestHoursConfigFlowMixin,
+    ExcessSolarConfigFlowMixin,
+    ConfigFlow,
+    domain=DOMAIN,
 ):
     """Handle a config flow for AIO Energy Management."""
 
@@ -74,6 +78,8 @@ class AIOEnergyManagementConfigFlow(
                 return await self.async_step_cheapest_hours_data_provider()
             if self._entry_type == ENTRY_TYPE_CALENDAR:
                 return await self.async_step_calendar()
+            if self._entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+                return await self.async_step_excess_solar_global()
 
         return self.async_show_form(
             step_id="user",
@@ -83,6 +89,7 @@ class AIOEnergyManagementConfigFlow(
                         {
                             ENTRY_TYPE_CHEAPEST_HOURS: "Cheapest hours sensor (BETA Configuration)",
                             ENTRY_TYPE_CALENDAR: "Calendar",
+                            ENTRY_TYPE_EXCESS_SOLAR: "Excess solar",
                         }
                     ),
                 }
@@ -116,7 +123,11 @@ class AIOEnergyManagementConfigFlow(
 
 
 # Options flow (modify existing configuration)
-class AIOEnergyManagementOptionsFlow(CheapestHoursConfigFlowMixin, OptionsFlow):
+class AIOEnergyManagementOptionsFlow(
+    CheapestHoursConfigFlowMixin,
+    ExcessSolarConfigFlowMixin,
+    OptionsFlow,
+):
     """Handle options flow for AIO Energy Management."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
@@ -138,6 +149,8 @@ class AIOEnergyManagementOptionsFlow(CheapestHoursConfigFlowMixin, OptionsFlow):
             return await self.async_step_cheapest_hours_data_provider()
         if self._entry_type == ENTRY_TYPE_CALENDAR:
             return await self.async_step_calendar_options()
+        if self._entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+            return await self.async_step_excess_solar_menu()
 
         return self.async_abort(reason="unknown_entry_type")
 
