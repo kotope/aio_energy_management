@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.core import HomeAssistant
 import homeassistant.util.dt as dt_util
+
+if TYPE_CHECKING:
+    from .switch import ExcessSolarDeviceEnabledSwitch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,9 +39,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         unique_id: str,
         name: str,
         priority: int = 100,
-        is_full_entity: str | None = None,
         is_on_schedule_entity: str | None = None,
-        enabled_entity: str | None = None,
+        enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
         minimum_period: int = 0,  # minutes
         turn_on_delay: int = DEFAULT_TURN_ON_DELAY,  # seconds
         priority_number_entity: Any = None,
@@ -52,9 +54,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self._attr_icon = "mdi:solar-power-variant"
         self._initial_priority = priority
         self._priority_number_entity = priority_number_entity
-        self.is_full_entity = is_full_entity
         self.is_on_schedule_entity = is_on_schedule_entity
-        self.enabled_entity = enabled_entity
+        self._enabled_switch = enabled_switch
         self.minimum_period = timedelta(minutes=minimum_period)
         self.turn_on_delay = timedelta(seconds=turn_on_delay)
 
@@ -96,13 +97,6 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         except (TypeError, ValueError):
             return 0.0
 
-    def is_full(self) -> bool:
-        """Return True if device is full and should not receive more power."""
-        if self.is_full_entity is None:
-            return False
-        state = self.hass.states.get(self.is_full_entity)
-        return state is not None and state.state in ("on", "true", "True", "1")
-
     def is_on_schedule(self) -> bool:
         """Return True if device is on its own schedule (manager hands off)."""
         if self.is_on_schedule_entity is None:
@@ -112,12 +106,9 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
 
     def is_enabled(self) -> bool:
         """Return True if this device participates in solar management."""
-        if self.enabled_entity is None:
+        if self._enabled_switch is None:
             return True
-        state = self.hass.states.get(self.enabled_entity)
-        if state is None:
-            return True
-        return state.state in ("on", "true", "True", "1")
+        return self._enabled_switch.is_on
 
     def can_turn_on(self) -> bool:
         """Return True if turn_on_delay since last turn-off has elapsed."""
@@ -170,7 +161,6 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
             "device_entity": self.device_entity_id,
             "priority": self.priority,
             "consumption_w": self.get_consumption(),
-            "is_full": self.is_full(),
             "is_on_schedule": self.is_on_schedule(),
             "is_enabled": self.is_enabled(),
             "last_turned_on": (
@@ -180,10 +170,11 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
                 self._last_turned_off.isoformat() if self._last_turned_off else None
             ),
         }
+
         if self._priority_number_entity is not None:
-            # Use entity_id if available (when registered), otherwise unique_id
-            entity_ref = getattr(
-                self._priority_number_entity, "entity_id", None
-            ) or self._priority_number_entity._attr_unique_id
+            entity_ref = (
+                getattr(self._priority_number_entity, "entity_id", None)
+                or self._priority_number_entity._attr_unique_id
+            )
             attrs["priority_entity"] = entity_ref
         return attrs

@@ -27,11 +27,11 @@ from ..helpers import (
     merge_two_dicts,
     time_in_between,
 )
+from ..models import hour_price
 from .math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )
-from ..models import hour_price
 
 _LOGGER = logging.getLogger(__name__)
 

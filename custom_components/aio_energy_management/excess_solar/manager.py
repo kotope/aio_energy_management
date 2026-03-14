@@ -10,20 +10,27 @@ The manager does NOT directly control any device.  Instead, users create HA
 automations that listen to these binary sensors and turn actual devices on/off
 accordingly.
 
-Short-cycling protection, schedule awareness, is_full / enabled checks, and
-priority queue logic all live in this module.
+Short-cycling protection, schedule awareness, enabled checks, and priority
+queue logic all live in this module.
 """
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
-import homeassistant.util.dt as dt_util
 
+from ..const import (
+    CONF_BUFFER,
+    CONF_CONSUMPTION,
+    CONF_GRID_POWER_SENSOR,
+    CONF_IS_ON_SCHEDULE,
+    CONF_MINIMUM_PERIOD,
+    CONF_NAME,
+    CONF_PRIORITY,
+)
 from .binary_sensor import ExcessSolarBinarySensor
 
 _LOGGER = logging.getLogger(__name__)
@@ -200,9 +207,6 @@ class ExcessSolarManager:
             if not sensor.is_enabled():
                 _LOGGER.debug("%s is disabled, skipping", sensor.name)
                 continue
-            if sensor.is_full():
-                _LOGGER.debug("%s is full, skipping", sensor.name)
-                continue
             # Short-cycle guard
             if not sensor.can_turn_on():
                 continue
@@ -268,28 +272,20 @@ class ExcessSolarManager:
 
 def build_sensors_from_config(
     hass: HomeAssistant, config: dict, manager: ExcessSolarManager | None = None
-) -> tuple[list[ExcessSolarBinarySensor], list]:
-    """Build ``ExcessSolarBinarySensor`` and priority number entities from config.
+) -> tuple[list[ExcessSolarBinarySensor], list, list]:
+    """Build sensors, priority number entities, and enabled switches from config.
 
     Returns:
-        Tuple of (binary_sensors, number_entities)
+        Tuple of (binary_sensors, number_entities, enabled_switches)
     """
-    from ..const import (  # noqa: PLC0415
-        CONF_CONSUMPTION,
-        CONF_IS_FULL,
-        CONF_IS_ON_SCHEDULE,
-        CONF_MINIMUM_PERIOD,
-        CONF_NAME,
-        CONF_PRIORITY,
-        CONF_TURN_ON_DELAY,
-    )
     from .number import ExcessSolarPriorityNumber  # noqa: PLC0415
+    from .switch import ExcessSolarDeviceEnabledSwitch  # noqa: PLC0415
 
-    global_turn_on_delay = config.get(CONF_TURN_ON_DELAY, 60)
     sensors: list[ExcessSolarBinarySensor] = []
     number_entities: list[ExcessSolarPriorityNumber] = []
+    enabled_switches: list[ExcessSolarDeviceEnabledSwitch] = []
 
-    for idx, dev_conf in enumerate(config.get("power_devices", [])):
+    for _idx, dev_conf in enumerate(config.get("power_devices", [])):
         device_name = dev_conf[CONF_NAME]
         slug = device_name.replace(" ", "_").lower()
         unique_id = f"excess_solar_{slug}"
@@ -306,6 +302,12 @@ def build_sensors_from_config(
         )
         number_entities.append(priority_number)
 
+        enabled_switch = ExcessSolarDeviceEnabledSwitch(
+            unique_id=f"{unique_id}_enabled",
+            name=f"{device_name} Enabled",
+        )
+        enabled_switches.append(enabled_switch)
+
         sensor = ExcessSolarBinarySensor(
             hass=hass,
             device_entity_id=device_name,
@@ -313,16 +315,14 @@ def build_sensors_from_config(
             unique_id=unique_id,
             name=device_name,
             priority=initial_priority,
-            is_full_entity=dev_conf.get(CONF_IS_FULL),
             is_on_schedule_entity=dev_conf.get(CONF_IS_ON_SCHEDULE),
-            enabled_entity=dev_conf.get("enabled"),
+            enabled_switch=enabled_switch,
             minimum_period=dev_conf.get(CONF_MINIMUM_PERIOD, 0),
-            turn_on_delay=dev_conf.get(CONF_TURN_ON_DELAY, global_turn_on_delay),
             priority_number_entity=priority_number,
         )
         sensors.append(sensor)
 
-    return sensors, number_entities
+    return sensors, number_entities, enabled_switches
 
 
 def create_manager_from_config(
@@ -331,7 +331,6 @@ def create_manager_from_config(
     sensors: list[ExcessSolarBinarySensor],
 ) -> ExcessSolarManager:
     """Create an ``ExcessSolarManager`` from validated YAML config."""
-    from ..const import CONF_BUFFER, CONF_GRID_POWER_SENSOR  # noqa: PLC0415
 
     return ExcessSolarManager(
         hass=hass,

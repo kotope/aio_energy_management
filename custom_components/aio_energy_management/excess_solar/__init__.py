@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 from .binary_sensor import ExcessSolarBinarySensor
-from .manager import ExcessSolarManager, build_sensors_from_config, create_manager_from_config
+from .config_flow import ENTRY_TYPE_EXCESS_SOLAR, ExcessSolarConfigFlowMixin
+from .manager import (
+    ExcessSolarManager,
+    build_sensors_from_config,
+    create_manager_from_config,
+)
 from .number import ExcessSolarPriorityNumber
-from .switch import ExcessSolarMasterSwitch
+from .switch import ExcessSolarDeviceEnabledSwitch, ExcessSolarMasterSwitch
 
 __all__ = [
+    "ENTRY_TYPE_EXCESS_SOLAR",
     "ExcessSolarBinarySensor",
+    "ExcessSolarConfigFlowMixin",
+    "ExcessSolarDeviceEnabledSwitch",
     "ExcessSolarManager",
     "ExcessSolarMasterSwitch",
     "ExcessSolarPriorityNumber",
