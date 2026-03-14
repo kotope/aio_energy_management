@@ -49,6 +49,7 @@ from .const import (
     DOMAIN,
 )
 from .excess_solar import ExcessSolarBinarySensor
+from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,6 +97,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up binary sensor from a config entry."""
+    entry_type = entry.data.get("entry_type")
+
+    if entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+        entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+        sensors: list[ExcessSolarBinarySensor] = entry_data.get(
+            "excess_solar_sensors", []
+        )
+        async_add_entities(sensors)
+        return
+
     try:
         entity = _create_cheapest_hours_entity(hass, entry.data)
         async_add_entities([entity])

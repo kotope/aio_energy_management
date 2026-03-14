@@ -35,7 +35,6 @@ from .const import (
     CONF_GRID_POWER_SENSOR,
     CONF_HOURS,
     CONF_INVERSED,
-    CONF_IS_FULL,
     CONF_IS_ON_SCHEDULE,
     CONF_LAST_HOUR,
     CONF_MINIMUM_PERIOD,
@@ -60,6 +59,7 @@ from .const import (
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
+    EXCESS_SOLAR_ENABLED_SWITCHES,
     EXCESS_SOLAR_MANAGER,
     EXCESS_SOLAR_SWITCH,
 )
@@ -69,9 +69,15 @@ from .excess_solar import (
     build_sensors_from_config,
     create_manager_from_config,
 )
+from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
 from .services import async_setup_services
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.CALENDAR, Platform.NUMBER, Platform.SWITCH]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.CALENDAR,
+    Platform.NUMBER,
+    Platform.SWITCH,
+]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,9 +99,7 @@ POWER_DEVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_CONSUMPTION): vol.Any(vol.Coerce(int), cv.entity_id),
         vol.Optional(CONF_PRIORITY, default=100): cv.positive_int,
-        vol.Optional(CONF_IS_FULL): cv.entity_id,
         vol.Optional(CONF_IS_ON_SCHEDULE): cv.entity_id,
-        vol.Optional("enabled"): cv.entity_id,
         vol.Optional(CONF_MINIMUM_PERIOD, default=0): cv.positive_int,
         vol.Optional(CONF_TURN_ON_DELAY): cv.positive_int,
     }
@@ -168,6 +172,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     elif entry_type == CONF_ENTITY_CALENDAR:
         await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
+    elif entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+        await _async_setup_excess_solar_entry(hass, entry)
     else:
         _LOGGER.error("Unknown entry type: %s", entry_type)
         return False
@@ -176,6 +182,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     return True
+
+
+async def _async_setup_excess_solar_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Set up excess solar from a config entry."""
+    config = dict(entry.data)
+    manager = create_manager_from_config(hass, config, [])
+    sensors, number_entities, enabled_switches = build_sensors_from_config(
+        hass, config, manager
+    )
+    manager.sensors = sensors
+    manager.sort_sensors()
+
+    master_switch = ExcessSolarMasterSwitch(
+        manager=manager,
+        unique_id=f"excess_solar_master_switch_{entry.entry_id}",
+        name=entry.data.get(CONF_NAME, "Excess Solar"),
+    )
+
+    # Store per-entry data to avoid conflicts between multiple excess solar entries
+    hass.data[DOMAIN][entry.entry_id] = {
+        EXCESS_SOLAR_MANAGER: manager,
+        "excess_solar_sensors": sensors,
+        "excess_solar_number_entities": number_entities,
+        EXCESS_SOLAR_ENABLED_SWITCHES: enabled_switches,
+        EXCESS_SOLAR_SWITCH: master_switch,
+    }
+
+    await hass.config_entries.async_forward_entry_setups(
+        entry, [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SWITCH]
+    )
+    await manager.async_start()
+    _LOGGER.info(
+        "Excess solar entry '%s' started with %d device(s)",
+        entry.data.get(CONF_NAME),
+        len(sensors),
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -189,6 +233,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     elif entry_type == CONF_ENTITY_CALENDAR:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.CALENDAR]
+        )
+    elif entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
+        manager = entry_data.get(EXCESS_SOLAR_MANAGER)
+        if manager is not None:
+            await manager.async_stop()
+        unload_ok = await hass.config_entries.async_unload_platforms(
+            entry, [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SWITCH]
         )
     else:
         unload_ok = True
@@ -233,8 +285,10 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
             validated = EXCESS_SOLAR_SCHEMA(excess_solar_config)
             # Create manager first (without sensors)
             manager = create_manager_from_config(hass, validated, [])
-            # Build sensors and number entities with manager reference
-            sensors, number_entities = build_sensors_from_config(hass, validated, manager)
+            # Build sensors, number entities, and enabled switches with manager reference
+            sensors, number_entities, enabled_switches = build_sensors_from_config(
+                hass, validated, manager
+            )
             # Update manager with sensors
             manager.sensors = sensors
             manager.sort_sensors()
@@ -247,6 +301,7 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
             hass.data[DOMAIN][EXCESS_SOLAR_MANAGER] = manager
             hass.data[DOMAIN]["excess_solar_sensors"] = sensors
             hass.data[DOMAIN]["excess_solar_number_entities"] = number_entities
+            hass.data[DOMAIN][EXCESS_SOLAR_ENABLED_SWITCHES] = enabled_switches
             hass.data[DOMAIN][EXCESS_SOLAR_SWITCH] = master_switch
             # Load binary sensor platform
             discovery = {"entry_type": CONF_EXCESS_SOLAR}
@@ -265,9 +320,11 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
             )
             await manager.async_start()
             _LOGGER.info(
-                "Excess solar manager started with %d sensor(s), %d number entities, and master switch",
+                "Excess solar manager started with %d sensor(s), %d number entities, "
+                "%d enabled switches, and master switch",
                 len(sensors),
                 len(number_entities),
+                len(enabled_switches),
             )
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Failed to set up excess solar: %s", e)

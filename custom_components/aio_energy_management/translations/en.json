@@ -166,6 +166,54 @@
         "data_description": {
           "name": "Friendly name for the calendar"
         }
+      },
+      "excess_solar_global": {
+        "title": "Excess solar – global settings",
+        "description": "Configure the global settings for excess solar management",
+        "data": {
+          "name": "Name",
+          "sensor": "Grid power sensor",
+          "buffer": "Buffer (W)",
+          "turn_on_delay": "Turn-on delay (s)"
+        },
+        "data_description": {
+          "name": "Friendly name for this excess solar entry",
+          "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
+          "buffer": "Minimum excess power (W) required before activating a device",
+          "turn_on_delay": "Global minimum wait in seconds after a device turns off before it can turn on again"
+        }
+      },
+      "excess_solar_device": {
+        "title": "Excess solar – device {device_number}",
+        "description": "Configure a device to manage with excess solar power",
+        "data": {
+          "name": "Device name",
+          "consumption": "Consumption (W)",
+          "consumption_entity": "Consumption entity",
+          "priority": "Priority",
+          "is_on_schedule": "Is on schedule entity",
+          "minimum_period": "Minimum on-period (min)",
+          "turn_on_delay": "Turn-on delay (s)"
+        },
+        "data_description": {
+          "name": "Friendly name for this device",
+          "consumption": "Static power consumption in watts (used for budget check). Leave at 0 if using entity",
+          "consumption_entity": "Optional: sensor that reports current consumption in watts. Overrides static value if set",
+          "priority": "Priority order (lower number = activated first)",
+          "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
+          "minimum_period": "Minimum time in minutes the device must stay on before the manager can turn it off",
+          "turn_on_delay": "Device-specific turn-on delay in seconds (overrides global value)"
+        }
+      },
+      "excess_solar_another_device": {
+        "title": "Excess solar – add another device?",
+        "description": "{device_count} device(s) configured so far: {device_names}",
+        "data": {
+          "add_another": "Add another device"
+        },
+        "data_description": {
+          "add_another": "Enable to configure another power device"
+        }
       }
     },
     "error": {
@@ -186,11 +234,14 @@
       "both_end_minutes_configured": "Please configure only one: either static end minutes or entity, not both",
       "start_minutes_out_of_range": "Start offset minutes must be between 0 and 59",
       "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
+      "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
+      "device_name_required": "Device name is required",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
       "already_configured": "This entity is already configured",
-      "unknown_entry_type": "Unknown entry type"
+      "unknown_entry_type": "Unknown entry type",
+      "no_devices_to_remove": "No devices are configured for this entry"
     }
   },
   "options": {
@@ -382,6 +433,72 @@
       "calendar_options": {
         "title": "Calendar options",
         "description": "Calendar configuration has no additional options."
+      },
+      "excess_solar_menu": {
+        "title": "Excess solar – manage",
+        "description": "{device_count} device(s) currently configured: {device_names}",
+        "data": {
+          "devices_action": "Action"
+        },
+        "data_description": {
+          "devices_action": "Choose what to modify for this excess solar entry"
+        }
+      },
+      "excess_solar_edit_settings": {
+        "title": "Excess solar – edit settings",
+        "description": "Update global settings for this excess solar entry",
+        "data": {
+          "sensor": "Grid power sensor",
+          "buffer": "Buffer (W)",
+          "turn_on_delay": "Turn-on delay (s)"
+        },
+        "data_description": {
+          "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
+          "buffer": "Minimum excess power (W) required before activating a device",
+          "turn_on_delay": "Global minimum wait in seconds after a device turns off before it can turn on again"
+        }
+      },
+      "excess_solar_device": {
+        "title": "Excess solar – add device",
+        "description": "Configure a new device to manage with excess solar power",
+        "data": {
+          "name": "Device name",
+          "consumption": "Consumption (W)",
+          "consumption_entity": "Consumption entity",
+          "priority": "Priority",
+          "is_on_schedule": "Is on schedule entity",
+          "minimum_period": "Minimum on-period (min)",
+          "turn_on_delay": "Turn-on delay (s)"
+        },
+        "data_description": {
+          "name": "Friendly name for this device",
+          "consumption": "Static power consumption in watts (used for budget check). Leave at 0 if using entity",
+          "consumption_entity": "Optional: sensor that reports current consumption in watts. Overrides static value if set",
+          "priority": "Priority order (lower number = activated first)",
+          "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
+          "minimum_period": "Minimum time in minutes the device must stay on before the manager can turn it off",
+          "turn_on_delay": "Device-specific turn-on delay in seconds (overrides global value)"
+        }
+      },
+      "excess_solar_another_device": {
+        "title": "Excess solar – add another device?",
+        "description": "{device_count} device(s) configured so far: {device_names}",
+        "data": {
+          "add_another": "Add another device"
+        },
+        "data_description": {
+          "add_another": "Enable to configure another power device"
+        }
+      },
+      "excess_solar_remove_devices": {
+        "title": "Excess solar – remove devices",
+        "description": "Select the devices you want to remove",
+        "data": {
+          "devices_to_remove": "Devices to remove"
+        },
+        "data_description": {
+          "devices_to_remove": "Select one or more devices to remove from this excess solar entry"
+        }
       }
     }
   }
