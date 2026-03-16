@@ -285,15 +285,17 @@ def build_sensors_from_config(
     number_entities: list[ExcessSolarPriorityNumber] = []
     enabled_switches: list[ExcessSolarDeviceEnabledSwitch] = []
 
+    entry_name = config.get(CONF_NAME, "Excess Solar")
     for _idx, dev_conf in enumerate(config.get("power_devices", [])):
         device_name = dev_conf[CONF_NAME]
+        display_name = f"{entry_name} {device_name}"
         slug = device_name.replace(" ", "_").lower()
         unique_id = f"excess_solar_{slug}"
         initial_priority = dev_conf.get(CONF_PRIORITY, 100)
 
         priority_number = ExcessSolarPriorityNumber(
             hass=hass,
-            device_name=device_name,
+            device_name=display_name,
             unique_id=unique_id,
             initial_priority=initial_priority,
             on_priority_change_callback=(
@@ -304,16 +306,16 @@ def build_sensors_from_config(
 
         enabled_switch = ExcessSolarDeviceEnabledSwitch(
             unique_id=f"{unique_id}_enabled",
-            name=f"{device_name} Enabled",
+            name=f"{display_name} Enabled",
         )
         enabled_switches.append(enabled_switch)
 
         sensor = ExcessSolarBinarySensor(
             hass=hass,
-            device_entity_id=device_name,
+            device_entity_id=display_name,
             consumption=dev_conf[CONF_CONSUMPTION],
             unique_id=unique_id,
-            name=device_name,
+            name=display_name,
             priority=initial_priority,
             is_on_schedule_entity=dev_conf.get(CONF_IS_ON_SCHEDULE),
             enabled_switch=enabled_switch,

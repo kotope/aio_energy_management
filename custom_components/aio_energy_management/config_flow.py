@@ -19,7 +19,10 @@ from homeassistant.helpers import config_validation as cv
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import CONF_CALENDAR, CONF_UNIQUE_ID, DOMAIN
-from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR, ExcessSolarConfigFlowMixin
+from .excess_solar.config_flow import (
+    ENTRY_TYPE_EXCESS_SOLAR,
+    ExcessSolarConfigFlowMixin,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
