@@ -448,10 +448,10 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
     sensors, number_entities, enabled_switches = build_sensors_from_config(hass, config)
     assert len(sensors) == 2
     assert len(enabled_switches) == 2
-    assert sensors[0].device_entity_id == "Water Heater"
+    assert sensors[0].device_entity_id == "Excess Solar Water Heater"
     assert sensors[0].get_consumption() == 2000.0
     assert sensors[0].priority == 1
-    assert sensors[1].device_entity_id == "EV Charger"
+    assert sensors[1].device_entity_id == "Excess Solar EV Charger"
     assert sensors[1].priority == 2
 
 
@@ -996,15 +996,15 @@ async def test_build_sensors_from_config_creates_number_entities(
     assert len(enabled_switches) == 2
 
     # Check first sensor and number entity
-    assert sensors[0].name == "Water Heater"
+    assert sensors[0].name == "Excess Solar Water Heater"
     assert sensors[0].priority == 1
-    assert number_entities[0]._attr_name == "Water Heater Priority"
+    assert number_entities[0]._attr_name == "Excess Solar Water Heater Priority"
     assert number_entities[0].get_priority() == 1
 
     # Check second sensor and number entity
-    assert sensors[1].name == "EV Charger"
+    assert sensors[1].name == "Excess Solar EV Charger"
     assert sensors[1].priority == 2
-    assert number_entities[1]._attr_name == "EV Charger Priority"
+    assert number_entities[1]._attr_name == "Excess Solar EV Charger Priority"
     assert number_entities[1].get_priority() == 2
 
     # Verify sensors are linked to number entities and enabled switches
@@ -1018,8 +1018,8 @@ async def test_build_sensors_from_config_creates_number_entities(
     assert enabled_switches[1].is_on is True
 
     # Check switch names and unique IDs
-    assert enabled_switches[0]._attr_name == "Water Heater Enabled"
-    assert enabled_switches[1]._attr_name == "EV Charger Enabled"
+    assert enabled_switches[0]._attr_name == "Excess Solar Water Heater Enabled"
+    assert enabled_switches[1]._attr_name == "Excess Solar EV Charger Enabled"
 
 
 async def test_priority_number_entity_state_restoration(
