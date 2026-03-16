@@ -1,7 +1,6 @@
 """Tests for the Excess Solar Manager and Binary Sensor entities."""
 
-from datetime import timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from custom_components.aio_energy_management.excess_solar import (
     ExcessSolarBinarySensor,
@@ -11,10 +10,13 @@ from custom_components.aio_energy_management.excess_solar import (
     build_sensors_from_config,
     create_manager_from_config,
 )
+from custom_components.aio_energy_management.excess_solar.number import (
+    ExcessSolarPriorityNumber,
+)
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -606,10 +608,6 @@ async def test_device_enabled_switch_turn_on(hass: HomeAssistant) -> None:
 
 async def test_device_enabled_switch_restores_state(hass: HomeAssistant) -> None:
     """Device enabled switch restores previous state after restart."""
-    from unittest.mock import patch
-
-    from homeassistant.core import State
-
     switch = ExcessSolarDeviceEnabledSwitch(
         unique_id="excess_solar_device_enabled",
         name="Device Enabled",
@@ -628,10 +626,6 @@ async def test_device_enabled_switch_restores_state(hass: HomeAssistant) -> None
 
 async def test_device_enabled_switch_restores_on_state(hass: HomeAssistant) -> None:
     """Device enabled switch restores 'on' state after restart."""
-    from unittest.mock import patch
-
-    from homeassistant.core import State
-
     switch = ExcessSolarDeviceEnabledSwitch(
         unique_id="excess_solar_device_enabled",
         name="Device Enabled",
@@ -651,8 +645,6 @@ async def test_device_enabled_switch_restores_on_state(hass: HomeAssistant) -> N
 
 async def test_device_enabled_switch_no_previous_state(hass: HomeAssistant) -> None:
     """Device enabled switch defaults to on when no previous state exists."""
-    from unittest.mock import patch
-
     switch = ExcessSolarDeviceEnabledSwitch(
         unique_id="excess_solar_device_enabled",
         name="Device Enabled",
@@ -671,10 +663,6 @@ async def test_device_enabled_switch_no_previous_state(hass: HomeAssistant) -> N
 
 async def test_priority_number_entity_creation(hass: HomeAssistant) -> None:
     """Priority number entity is created with correct attributes."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Water Heater",
@@ -693,10 +681,6 @@ async def test_priority_number_entity_creation(hass: HomeAssistant) -> None:
 
 async def test_priority_number_entity_set_value(hass: HomeAssistant) -> None:
     """Priority number entity value can be changed."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="EV Charger",
@@ -714,10 +698,6 @@ async def test_priority_number_entity_set_value(hass: HomeAssistant) -> None:
 
 async def test_priority_number_entity_callback_triggered(hass: HomeAssistant) -> None:
     """Priority change callback is triggered when value changes."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     callback_triggered = False
 
     def priority_changed_callback():
@@ -742,10 +722,6 @@ async def test_binary_sensor_reads_priority_from_number_entity(
     hass: HomeAssistant,
 ) -> None:
     """Binary sensor reads priority from linked number entity."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device",
@@ -795,10 +771,6 @@ async def test_manager_sorts_sensors_by_priority(hass: HomeAssistant) -> None:
 
 async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
     """Manager re-sorts sensors when priority changes."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     manager = ExcessSolarManager(
         hass=hass,
         grid_sensor="sensor.grid_power",
@@ -856,10 +828,6 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
 
 async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> None:
     """Changing priority affects which device gets activated first."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     manager = ExcessSolarManager(
         hass=hass,
         grid_sensor="sensor.grid_power",
@@ -929,10 +897,6 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
 
 async def test_priority_in_extra_state_attributes(hass: HomeAssistant) -> None:
     """Priority is included in binary sensor extra state attributes."""
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device",
@@ -1026,13 +990,6 @@ async def test_priority_number_entity_state_restoration(
     hass: HomeAssistant,
 ) -> None:
     """Priority number entity restores previous state after restart."""
-    from unittest.mock import AsyncMock, patch
-
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-    from homeassistant.core import State
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Test Device",
@@ -1056,12 +1013,6 @@ async def test_priority_number_entity_no_previous_state(
     hass: HomeAssistant,
 ) -> None:
     """Priority number entity uses initial value when no previous state exists."""
-    from unittest.mock import patch
-
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="New Device",
@@ -1080,13 +1031,6 @@ async def test_priority_number_entity_invalid_restored_state(
     hass: HomeAssistant,
 ) -> None:
     """Priority number entity handles invalid restored state gracefully."""
-    from unittest.mock import patch
-
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-    from homeassistant.core import State
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device",
@@ -1110,13 +1054,6 @@ async def test_priority_number_entity_out_of_bounds_restored_state(
     hass: HomeAssistant,
 ) -> None:
     """Priority number entity rejects out-of-bounds restored values."""
-    from unittest.mock import patch
-
-    from custom_components.aio_energy_management.excess_solar.number import (
-        ExcessSolarPriorityNumber,
-    )
-    from homeassistant.core import State
-
     number = ExcessSolarPriorityNumber(
         hass=hass,
         device_name="Device",
