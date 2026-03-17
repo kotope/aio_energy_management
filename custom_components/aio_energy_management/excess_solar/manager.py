@@ -195,7 +195,13 @@ class ExcessSolarManager:
             )
 
     async def _activate_next(self, available_solar: float) -> None:
-        """Activate the highest-priority eligible sensor."""
+        """Activate the highest-priority eligible sensor.
+
+        If the best candidate does not fit within the current solar surplus,
+        check whether deactivating lower-priority active devices would free
+        enough power for a swap.  Only the minimum number of lower-priority
+        devices needed are deactivated.
+        """
         for sensor in self._sensors:
             # Already active → skip
             if sensor.is_on:
@@ -210,26 +216,81 @@ class ExcessSolarManager:
             # Short-cycle guard
             if not sensor.can_turn_on():
                 continue
-            # Budget guard: skip if consumption exceeds net available
+
             consumption = sensor.get_consumption()
-            if consumption > 0 and available_solar < (consumption - self._buffer):
-                _LOGGER.debug(
-                    "Not enough solar (%.1fW) for %s (%.1fW)",
+
+            # Direct fit: enough solar without touching anything else
+            if consumption == 0 or available_solar >= (consumption - self._buffer):
+                _LOGGER.info(
+                    "Excess solar %.1fW: activating sensor for %s"
+                    " (priority %d, %.1fW)",
                     available_solar,
-                    sensor.name,
+                    sensor.device_entity_id,
+                    sensor.priority,
                     consumption,
                 )
-                continue
+                sensor.activate()
+                break
 
-            _LOGGER.info(
-                "Excess solar %.1fW: activating sensor for %s (priority %d, %.1fW)",
+            # Swap check: deactivate lower-priority devices to free power
+            swap_candidates = self._find_swap_candidates(
+                sensor, available_solar, consumption
+            )
+            if swap_candidates:
+                freed = sum(s.get_consumption() for s in swap_candidates)
+                _LOGGER.info(
+                    "Swap: freeing %.1fW from %d lower-priority device(s) to"
+                    " activate %s (priority %d, %.1fW)",
+                    freed,
+                    len(swap_candidates),
+                    sensor.device_entity_id,
+                    sensor.priority,
+                    consumption,
+                )
+                for s in swap_candidates:
+                    s.deactivate()
+                sensor.activate()
+                break
+
+            _LOGGER.debug(
+                "Not enough solar (%.1fW) for %s (%.1fW) and no valid swap",
                 available_solar,
-                sensor.device_entity_id,
-                sensor.priority,
+                sensor.name,
                 consumption,
             )
-            sensor.activate()
-            break  # one device per evaluation cycle
+
+    def _find_swap_candidates(
+        self,
+        candidate: ExcessSolarBinarySensor,
+        available_solar: float,
+        consumption: float,
+    ) -> list[ExcessSolarBinarySensor]:
+        """Return the minimum set of lower-priority sensors to deactivate for a swap.
+
+        Iterates active sensors from lowest priority upward, accumulating freed
+        power until the candidate's consumption can be covered.  Returns an
+        empty list when a valid swap is not possible (e.g. guarded by
+        ``minimum_period`` or ``is_on_schedule``).
+        """
+        # Collect eligible lower-priority active sensors, lowest priority first
+        lower_active = [
+            s
+            for s in reversed(self._sensors)
+            if s.is_on
+            and s.priority > candidate.priority
+            and not s.is_on_schedule()
+            and s.can_turn_off()
+        ]
+
+        net_available = available_solar
+        to_deactivate: list[ExcessSolarBinarySensor] = []
+        for s in lower_active:
+            net_available += s.get_consumption()
+            to_deactivate.append(s)
+            if net_available >= (consumption - self._buffer):
+                return to_deactivate
+
+        return []  # not enough even with all lower-priority sensors off
 
     async def _deactivate_last(self) -> None:
         """Deactivate the lowest-priority currently active sensor."""

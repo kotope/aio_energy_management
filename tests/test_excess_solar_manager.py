@@ -1071,3 +1071,233 @@ async def test_priority_number_entity_out_of_bounds_restored_state(
 
     assert number._attr_native_value == 50.0
     assert number.get_priority() == 50
+
+
+# ---------------------------------------------------------------------------
+# Swap logic tests
+# ---------------------------------------------------------------------------
+
+
+async def test_swap_floor_heating_for_water_heater(hass: HomeAssistant) -> None:
+    """Floor heating (700W, low prio) is swapped for water heater (3000W, high prio).
+
+    Grid exports 2400W.  Floor heating is already on, consuming 700W.
+    Combined 3100W > 3000W, so the manager should deactivate floor heating
+    and activate the water heater.
+    """
+    water_heater = _make_sensor(
+        hass,
+        device_entity_id="switch.water_heater",
+        consumption=3000,
+        priority=1,
+        turn_on_delay=0,
+    )
+    floor_heating = _make_sensor(
+        hass,
+        device_entity_id="switch.floor_heating",
+        consumption=700,
+        priority=2,
+        turn_on_delay=0,
+    )
+    for s in [water_heater, floor_heating]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[water_heater, floor_heating], buffer=0)
+
+    # Floor heating is already active
+    floor_heating.activate()
+    assert floor_heating.is_on is True
+
+    # Grid exports 2400W → available_solar = 2400W; 2400 + 700 = 3100 ≥ 3000
+    await manager._async_evaluate(-2400.0)
+
+    assert water_heater.is_on is True
+    assert floor_heating.is_on is False
+
+
+async def test_swap_does_not_happen_when_freed_power_still_insufficient(
+    hass: HomeAssistant,
+) -> None:
+    """No swap when combined power still falls short of the candidate's consumption."""
+    big_device = _make_sensor(
+        hass,
+        device_entity_id="switch.big",
+        consumption=5000,
+        priority=1,
+        turn_on_delay=0,
+    )
+    small_device = _make_sensor(
+        hass,
+        device_entity_id="switch.small",
+        consumption=700,
+        priority=2,
+        turn_on_delay=0,
+    )
+    for s in [big_device, small_device]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[big_device, small_device], buffer=0)
+
+    small_device.activate()
+
+    # 1000W available + 700W freed = 1700W < 5000W needed
+    await manager._async_evaluate(-1000.0)
+
+    assert big_device.is_on is False
+    assert small_device.is_on is True  # must not be deactivated
+
+
+async def test_swap_respects_minimum_period_on_active_sensor(
+    freezer: FrozenDateTimeFactory, hass: HomeAssistant
+) -> None:
+    """Active lower-priority sensor protected by minimum_period cannot be swapped out."""
+    water_heater = _make_sensor(
+        hass,
+        device_entity_id="switch.water_heater",
+        consumption=3000,
+        priority=1,
+        turn_on_delay=0,
+    )
+    floor_heating = _make_sensor(
+        hass,
+        device_entity_id="switch.floor_heating",
+        consumption=700,
+        priority=2,
+        minimum_period=10,  # 10 minutes
+        turn_on_delay=0,
+    )
+    for s in [water_heater, floor_heating]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[water_heater, floor_heating], buffer=0)
+
+    freezer.move_to("2024-01-01 12:00:00+00:00")
+    floor_heating.activate()
+
+    # Only 3 minutes in – minimum_period (10 min) has not elapsed
+    freezer.move_to("2024-01-01 12:03:00+00:00")
+    await manager._async_evaluate(-2400.0)
+
+    assert water_heater.is_on is False  # swap blocked by minimum_period
+    assert floor_heating.is_on is True
+
+
+async def test_swap_respects_is_on_schedule_on_active_sensor(
+    hass: HomeAssistant,
+) -> None:
+    """Active lower-priority sensor on its own schedule must not be deactivated."""
+    _set_state(hass, "binary_sensor.floor_schedule", "on")
+
+    water_heater = _make_sensor(
+        hass,
+        device_entity_id="switch.water_heater",
+        consumption=3000,
+        priority=1,
+        turn_on_delay=0,
+    )
+    floor_heating = _make_sensor(
+        hass,
+        device_entity_id="switch.floor_heating",
+        consumption=700,
+        priority=2,
+        is_on_schedule_entity="binary_sensor.floor_schedule",
+        turn_on_delay=0,
+    )
+    for s in [water_heater, floor_heating]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[water_heater, floor_heating], buffer=0)
+
+    floor_heating.activate()
+
+    await manager._async_evaluate(-2400.0)
+
+    assert water_heater.is_on is False  # swap blocked: floor heating is on schedule
+    assert floor_heating.is_on is True
+
+
+async def test_swap_deactivates_only_minimum_needed_sensors(
+    hass: HomeAssistant,
+) -> None:
+    """Only the lowest-priority sensors needed to cover the gap are deactivated.
+
+    Three active low-priority devices (200W each).  High-priority device needs
+    500W; 2 × 200W freed (400W) is not enough, but 3 × 200W (600W) is.
+    No direct solar available (grid = 0).
+    """
+    hi = _make_sensor(
+        hass,
+        device_entity_id="switch.hi",
+        consumption=600,
+        priority=1,
+        turn_on_delay=0,
+    )
+    lo1 = _make_sensor(
+        hass,
+        device_entity_id="switch.lo1",
+        consumption=200,
+        priority=10,
+        turn_on_delay=0,
+    )
+    lo2 = _make_sensor(
+        hass,
+        device_entity_id="switch.lo2",
+        consumption=200,
+        priority=20,
+        turn_on_delay=0,
+    )
+    lo3 = _make_sensor(
+        hass,
+        device_entity_id="switch.lo3",
+        consumption=200,
+        priority=30,
+        turn_on_delay=0,
+    )
+    for s in [hi, lo1, lo2, lo3]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[hi, lo1, lo2, lo3], buffer=0)
+
+    lo1.activate()
+    lo2.activate()
+    lo3.activate()
+
+    # 1W direct solar (just above buffer=0).  Need 600W.
+    # Freed in order: lo3 (200) → total 201W, lo2 (200) → 401W, lo1 (200) → 601W ≥ 600W.
+    # All three must be deactivated.
+    await manager._async_evaluate(-1.0)
+
+    assert hi.is_on is True
+    assert lo1.is_on is False
+    assert lo2.is_on is False
+    assert lo3.is_on is False
+
+
+async def test_swap_does_not_trigger_when_direct_fit(hass: HomeAssistant) -> None:
+    """When the candidate fits directly, no swap logic is invoked."""
+    water_heater = _make_sensor(
+        hass,
+        device_entity_id="switch.water_heater",
+        consumption=3000,
+        priority=1,
+        turn_on_delay=0,
+    )
+    floor_heating = _make_sensor(
+        hass,
+        device_entity_id="switch.floor_heating",
+        consumption=700,
+        priority=2,
+        turn_on_delay=0,
+    )
+    for s in [water_heater, floor_heating]:
+        s.async_write_ha_state = MagicMock()
+
+    manager = _make_manager(hass, sensors=[water_heater, floor_heating], buffer=0)
+
+    floor_heating.activate()
+
+    # 3500W available → water heater (3000W) fits directly, no swap needed
+    await manager._async_evaluate(-3500.0)
+
+    assert water_heater.is_on is True
+    assert floor_heating.is_on is True  # should remain on (not part of a swap)
