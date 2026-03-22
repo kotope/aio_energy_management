@@ -32,6 +32,7 @@ from ..const import (
     CONF_PRIORITY,
 )
 from .binary_sensor import ExcessSolarBinarySensor
+from .config_flow import CONF_CONSUMPTION_ENTITY
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -217,10 +218,13 @@ class ExcessSolarManager:
             if not sensor.can_turn_on():
                 continue
 
-            consumption = sensor.get_consumption()
+            consumption = sensor.get_expected_consumption()
+            if consumption == 0:
+                # Consumption failed, continue to next sensor
+                continue
 
             # Direct fit: enough solar without touching anything else
-            if consumption == 0 or available_solar >= (consumption - self._buffer):
+            if available_solar >= (consumption - self._buffer):
                 _LOGGER.info(
                     "Excess solar %.1fW: activating sensor for %s"
                     " (priority %d, %.1fW)",
@@ -371,10 +375,14 @@ def build_sensors_from_config(
         )
         enabled_switches.append(enabled_switch)
 
+        consumption: int = dev_conf.get(CONF_CONSUMPTION, 0)
+        consumption_entity: str | None = dev_conf.get(CONF_CONSUMPTION_ENTITY)
+
         sensor = ExcessSolarBinarySensor(
             hass=hass,
             device_entity_id=display_name,
-            consumption=dev_conf[CONF_CONSUMPTION],
+            consumption=consumption,
+            consumption_entity=consumption_entity,
             unique_id=unique_id,
             name=display_name,
             priority=initial_priority,

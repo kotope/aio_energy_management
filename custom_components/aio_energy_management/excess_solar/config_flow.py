@@ -141,7 +141,7 @@ def _get_excess_solar_device_schema(
 
     schema_dict: dict = {
         vol.Required(CONF_NAME, default=d["name"]): cv.string,
-        vol.Optional(
+        vol.Required(
             CONF_CONSUMPTION,
             default=d["consumption"],
         ): selector.NumberSelector(
@@ -226,10 +226,9 @@ def _process_device_input(
         errors["base"] = "both_consumption_configured"
         return device, errors
 
+    device[CONF_CONSUMPTION] = int(consumption_watts) if consumption_watts else 0
     if consumption_entity:
-        device[CONF_CONSUMPTION] = consumption_entity
-    else:
-        device[CONF_CONSUMPTION] = int(consumption_watts) if consumption_watts else 0
+        device[CONF_CONSUMPTION_ENTITY] = consumption_entity
 
     device[CONF_PRIORITY] = int(user_input.get(CONF_PRIORITY, 100))
     device[CONF_MINIMUM_PERIOD] = int(user_input.get(CONF_MINIMUM_PERIOD, 0))

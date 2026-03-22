@@ -35,7 +35,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self,
         hass: HomeAssistant,
         device_entity_id: str,
-        consumption: int | str,
+        consumption: int,
+        consumption_entity: str | None,
         unique_id: str,
         name: str,
         priority: int = 100,
@@ -49,6 +50,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self.hass = hass
         self.device_entity_id = device_entity_id
         self._consumption = consumption
+        self._consumption_entity = consumption_entity
         self._attr_unique_id = unique_id
         self._attr_name = name
         self._attr_icon = "mdi:solar-power-variant"
@@ -75,26 +77,60 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         return self._initial_priority
 
     def get_consumption(self) -> float:
-        """Return device consumption in Watts (static int or entity state)."""
-        if (
-            isinstance(self._consumption, str)
-            and not self._consumption.lstrip("-").isdigit()
-        ):
-            state = self.hass.states.get(self._consumption)
+        """Return device consumption in Watts.
+
+        When ``consumption_entity`` is configured, its current HA state value
+        is used.  Otherwise the static ``consumption`` wattage is returned
+        while the sensor is **on**, and ``0 W`` is returned while it is **off**
+        (an inactive device consumes nothing from the solar budget).
+        """
+        if self._consumption_entity is not None:
+            state = self.hass.states.get(self._consumption_entity)
             if state is None:
                 _LOGGER.warning(
-                    "Consumption entity %s not found for %s, assuming 0W",
-                    self._consumption,
+                    "Consumption entity %s not found for %s, falling back to static value",
+                    self._consumption_entity,
                     self.name,
                 )
-                return 0.0
-            try:
-                return float(state.state)
-            except ValueError:
-                return 0.0
+            else:
+                try:
+                    return float(state.state)
+                except ValueError:
+                    _LOGGER.warning(
+                        "Cannot parse consumption from %s: '%s', falling back to static value",
+                        self._consumption_entity,
+                        state.state,
+                    )
+
+        # No consumption_entity (or entity unavailable): only count watts while on.
+        if not self._attr_is_on:
+            return 0.0
         try:
             return float(self._consumption)
         except (TypeError, ValueError):
+            _LOGGER.error(
+                "Invalid consumption value for %s: %r – check your configuration",
+                self.name,
+                self._consumption,
+            )
+            return 0.0
+
+    def get_expected_consumption(self) -> float:
+        """Return the static configured consumption in Watts for budget planning.
+
+        This always returns the configured ``consumption`` wattage regardless of
+        the current on/off state or any ``consumption_entity`` reading.
+        The manager uses this value to decide whether there is enough solar
+        surplus to activate a sensor *before* it is turned on.
+        """
+        try:
+            return float(self._consumption)
+        except (TypeError, ValueError):
+            _LOGGER.error(
+                "Invalid consumption value for %s: %r – check your configuration",
+                self.name,
+                self._consumption,
+            )
             return 0.0
 
     def is_on_schedule(self) -> bool:
