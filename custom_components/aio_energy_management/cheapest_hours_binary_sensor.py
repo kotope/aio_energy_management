@@ -4,7 +4,6 @@ from datetime import date, datetime, timedelta
 import logging
 
 from jinja2 import Template
-from voluptuous import Boolean
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
@@ -49,7 +48,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         name,
         first_hour: int,
         last_hour: int,
-        starting_today: Boolean | None,
+        starting_today: bool | None,
         sequential,
         coordinator: EnergyManagementCoordinator,
         number_of_hours=None,
