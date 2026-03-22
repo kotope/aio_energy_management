@@ -37,6 +37,7 @@ def _make_sensor(
     hass: HomeAssistant,
     device_entity_id: str = "switch.device",
     consumption: int = 1000,
+    consumption_entity: str | None = None,
     priority: int = 1,
     is_on_schedule_entity: str | None = None,
     enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
@@ -48,6 +49,7 @@ def _make_sensor(
         hass=hass,
         device_entity_id=device_entity_id,
         consumption=consumption,
+        consumption_entity=consumption_entity,
         unique_id=f"excess_solar_{device_entity_id.replace('.', '_')}",
         name=f"Excess Solar – {device_entity_id}",
         priority=priority,
@@ -85,22 +87,43 @@ def _set_state(hass: HomeAssistant, entity_id: str, state: str) -> None:
 
 
 async def test_sensor_get_consumption_static(hass: HomeAssistant) -> None:
-    """Static watt consumption value is returned correctly."""
+    """Static watt consumption value is returned while the sensor is on."""
     sensor = _make_sensor(hass, consumption=2000)
+    sensor.async_write_ha_state = MagicMock()
+    # Static consumption is only counted while the sensor is active.
+    assert sensor.get_consumption() == 0.0
+    sensor.activate()
     assert sensor.get_consumption() == 2000.0
 
 
 async def test_sensor_get_consumption_from_entity(hass: HomeAssistant) -> None:
     """Consumption is read from a HA entity state."""
     _set_state(hass, "sensor.ev_power", "3500")
-    sensor = _make_sensor(hass, consumption="sensor.ev_power")
+    sensor = _make_sensor(hass, consumption_entity="sensor.ev_power")
     assert sensor.get_consumption() == 3500.0
 
 
 async def test_sensor_get_consumption_entity_unavailable(hass: HomeAssistant) -> None:
-    """Missing consumption entity → 0W (safe default)."""
-    sensor = _make_sensor(hass, consumption="sensor.missing")
+    """Missing consumption entity → falls back to static value (0W while off)."""
+    sensor = _make_sensor(hass, consumption_entity="sensor.missing")
     assert sensor.get_consumption() == 0.0
+
+
+async def test_sensor_get_expected_consumption_static(hass: HomeAssistant) -> None:
+    """get_expected_consumption returns static watts regardless of on/off state."""
+    sensor = _make_sensor(hass, consumption=1500)
+    # Off → still reports expected wattage for budget planning
+    assert sensor.get_expected_consumption() == 1500.0
+
+
+async def test_sensor_get_expected_consumption_from_entity(
+    hass: HomeAssistant,
+) -> None:
+    """get_expected_consumption always returns the static value, ignoring consumption_entity."""
+    _set_state(hass, "sensor.ev_power", "7400")
+    # Static consumption is 1000W; entity reports 7400W but expected is always static.
+    sensor = _make_sensor(hass, consumption=1000, consumption_entity="sensor.ev_power")
+    assert sensor.get_expected_consumption() == 1000.0
 
 
 async def test_sensor_is_on_schedule_true(hass: HomeAssistant) -> None:
@@ -451,7 +474,7 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
     assert len(sensors) == 2
     assert len(enabled_switches) == 2
     assert sensors[0].device_entity_id == "Excess Solar Water Heater"
-    assert sensors[0].get_consumption() == 2000.0
+    assert sensors[0]._consumption == 2000
     assert sensors[0].priority == 1
     assert sensors[1].device_entity_id == "Excess Solar EV Charger"
     assert sensors[1].priority == 2
@@ -733,6 +756,7 @@ async def test_binary_sensor_reads_priority_from_number_entity(
         hass=hass,
         device_entity_id="switch.device",
         consumption=1000,
+        consumption_entity=None,
         unique_id="excess_solar_device",
         name="Device",
         priority=10,
@@ -789,6 +813,7 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
         hass=hass,
         device_entity_id="switch.device1",
         consumption=1000,
+        consumption_entity=None,
         unique_id="excess_solar_device1",
         name="Device 1",
         priority=1,
@@ -806,6 +831,7 @@ async def test_manager_resorts_on_priority_change(hass: HomeAssistant) -> None:
         hass=hass,
         device_entity_id="switch.device2",
         consumption=1000,
+        consumption_entity=None,
         unique_id="excess_solar_device2",
         name="Device 2",
         priority=5,
@@ -846,6 +872,7 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         hass=hass,
         device_entity_id="switch.device1",
         consumption=500,
+        consumption_entity=None,
         unique_id="excess_solar_device1",
         name="Device 1",
         priority=10,
@@ -865,6 +892,7 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         hass=hass,
         device_entity_id="switch.device2",
         consumption=500,
+        consumption_entity=None,
         unique_id="excess_solar_device2",
         name="Device 2",
         priority=5,
@@ -908,6 +936,7 @@ async def test_priority_in_extra_state_attributes(hass: HomeAssistant) -> None:
         hass=hass,
         device_entity_id="switch.device",
         consumption=1000,
+        consumption_entity=None,
         unique_id="excess_solar_device",
         name="Device",
         priority=7,
