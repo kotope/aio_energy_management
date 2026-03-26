@@ -216,6 +216,7 @@ class ExcessSolarManager:
                 continue
             # Short-cycle guard
             if not sensor.can_turn_on():
+                _LOGGER.debug("%s is not allowed to turn on, skipping", sensor.name)      
                 continue
 
             consumption = sensor.get_expected_consumption()
