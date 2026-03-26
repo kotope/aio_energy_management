@@ -1133,9 +1133,10 @@ async def test_swap_floor_heating_for_water_heater(hass: HomeAssistant) -> None:
 
     manager = _make_manager(hass, sensors=[water_heater, floor_heating], buffer=0)
 
-    # Floor heating is already active
-    floor_heating.activate()
+    # Grid export 700W -> enough for floor heating
+    await manager._async_evaluate(-700.0)
     assert floor_heating.is_on is True
+    assert water_heater.is_on is False
 
     # Grid exports 2400W → available_solar = 2400W; 2400 + 700 = 3100 ≥ 3000
     await manager._async_evaluate(-2400.0)

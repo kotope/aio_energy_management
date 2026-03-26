@@ -222,10 +222,6 @@ def _process_device_input(
     consumption_watts = user_input.get(CONF_CONSUMPTION, 0)
     consumption_entity = user_input.get(CONF_CONSUMPTION_ENTITY)
 
-    if consumption_entity and consumption_watts and int(consumption_watts) > 0:
-        errors["base"] = "both_consumption_configured"
-        return device, errors
-
     device[CONF_CONSUMPTION] = int(consumption_watts) if consumption_watts else 0
     if consumption_entity:
         device[CONF_CONSUMPTION_ENTITY] = consumption_entity
