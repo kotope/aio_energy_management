@@ -1470,6 +1470,57 @@ async def test_nordpool_official_15min_mtu_summer_time(
         2026, 3, 30, 0, 0, tzinfo=tzinfo
     )
 
+async def test_nordpool_official_60min_mtu_summer_time_starting_today(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration, 15min mtu, non-sequential, DST spring-forward transition.
+
+    On the spring-forward night (March 28→29), tomorrow has only 23 local hours.
+    The fix ensures that all 92 fifteen-minute slots are correctly gathered from the
+    combined yesterday+today+tomorrow data using time-range filtering, rather than
+    date-equality filtering which incorrectly excluded UTC entries crossing local midnight.
+    """
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    hass.config.timezone = zoneinfo.ZoneInfo("Europe/Helsinki")
+    # Stay at 2026-03-28 to match the fixture dates (tomorrow = 2026-03-29, DST day)
+    freezer.move_to("2026-03-28 14:25+02:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_dst_summer_60min_20260327.json",
+        "nordpool_official_dst_summer_60min_20260328.json",
+        "nordpool_official_dst_summer_60min_20260329.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=20,
+        last_hour=14,
+        starting_today=True,
+        number_of_slots=4,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+        mtu=60,
+    )
+    await sensor.async_update()
+
+    # 4 cheapest non-sequential 1-hour slots (starting_today=True, spanning
+    # today evening and the DST spring-forward day of March 29, 2026 Helsinki).
+    result_list = sensor.extra_state_attributes["list"]
+    assert len(result_list) == 2
+
+    assert result_list[0]["start"] == datetime(2026, 3, 28, 23, 0, tzinfo=tzinfo)
+    assert result_list[0]["end"] == datetime(2026, 3, 29, 1, 0, tzinfo=tzinfo)
+
+    assert result_list[1]["start"] == datetime(2026, 3, 29, 13, 0, tzinfo=tzinfo)
+    assert result_list[1]["end"] == datetime(2026, 3, 29, 15, 0, tzinfo=tzinfo)
+
+
 async def test_nordpool_number_of_slots_mtu15(
         hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:

@@ -289,9 +289,15 @@ def _check_day_light_savings(
             return _remove_duplicate_starts(hours)
         return hours
 
-    # mtu 60: hourly data has a detectable 2-hour UTC gap at spring-forward.
+    # mtu 60: same two-scenario pattern as mtu=15 for Nord Pool Official data.
+    # 1. Data has a detectable 2-hour UTC gap → _add_missing_hour handles it.
+    # 2. UTC-aligned data (NORDPOOL_OFFICIAL) has no gap; 23-hour DST day gives
+    #    23 consecutive items. Fall back to local wall-clock gap insertion.
     if len(hours) == 23:
-        return _add_missing_hour(hours, inversed, mtu=mtu)
+        result = _add_missing_hour(hours, inversed, mtu=mtu)
+        if len(result) == 23 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+            return _insert_at_local_dst_gap(result, count=1, inversed=inversed, mtu=mtu)
+        return result
     if len(hours) == 25:
         return _remove_duplicate_starts(hours)
     return hours
@@ -351,13 +357,17 @@ def _add_missing_hour(hours: list, inversed: bool, mtu: int = 60) -> list:
     return hours
 
 
-def _insert_at_local_dst_gap(hours: list, count: int, inversed: bool) -> list:
+def _insert_at_local_dst_gap(
+    hours: list, count: int, inversed: bool, mtu: int = 15
+) -> list:
     """Insert synthetic slots at the DST spring-forward gap in local wall-clock time.
 
-    Used for NORDPOOL_OFFICIAL 15-min UTC data where consecutive UTC entries at
-    a DST spring-forward transition have no UTC gap but a local wall-clock gap.
+    Used for NORDPOOL_OFFICIAL data where consecutive UTC entries at a DST
+    spring-forward transition have no UTC gap but a local wall-clock gap.
     We detect the gap by comparing naive local hour×60+minute values; a jump
     of more than 60 minutes indicates the spring-forward point.
+    The `mtu` parameter controls the time step for synthetic entry timestamps
+    (15 minutes for 15-min data, 60 minutes for hourly data).
     """
     value = MIN_PRICE_VALUE if inversed else MAX_PRICE_VALUE
     prev_local_minutes: int | None = None
@@ -366,17 +376,17 @@ def _insert_at_local_dst_gap(hours: list, count: int, inversed: bool) -> list:
         local_minutes = local_dt.hour * 60 + local_dt.minute
         if prev_local_minutes is not None and local_minutes > prev_local_minutes + 60:
             # Found the spring-forward gap: insert count synthetic items here.
-            insert_start = hours[i - 1].start + timedelta(minutes=15)
+            insert_start = hours[i - 1].start + timedelta(minutes=mtu)
             for k in range(count):
                 hours.insert(
                     i + k,
-                    HourPrice(value=value, start=insert_start + timedelta(minutes=k * 15)),
+                    HourPrice(value=value, start=insert_start + timedelta(minutes=k * mtu)),
                 )
             return hours
         prev_local_minutes = local_minutes
     # Fallback: no gap found — pad at end.
     for _ in range(count):
-        hours.append(HourPrice(value=value, start=hours[-1].start + timedelta(minutes=15)))
+        hours.append(HourPrice(value=value, start=hours[-1].start + timedelta(minutes=mtu)))
     return hours
 
 
