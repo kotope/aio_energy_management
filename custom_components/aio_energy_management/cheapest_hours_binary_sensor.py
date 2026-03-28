@@ -672,27 +672,26 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         def parse_start(item):
             return dt_util.as_local(datetime.fromisoformat(item["start"]))
 
-        # Get today's and tomorrow's date
-        today_date = dt_util.start_of_local_day().date()
-        tomorrow_date = (dt_util.start_of_local_day() + timedelta(days=1)).date()
+        # Use local-midnight boundaries for filtering to correctly handle DST
+        # transitions. On spring-forward days, the last UTC entries of the 23-hour
+        # day convert to the following local day, so date-equality checks would
+        # incorrectly exclude them.
+        midnight_today = dt_util.start_of_local_day()
+        midnight_tomorrow = midnight_today + timedelta(days=1)
+        midnight_day_after = midnight_today + timedelta(days=2)
 
-        # Filter for today: 00:00 to 23:00
+        # Filter for today: [midnight_today, midnight_tomorrow)
         today_prices = [
             item
             for item in combined
-            if parse_start(item).date() == today_date
-            and parse_start(item).hour >= 0
-            and parse_start(item).hour <= 23
+            if midnight_today <= parse_start(item) < midnight_tomorrow
         ]
-        # Filter for tomorrow: 00:00 to 23:00
+        # Filter for tomorrow: [midnight_tomorrow, midnight_day_after)
         tomorrow_prices = [
             item
             for item in combined
-            if parse_start(item).date() == tomorrow_date
-            and parse_start(item).hour >= 0
-            and parse_start(item).hour <= 23
+            if midnight_tomorrow <= parse_start(item) < midnight_day_after
         ]
-
         # If 15min period, combine to hourly if needed
         active_mtu = 60
         if self._is_15min_period_in_use(today_prices):
@@ -721,7 +720,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             for item in tomorrow_prices
         ]
-
         if len(tomorrow) < 10:
             raise ValueNotFound
 

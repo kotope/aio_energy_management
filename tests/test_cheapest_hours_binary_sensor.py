@@ -1401,11 +1401,82 @@ async def test_nordpool_official_15min_mtu_summer_time(
         2025, 3, 15, 16, 0, tzinfo=tzinfo
     )
 
+async def test_nordpool_official_15min_mtu_summer_time(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration, 15min mtu, non-sequential, DST spring-forward transition.
+
+    On the spring-forward night (March 28→29), tomorrow has only 23 local hours.
+    The fix ensures that all 92 fifteen-minute slots are correctly gathered from the
+    combined yesterday+today+tomorrow data using time-range filtering, rather than
+    date-equality filtering which incorrectly excluded UTC entries crossing local midnight.
+    """
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    hass.config.timezone = zoneinfo.ZoneInfo("Europe/Helsinki")
+    # Stay at 2026-03-28 to match the fixture dates (tomorrow = 2026-03-29, DST day)
+    freezer.move_to("2026-03-28 14:25+02:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_dst_summer_15min_20260327.json",
+        "nordpool_official_dst_summer_15min_20260328.json",
+        "nordpool_official_dst_summer_15min_20260329.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=8,
+        sequential=False,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+        mtu=15,
+    )
+    await sensor.async_update()
+
+    # The list must have 6 cheapest non-sequential 15-min slots selected from
+    # the DST spring-forward day (March 29, 2026, Helsinki EEST).
+    # Before the fix, tomorrow_prices was [] due to date-equality filtering
+    # excluding UTC entries that crossed local midnight on the spring-forward day.
+    result_list = sensor.extra_state_attributes["list"]
+    assert len(result_list) == 6
+
+    assert result_list[0]["start"] == datetime(2026, 3, 29, 13, 30, tzinfo=tzinfo)
+    assert result_list[0]["end"] == datetime(2026, 3, 29, 14, 0, tzinfo=tzinfo)
+
+    assert result_list[1]["start"] == datetime(2026, 3, 29, 14, 30, tzinfo=tzinfo)
+    assert result_list[1]["end"] == datetime(2026, 3, 29, 14, 45, tzinfo=tzinfo)
+
+    assert result_list[2]["start"] == datetime(2026, 3, 29, 18, 0, tzinfo=tzinfo)
+    assert result_list[2]["end"] == datetime(2026, 3, 29, 18, 15, tzinfo=tzinfo)
+
+    assert result_list[3]["start"] == datetime(2026, 3, 29, 21, 45, tzinfo=tzinfo)
+    assert result_list[3]["end"] == datetime(2026, 3, 29, 22, 0, tzinfo=tzinfo)
+
+    assert result_list[4]["start"] == datetime(2026, 3, 29, 22, 45, tzinfo=tzinfo)
+    assert result_list[4]["end"] == datetime(2026, 3, 29, 23, 0, tzinfo=tzinfo)
+
+    assert result_list[5]["start"] == datetime(2026, 3, 29, 23, 30, tzinfo=tzinfo)
+    assert result_list[5]["end"] == datetime(2026, 3, 30, 0, 0, tzinfo=tzinfo)
+
+    # Expiration is midnight of the day after tomorrow (March 30 00:00 EET+3)
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2026, 3, 30, 0, 0, tzinfo=tzinfo
+    )
+
 async def test_nordpool_number_of_slots_mtu15(
         hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
     coordinator_mock = _setup_coordinator_mock()
+    # Set Helsinki as default timezone so DST gap detection uses the correct local time.
+    dt_util.set_default_time_zone(tzinfo)
     freezer.move_to("2024-07-13 14:25+03:00")
 
     # 15min mtu
@@ -1454,6 +1525,8 @@ async def test_nordpool_number_of_slots_mtu15(
         sensor.extra_state_attributes["failsafe"]["end"]
         == datetime.now().replace(hour=0, minute=30).time()
     )
+
+
 
 async def test_nordpool_number_of_slots_mtu60(
         hass: HomeAssistant, freezer: FrozenDateTimeFactory

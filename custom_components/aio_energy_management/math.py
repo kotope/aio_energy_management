@@ -7,6 +7,7 @@ import numpy as np
 
 import homeassistant.util.dt as dt_util
 
+from .enums import HourPriceType
 from .exceptions import InvalidInput, ValueNotFound
 from .models.hour_price import HourPrice
 
@@ -138,7 +139,6 @@ def calculate_non_sequential_cheapest_hours(
 
     td = _check_day_light_savings(today, mtu=mtu)
     tm = _check_day_light_savings(tomorrow, mtu=mtu)
-
     # Ensure valid data length for items. mtu can be 15 or 60
     if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
         _LOGGER.error(
@@ -273,15 +273,23 @@ def _is_cheapest_hours_input_valid(
 def _check_day_light_savings(
     hours: list, inversed: bool = False, mtu: int = 60
 ) -> list:
-    # mtu 15
+    # mtu 15: two DST scenarios exist for 15-min data with 92 items:
+    # 1. Data has a UTC gap (e.g. 03:00-03:45 UTC missing) → _add_missing_hour
+    #    detects it and inserts 4 items at the correct position.
+    # 2. Nord Pool Official delivers UTC-aligned data with NO gap (the 23-hour
+    #    day simply has 92 consecutive items). _add_missing_hour finds nothing
+    #    so we insert at the local wall-clock DST gap instead.
     if mtu == 15:
         if len(hours) == 92:
-            return _add_missing_hour(hours, inversed, mtu=mtu)
+            result = _add_missing_hour(hours, inversed, mtu=mtu)
+            if len(result) == 92 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+                return _insert_at_local_dst_gap(result, count=4, inversed=inversed)
+            return result
         if len(hours) == 100:
             return _remove_duplicate_starts(hours)
         return hours
 
-    # mtu 60
+    # mtu 60: hourly data has a detectable 2-hour UTC gap at spring-forward.
     if len(hours) == 23:
         return _add_missing_hour(hours, inversed, mtu=mtu)
     if len(hours) == 25:
@@ -340,6 +348,35 @@ def _add_missing_hour(hours: list, inversed: bool, mtu: int = 60) -> list:
         else:
             hours.insert(i, HourPrice(value=missing_value, start=missing_start_time))
 
+    return hours
+
+
+def _insert_at_local_dst_gap(hours: list, count: int, inversed: bool) -> list:
+    """Insert synthetic slots at the DST spring-forward gap in local wall-clock time.
+
+    Used for NORDPOOL_OFFICIAL 15-min UTC data where consecutive UTC entries at
+    a DST spring-forward transition have no UTC gap but a local wall-clock gap.
+    We detect the gap by comparing naive local hour×60+minute values; a jump
+    of more than 60 minutes indicates the spring-forward point.
+    """
+    value = MIN_PRICE_VALUE if inversed else MAX_PRICE_VALUE
+    prev_local_minutes: int | None = None
+    for i in range(len(hours)):
+        local_dt = dt_util.as_local(hours[i].start)
+        local_minutes = local_dt.hour * 60 + local_dt.minute
+        if prev_local_minutes is not None and local_minutes > prev_local_minutes + 60:
+            # Found the spring-forward gap: insert count synthetic items here.
+            insert_start = hours[i - 1].start + timedelta(minutes=15)
+            for k in range(count):
+                hours.insert(
+                    i + k,
+                    HourPrice(value=value, start=insert_start + timedelta(minutes=k * 15)),
+                )
+            return hours
+        prev_local_minutes = local_minutes
+    # Fallback: no gap found — pad at end.
+    for _ in range(count):
+        hours.append(HourPrice(value=value, start=hours[-1].start + timedelta(minutes=15)))
     return hours
 
 
