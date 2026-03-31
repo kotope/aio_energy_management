@@ -252,7 +252,7 @@ class TestValidateOffsetIntegerFields:
         assert errors[self.START_MINUTES] == "start_minutes_out_of_range"
 
     def test_invalid_start_minutes_negative(self):
-        errors = _validate_offset_integer_fields({self.START_MINUTES: -1})
+        errors = _validate_offset_integer_fields({self.START_MINUTES: -60})
         assert self.START_MINUTES in errors
 
     # --- end_minutes ---
@@ -263,12 +263,12 @@ class TestValidateOffsetIntegerFields:
         assert errors[self.END_MINUTES] == "end_minutes_out_of_range"
 
     def test_invalid_end_minutes_negative(self):
-        errors = _validate_offset_integer_fields({self.END_MINUTES: -1})
+        errors = _validate_offset_integer_fields({self.END_MINUTES: -60})
         assert self.END_MINUTES in errors
 
     def test_both_minutes_invalid(self):
         errors = _validate_offset_integer_fields(
-            {self.START_MINUTES: 61, self.END_MINUTES: -5}
+            {self.START_MINUTES: 61, self.END_MINUTES: -60}
         )
         assert self.START_MINUTES in errors
         assert self.END_MINUTES in errors

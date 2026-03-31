@@ -666,11 +666,11 @@ def _validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str
     errors: dict[str, str] = {}
 
     start_minutes = user_input.get(f"{CONF_START}_{CONF_MINUTES}")
-    if start_minutes is not None and not (0 <= start_minutes <= 59):
+    if start_minutes is not None and not (-59 <= start_minutes <= 59):
         errors[f"{CONF_START}_{CONF_MINUTES}"] = "start_minutes_out_of_range"
 
     end_minutes = user_input.get(f"{CONF_END}_{CONF_MINUTES}")
-    if end_minutes is not None and not (0 <= end_minutes <= 59):
+    if end_minutes is not None and not (-59 <= end_minutes <= 59):
         errors[f"{CONF_END}_{CONF_MINUTES}"] = "end_minutes_out_of_range"
 
     return errors
