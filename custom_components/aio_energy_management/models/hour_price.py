@@ -54,6 +54,14 @@ class HourPrice:
                 type,
             )
         # Nord pool custom
+        if type is HourPriceType.STROMLIGNING:
+            return cls(
+                dict["price"],
+                from_str_to_datetime(dict["start"]),
+                from_str_to_datetime(dict["end"]),
+                type,
+            )
+        # Nord pool custom (HACS)
         return cls(
             dict["value"],
             from_str_to_datetime(dict["start"]),

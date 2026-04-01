@@ -48,6 +48,9 @@ from .const import (
     DATA_PROVIDER_ENTSOE,
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
+    DATA_PROVIDER_STROMLIGNING,
+    CONF_STROMLIGNING_ENTITY,
+    CONF_STROMLIGNING_TOMORROW_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +73,7 @@ def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
                     DATA_PROVIDER_NORDPOOL: "Nord Pool",
                     DATA_PROVIDER_NORDPOOL_OFFICIAL: "Nord Pool official",
                     DATA_PROVIDER_ENTSOE: "Entso-E",
+                    DATA_PROVIDER_STROMLIGNING: "Strømligning",
                 }
             ),
         }
@@ -156,6 +160,48 @@ def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     domain="sensor",
+                )
+            ),
+            vol.Optional(
+                CONF_MTU,
+                default=user_input.get(CONF_MTU) if user_input else 60,
+            ): vol.In([15, 60]),
+            vol.Optional(
+                CONF_ALLOW_DYNAMIC_ENTITIES,
+                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
+                if user_input
+                else False,
+            ): cv.boolean,
+        }
+    )
+
+
+def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
+    """Get Strømligning entity selection schema."""
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_STROMLIGNING_ENTITY,
+                description={
+                    "suggested_value": user_input.get(CONF_STROMLIGNING_ENTITY)
+                    if user_input
+                    else None
+                },
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="sensor",
+                )
+            ),
+            vol.Required(
+                CONF_STROMLIGNING_TOMORROW_ENTITY,
+                description={
+                    "suggested_value": user_input.get(CONF_STROMLIGNING_TOMORROW_ENTITY)
+                    if user_input
+                    else None
+                },
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="binary_sensor",
                 )
             ),
             vol.Optional(
@@ -692,6 +738,8 @@ class CheapestHoursConfigFlowMixin:
                 return await self.async_step_cheapest_hours_nordpool_official()
             if self._data_provider_type == DATA_PROVIDER_ENTSOE:
                 return await self.async_step_cheapest_hours_entsoe()
+            if self._data_provider_type == DATA_PROVIDER_STROMLIGNING:
+                return await self.async_step_cheapest_hours_stromligning()
 
         default = None
         if hasattr(self, "_config_entry"):
@@ -753,6 +801,23 @@ class CheapestHoursConfigFlowMixin:
         return self.async_show_form(
             step_id="cheapest_hours_entsoe",
             data_schema=_get_entsoe_schema(existing_data or user_input),
+        )
+
+    async def async_step_cheapest_hours_stromligning(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure Strømligning entities for cheapest hours."""
+        if user_input is not None:
+            self._config_data.update(user_input)
+            return await self.async_step_cheapest_hours_basic()
+
+        existing_data = None
+        if hasattr(self, "_config_entry"):
+            existing_data = dict(self._config_entry.data)
+
+        return self.async_show_form(
+            step_id="cheapest_hours_stromligning",
+            data_schema=_get_stromligning_schema(existing_data or user_input),
         )
 
     async def async_step_cheapest_hours_basic(
