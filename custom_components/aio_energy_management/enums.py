@@ -9,3 +9,4 @@ class HourPriceType(Enum):
     NORDPOOL = "nordpool"
     ENTSOE = "entsoe"
     NORDPOOL_OFFICIAL = "nordpool_official"
+    STROMLIGNING = "stromligning"

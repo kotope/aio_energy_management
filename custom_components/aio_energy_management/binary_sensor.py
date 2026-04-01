@@ -31,6 +31,8 @@ from .const import (
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
+    CONF_STROMLIGNING_ENTITY,
+    CONF_STROMLIGNING_TOMORROW_ENTITY,
     CONF_NUMBER_OF_HOURS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
@@ -55,6 +57,8 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_NORDPOOL_ENTITY): cv.entity_id,
         vol.Optional(CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY): vol.All(vol.Coerce(str)),
         vol.Optional(CONF_ENTSOE_ENTITY): cv.entity_id,
+        vol.Optional(CONF_STROMLIGNING_ENTITY): cv.entity_id,
+        vol.Optional(CONF_STROMLIGNING_TOMORROW_ENTITY): cv.entity_id,
         vol.Required(CONF_UNIQUE_ID): vol.All(vol.Coerce(str)),
         vol.Required(CONF_NAME): vol.All(vol.Coerce(str)),
         vol.Optional(CONF_STARTING_TODAY): bool,
@@ -136,6 +140,8 @@ def _create_cheapest_hours_entity(
         CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY
     )
     entsoe_entity = discovery_info.get(CONF_ENTSOE_ENTITY)
+    stromligning_entity = discovery_info.get(CONF_STROMLIGNING_ENTITY)
+    stromligning_tomorrow_entity = discovery_info.get(CONF_STROMLIGNING_TOMORROW_ENTITY)
     unique_id = discovery_info[CONF_UNIQUE_ID]
     name = discovery_info[CONF_NAME]
     first_hour = discovery_info[CONF_FIRST_HOUR]
@@ -171,6 +177,8 @@ def _create_cheapest_hours_entity(
         entsoe_entity=entsoe_entity,
         nordpool_entity=nordpool_entity,
         nordpool_official_config_entry=nordpool_official_config_entry,
+        stromligning_entity=stromligning_entity,
+        stromligning_tomorrow_entity=stromligning_tomorrow_entity,
         unique_id=unique_id,
         name=name,
         first_hour=first_hour,

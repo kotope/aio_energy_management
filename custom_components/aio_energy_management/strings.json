@@ -13,7 +13,7 @@
       },
       "cheapest_hours_data_provider": {
         "title": "Price source",
-        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool (custom integration), Nord Pool official, Entso-E, or Strømligning (Danish total price).",
         "data": {
           "data_provider_type": "Data provider type"
         },
@@ -65,9 +65,25 @@
           "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
         }
       },
+      "cheapest_hours_stromligning": {
+        "title": "Strømligning configuration",
+        "description": "Configure Strømligning entity settings. Strømligning provides Danish electricity prices including spot price, transport tariffs, and VAT.",
+        "data": {
+          "stromligning_entity": "Strømligning today entity",
+          "stromligning_tomorrow_entity": "Strømligning tomorrow entity",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations",
+          "mtu": "MTU (minutes)"
+        },
+        "data_description": {
+          "stromligning_entity": "Sensor entity providing today's prices (e.g., sensor.stromligning_current_price_vat)",
+          "stromligning_tomorrow_entity": "Binary sensor entity providing tomorrow's prices (e.g., binary_sensor.stromligning_tomorrow_available_vat)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)",
+          "mtu": "Market time unit in minutes (15 or 60). Must match your Strømligning integration configuration"
+        }
+      },
       "cheapest_hours_price_source": {
         "title": "Price source",
-        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, Entso-E entity, or Strømligning entity.",
         "data": {
           "nordpool_entity": "Nord Pool entity",
           "nordpool_official_config_entry": "Nord Pool official config entry ID",
@@ -197,7 +213,7 @@
     "step": {
       "cheapest_hours_data_provider": {
         "title": "Price source",
-        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool entity (custom integration), Nord Pool official config entry ID, or Entso-E entity.",
+        "description": "Select one price source for cheapest hours calculation. Choose Nord Pool (custom integration), Nord Pool official, Entso-E, or Strømligning (Danish total price).",
         "data": {
           "data_provider_type": "Data provider type"
         },
@@ -247,6 +263,22 @@
           "entsoe_entity": "Average price sensor entity ID from Entso-E integration",
           "mtu": "Market time unit in minutes (15 or 60)",
           "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)"
+        }
+      },
+      "cheapest_hours_stromligning": {
+        "title": "Strømligning configuration",
+        "description": "Configure Strømligning entity settings. Strømligning provides Danish electricity prices including spot price, transport tariffs, and VAT.",
+        "data": {
+          "stromligning_entity": "Strømligning today entity",
+          "stromligning_tomorrow_entity": "Strømligning tomorrow entity",
+          "allow_dynamic_entities": "Allow dynamic entities on configurations",
+          "mtu": "MTU (minutes)"
+        },
+        "data_description": {
+          "stromligning_entity": "Sensor entity providing today's prices (e.g., sensor.stromligning_current_price_vat)",
+          "stromligning_tomorrow_entity": "Binary sensor entity providing tomorrow's prices (e.g., binary_sensor.stromligning_tomorrow_available_vat)",
+          "allow_dynamic_entities": "Enable dynamic entity selections in configuration steps (number of slots, trigger hour, price limit, offset entities)",
+          "mtu": "Market time unit in minutes (15 or 60). Must match your Strømligning integration configuration"
         }
       },
       "cheapest_hours_basic": {
