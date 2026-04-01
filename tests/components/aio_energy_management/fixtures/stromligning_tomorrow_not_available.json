@@ -1,0 +1,10 @@
+{
+  "attributes": {
+    "prices": []
+  },
+  "entity_id": "binary_sensor.stromligning_tomorrow_available_vat",
+  "last_changed": "2026-04-01T00:00:00+00:00",
+  "last_reported": "2026-04-01T00:00:00+00:00",
+  "last_updated": "2026-04-01T00:00:00+00:00",
+  "state": "off"
+}
