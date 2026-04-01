@@ -1,7 +1,7 @@
 # All in One Energy Management for Home Assistant
 Purpose of this component is to provide easily configurable energy management for Home Assistant automations.
 
-During the first phase it supports only to find Nord Pool cheapest hours (or most expensive) per day and automatic calendar creation.
+During the first phase it supports only to find Nord Pool / Strømligning cheapest hours (or most expensive) per day and automatic calendar creation.
 Later AIO Energy Management is planned to integrate into solar forecast to get support for solar energy usage.
 
 Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
@@ -28,11 +28,11 @@ wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/
 ```
 
 ## Features
-* Cheapest Hours (or most expensive) - Nord Pool and Entso-E integration support
+* Cheapest Hours (or most expensive) - Nord Pool, Entso-E and Strømligning integration support
 * Event Calendar
 * Service utility
 
-## Cheapest hours sensor (supports Nord Pool and Entso-E integrations)
+## Cheapest hours sensor (supports Nord Pool, Entso-E and Strømligning integrations)
 The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the cheapest hours per day.<br>
 Binary sensor will have the state 'on' when cheapest hours is active.<br>
 Automations can then be set to follow this sensor 'on' state.
@@ -46,6 +46,9 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 
 ### Nord Pool Official integration Prerequisites (if using Nord Pool official integration)
 Installed and configured [Nord Pool official integration](https://www.home-assistant.io/integrations/nordpool/)
+
+### Strømligning Prerequisites (if using Strømligning)
+Installed and configured [Strømligning integration](https://github.com/JonasPed/homeassistant-stromligning)
 #### Getting configuration entry id (not needed for UI configuration)
 1. Go to Developer Tools > Actions.
 2. In the “Service” dropdown, select Nord Pool: Get prices.
@@ -69,7 +72,7 @@ AIO Energy Management now supports **UI-based configuration** through Home Assis
 
 #### Legacy YAML Configuration: Configuration can also be done through configuration.yaml (still fully supported).<br>
 
-Either nordpool_entity or entsoe_entity must be set, depending on which integration you want to use.
+Either nordpool_entity, entsoe_entity, or stromligning_entity must be set, depending on which integration you want to use.
 
 Configuration parameters are shown below:
 
@@ -78,6 +81,8 @@ Configuration parameters are shown below:
 | nordpool_entity  | no       | Entity id of the Nord Pool integration |
 | entsoe_entity    | no       | Entity id of the Entso-E integration. This is Entso-E **average_price** sensor that provides all extra attributes |
 | nordpool_official_config_entry  | no       | Configuration entry id of Nord Pool official integration |
+| stromligning_entity  | no       | Entity id of the Strømligning integration (today's prices sensor) |
+| stromligning_tomorrow_entity  | no       | Entity id of the Strømligning integration (tomorrow's prices sensor) |
 | unique_id        | yes       | Unique id to identify newly created entity |
 | name             | yes       | Friendly name of the created entity |
 | number_of_hours  | no       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number *deprecated: use number_of_slots instead* |
@@ -103,7 +108,7 @@ Configuration parameters are shown below:
 * last_hour is always tomorrow
 
 ### Example configuration
-The example configuration presents creation of three sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours** and final one for **Nord Pool cheapest hours with offset**
+The example configuration presents creation of four sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours**, one for **Strømligning cheapest hours** and final one for **Nord Pool cheapest hours with offset**
 
 ```
 aio_energy_management:
@@ -130,6 +135,15 @@ aio_energy_management:
       - entsoe_entity: sensor.entsoe_average_price
         unique_id: my_entsoe_cheapest_hours
         name: My Entso-E Cheapest Hours
+        first_hour: 21
+        last_hour: 10
+        starting_today: true
+        number_of_slots: 5
+        sequential: false
+      - stromligning_entity: sensor.stromligning_electricity_price_today
+        stromligning_tomorrow_entity: sensor.stromligning_electricity_price_tomorrow
+        unique_id: my_stromligning_cheapest_hours
+        name: My Strømligning Cheapest Hours
         first_hour: 21
         last_hour: 10
         starting_today: true
