@@ -41,6 +41,25 @@ def _setup_entsoe_mock(hass: HomeAssistant, fixture: str) -> None:
     )
 
 
+def _setup_stromligning_mock(
+    hass: HomeAssistant, today_fixture: str, tomorrow_fixture: str
+) -> None:
+    mocked_today = State.from_dict(json.loads(load_fixture(today_fixture, DOMAIN)))
+    hass.states.async_set(
+        "sensor.stromligning_current_price_vat",
+        mocked_today.state,
+        attributes=mocked_today.attributes,
+    )
+    mocked_tomorrow = State.from_dict(
+        json.loads(load_fixture(tomorrow_fixture, DOMAIN))
+    )
+    hass.states.async_set(
+        "binary_sensor.stromligning_tomorrow_available_vat",
+        mocked_tomorrow.state,
+        attributes=mocked_tomorrow.attributes,
+    )
+
+
 def _setup_nordpool_official_mock(
     hass: HomeAssistant,
     fixture_yesterday: str,
@@ -1694,3 +1713,261 @@ async def test_nordpool_number_of_slots_mtu60(
 #    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
 #        2025, 3, 15, 13, 0, tzinfo=tzinfo
 #    )
+
+
+# =============================================
+# Strømligning tests
+# =============================================
+
+
+async def test_cheapest_hours_stromligning_non_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test Strømligning non-sequential cheapest hours."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2026-04-01 15:00+03:00")
+    _setup_stromligning_mock(
+        hass,
+        "stromligning_today_20260401.json",
+        "stromligning_tomorrow_20260402.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        stromligning_entity="sensor.stromligning_current_price_vat",
+        stromligning_tomorrow_entity="binary_sensor.stromligning_tomorrow_available_vat",
+        unique_id="my_stromligning_sensor",
+        name="My Strømligning Sensor",
+        first_hour=21,
+        last_hour=8,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert attributes.get("list") is not None
+    assert len(attributes["list"]) > 0
+    assert attributes["inversed"] is False
+
+    # The 3 cheapest hours between 21:00 today and 08:00 tomorrow should be
+    # from the lowest prices in that range:
+    # Today 21:00=1.650230, 22:00=1.420340, 23:00=1.280120
+    # Tomorrow 00:00=1.380120, 01:00=1.250340, 02:00=1.180890,
+    #          03:00=1.120450, 04:00=1.050230, 05:00=1.110340,
+    #          06:00=1.380120, 07:00=1.720890
+    # Cheapest 3: 04:00=1.050230, 05:00=1.110340, 03:00=1.120450
+    assert attributes["list"][0]["start"] == datetime(
+        2026, 4, 2, 3, 0, tzinfo=tzinfo
+    )
+    assert attributes["list"][0]["end"] == datetime(
+        2026, 4, 2, 6, 0, tzinfo=tzinfo
+    )
+
+    # Verify sensor is off before cheapest hours
+    freezer.move_to("2026-04-01 23:00+03:00")
+    assert sensor.is_on is False
+
+    # Move to cheapest hour (04:00)
+    freezer.move_to("2026-04-02 05:30+03:00")
+    assert sensor.is_on is True
+
+    # Move past cheapest hours
+    freezer.move_to("2026-04-02 07:30+03:00")
+    assert sensor.is_on is False
+
+
+async def test_cheapest_hours_stromligning_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test Strømligning sequential cheapest hours."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2026-04-01 15:00+03:00")
+    _setup_stromligning_mock(
+        hass,
+        "stromligning_today_20260401.json",
+        "stromligning_tomorrow_20260402.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        stromligning_entity="sensor.stromligning_current_price_vat",
+        stromligning_tomorrow_entity="binary_sensor.stromligning_tomorrow_available_vat",
+        unique_id="my_stromligning_sequential",
+        name="My Strømligning Sequential",
+        first_hour=21,
+        last_hour=8,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert attributes.get("list") is not None
+    assert len(attributes["list"]) == 1
+
+    # Sequential 3 hours: cheapest consecutive block between 21-08
+    # 03:00=1.120450, 04:00=1.050230, 05:00=1.110340 => sum=3.281020
+    assert attributes["list"][0]["start"] == datetime(
+        2026, 4, 2, 3, 0, tzinfo=tzinfo
+    )
+    assert attributes["list"][0]["end"] == datetime(
+        2026, 4, 2, 6, 0, tzinfo=tzinfo
+    )
+
+    # Verify is_on during sequential block
+    freezer.move_to("2026-04-02 05:00+03:00")
+    assert sensor.is_on is True
+
+    freezer.move_to("2026-04-02 07:01+03:00")
+    assert sensor.is_on is False
+
+
+async def test_cheapest_hours_stromligning_tomorrow_not_available(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test Strømligning when tomorrow prices are not yet available."""
+    coordinator_mock = _setup_coordinator_mock()
+
+    freezer.move_to("2026-04-01 11:00+03:00")
+    _setup_stromligning_mock(
+        hass,
+        "stromligning_today_20260401.json",
+        "stromligning_tomorrow_not_available.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        stromligning_entity="sensor.stromligning_current_price_vat",
+        stromligning_tomorrow_entity="binary_sensor.stromligning_tomorrow_available_vat",
+        unique_id="my_stromligning_no_tomorrow",
+        name="My Strømligning No Tomorrow",
+        first_hour=21,
+        last_hour=8,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=1,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    # Should have empty list since tomorrow data is not available
+    assert attributes.get("list") == []
+    assert (
+        attributes["failsafe"]["start"]
+        == datetime.now().replace(hour=1, minute=0).time()
+    )
+    assert (
+        attributes["failsafe"]["end"]
+        == datetime.now().replace(hour=4, minute=0).time()
+    )
+
+
+async def test_cheapest_hours_stromligning_expensive_hours(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test Strømligning inversed (expensive hours)."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2026-04-01 15:00+03:00")
+    _setup_stromligning_mock(
+        hass,
+        "stromligning_today_20260401.json",
+        "stromligning_tomorrow_20260402.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        stromligning_entity="sensor.stromligning_current_price_vat",
+        stromligning_tomorrow_entity="binary_sensor.stromligning_tomorrow_available_vat",
+        unique_id="my_stromligning_expensive",
+        name="My Strømligning Expensive",
+        first_hour=16,
+        last_hour=22,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=17,
+        coordinator=coordinator_mock,
+        inversed=True,
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert attributes.get("list") is not None
+    assert len(attributes["list"]) > 0
+    assert attributes["inversed"] is True
+
+    # Verify the expensive hours were found
+    assert len(attributes["list"]) == 1
+
+    # Check is_on outside expensive hours (before the block)
+    freezer.move_to("2026-04-02 16:30+03:00")
+    assert sensor.is_on is False
+
+    # Check is_on during expensive hours
+    freezer.move_to("2026-04-02 19:00+03:00")
+    assert sensor.is_on is True
+
+
+async def test_cheapest_hours_stromligning_daytime(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test Strømligning with daytime window (not overnight)."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    freezer.move_to("2026-04-01 15:00+03:00")
+    _setup_stromligning_mock(
+        hass,
+        "stromligning_today_20260401.json",
+        "stromligning_tomorrow_20260402.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        stromligning_entity="sensor.stromligning_current_price_vat",
+        stromligning_tomorrow_entity="binary_sensor.stromligning_tomorrow_available_vat",
+        unique_id="my_stromligning_daytime",
+        name="My Strømligning Daytime",
+        first_hour=8,
+        last_hour=16,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        coordinator=coordinator_mock,
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert attributes.get("list") is not None
+    assert len(attributes["list"]) > 0
+
+    # Hours 8-16 Helsinki = 7-15 Copenhagen in tomorrow data
+    # Helsinki 8=Cph7(1.72089), 9=Cph8(2.05045), 10=Cph9(2.18023),
+    # 11=Cph10(1.95034), 12=Cph11(1.72012), 13=Cph12(1.55089),
+    # 14=Cph13(1.42045), 15=Cph14(1.35023)
+    # Cheapest 3: Hel15(1.35023), Hel14(1.42045), Hel13(1.55089)
+    # Contiguous block: 13:00-16:00 Helsinki
+    assert attributes["list"][0]["start"] == datetime(
+        2026, 4, 2, 13, 0, tzinfo=tzinfo
+    )
+    assert attributes["list"][0]["end"] == datetime(
+        2026, 4, 2, 16, 0, tzinfo=tzinfo
+    )
+
+    freezer.move_to("2026-04-02 14:30+03:00")
+    assert sensor.is_on is True
