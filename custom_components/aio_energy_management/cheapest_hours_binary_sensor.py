@@ -58,6 +58,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         entsoe_entity=None,
         nordpool_entity=None,
         nordpool_official_config_entry=None,
+        stromligning_entity=None,
+        stromligning_tomorrow_entity=None,
         trigger_time=None,
         trigger_hour=None,
         price_limit=None,
@@ -72,6 +74,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._nordpool_entity = nordpool_entity
         self._nordpool_official_config_entry = nordpool_official_config_entry
         self._entsoe_entity = entsoe_entity
+        self._stromligning_entity = stromligning_entity
+        self._stromligning_tomorrow_entity = stromligning_tomorrow_entity
         self._attr_unique_id = unique_id.replace(" ", "_")
         self._attr_name = name
         self._attr_icon = "mdi:clock"
@@ -276,6 +280,27 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 _LOGGER.error(
                     "Failed to get enough data from Entso-e integration using %s. Ensure your system timezone and Entso-e integration region is correct!",
                     self._entsoe_entity,
+                )
+                if self._is_expired():
+                    self._data["list"] = []
+                return
+
+        elif self._stromligning_entity is not None:
+            # Update from Strømligning
+            try:
+                (today, tomorrow, active_mtu) = self._update_from_stromligning(
+                    requested_mtu=self._mtu
+                )
+            except ValueNotFound:
+                _LOGGER.debug(
+                    "Could not get the latest data from Strømligning integration"
+                )
+                if self._is_expired():
+                    self._data["list"] = []
+                return
+            except SystemConfigurationError as e:
+                _LOGGER.error(
+                    "Failed to get data from Strømligning integration: %s", e
                 )
                 if self._is_expired():
                     self._data["list"] = []
@@ -613,6 +638,96 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return (today, tomorrow, active_mtu)
 
+    def _update_from_stromligning(
+        self, requested_mtu: int = 60
+    ) -> tuple[list, list, int]:
+        """Update from Strømligning integration.
+
+        Strømligning provides energy prices for Danish users including
+        spot price, transport tariffs, system tariffs, and VAT.
+        Depending on the Strømligning configuration, data can be provided
+        in either 60-minute or 15-minute intervals.
+
+        Today prices come from the main sensor entity (e.g.,
+        sensor.stromligning_current_price_vat) via the 'prices' attribute.
+        Tomorrow prices come from a separate binary_sensor entity (e.g.,
+        binary_sensor.stromligning_tomorrow_available_vat) via the 'prices'
+        attribute, only available when the entity state is 'on'.
+
+        Data format: list of dicts with keys 'price', 'start', 'end' where
+        start/end are ISO 8601 datetime strings.
+        """
+        stromligning = self.hass.states.get(self._stromligning_entity)
+        if stromligning is None:
+            _LOGGER.debug(
+                "Got empty data from Strømligning entity %s",
+                self._stromligning_entity,
+            )
+            raise ValueNotFound
+
+        raw_today = stromligning.attributes.get("prices")
+        if raw_today is None or len(raw_today) == 0:
+            _LOGGER.debug(
+                "No price values for today in Strømligning entity %s",
+                self._stromligning_entity,
+            )
+            raise ValueNotFound
+
+        # Validate that today data is actually for today
+        if first := get_first(raw_today):
+            first_start = from_str_to_datetime(first.get("start"))
+            if first_start and first_start.date() != dt_util.start_of_local_day().date():
+                _LOGGER.debug("Strømligning provided old data: Ignore")
+                raise ValueNotFound
+
+        # Get tomorrow prices from the separate tomorrow entity
+        raw_tomorrow = []
+        if self._stromligning_tomorrow_entity is not None:
+            tomorrow_entity = self.hass.states.get(self._stromligning_tomorrow_entity)
+            if tomorrow_entity is not None and tomorrow_entity.state == "on":
+                tomorrow_prices = tomorrow_entity.attributes.get("prices")
+                if tomorrow_prices is not None and len(tomorrow_prices) >= 10:
+                    raw_tomorrow = tomorrow_prices
+
+        if len(raw_tomorrow) == 0:
+            _LOGGER.debug(
+                "No values for tomorrow in Strømligning (prices not yet published)"
+            )
+            raise ValueNotFound
+
+        # Detect actual MTU from data and convert if needed
+        active_mtu = 60
+        if self._is_15min_period_in_use(raw_today):
+            if requested_mtu == 60:
+                raw_today = combine_to_hourly(raw_today, HourPriceType.STROMLIGNING)
+            else:
+                active_mtu = 15
+        if self._is_15min_period_in_use(raw_tomorrow):
+            if requested_mtu == 60:
+                raw_tomorrow = combine_to_hourly(
+                    raw_tomorrow, HourPriceType.STROMLIGNING
+                )
+
+        today = [
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.STROMLIGNING
+            )
+            for item in raw_today
+        ]
+        tomorrow = [
+            hour_price.HourPrice.from_dict(
+                item, mtu=active_mtu, type=HourPriceType.STROMLIGNING
+            )
+            for item in raw_tomorrow
+        ]
+
+        if active_mtu != self._mtu:
+            raise SystemConfigurationError(
+                f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by Strømligning integration. Please correct the configuration"
+            )
+
+        return (today, tomorrow, active_mtu)
+
     async def _update_from_nordpool_official(
         self, requested_mtu: int = 60
     ) -> tuple[list, list, int]:
@@ -904,7 +1019,7 @@ def combine_to_hourly(data, type: HourPriceType) -> list:
                 total_price = 0
                 if type == HourPriceType.NORDPOOL:
                     total_price = sum(item["value"] for item in current_block)
-                else:  # NORDPOOL_OFFICIAL, ENTSOE
+                else:  # NORDPOOL_OFFICIAL, ENTSOE, STROMLIGNING
                     total_price = sum(item["price"] for item in current_block)
                 average_price = total_price / 4
 
@@ -933,7 +1048,7 @@ def combine_to_hourly(data, type: HourPriceType) -> list:
                             ),  # Round to 2 decimal places
                         }
                     )
-                else:  # NORDPOOL_OFFICIAL
+                else:  # NORDPOOL_OFFICIAL, STROMLIGNING
                     hourly_data.append(
                         {
                             "start": hourly_start,
