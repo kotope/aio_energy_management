@@ -48,7 +48,7 @@ Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-en
 Installed and configured [Nord Pool official integration](https://www.home-assistant.io/integrations/nordpool/)
 
 ### Strømligning Prerequisites (if using Strømligning)
-Installed and configured [Strømligning integration](https://github.com/JonasPed/homeassistant-stromligning)
+Installed and configured [Strømligning integration](https://github.com/MTrab/stromligning)
 #### Getting configuration entry id (not needed for UI configuration)
 1. Go to Developer Tools > Actions.
 2. In the “Service” dropdown, select Nord Pool: Get prices.
