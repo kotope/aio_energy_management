@@ -42,7 +42,7 @@ def _make_sensor(
     is_on_schedule_entity: str | None = None,
     enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
     minimum_period: int = 0,
-    turn_on_delay: int = 0,  # 0 for tests to avoid timing complexity
+    minimum_off_time: int = 0,  # 0 for tests to avoid timing complexity
 ) -> ExcessSolarBinarySensor:
     """Create a test binary sensor."""
     return ExcessSolarBinarySensor(
@@ -56,7 +56,7 @@ def _make_sensor(
         is_on_schedule_entity=is_on_schedule_entity,
         enabled_switch=enabled_switch,
         minimum_period=minimum_period,
-        turn_on_delay=turn_on_delay,
+        minimum_off_time=minimum_off_time,
     )
 
 
@@ -155,24 +155,24 @@ async def test_sensor_is_enabled_no_switch(hass: HomeAssistant) -> None:
 
 async def test_sensor_can_turn_on_no_history(hass: HomeAssistant) -> None:
     """Device with no history can always turn on."""
-    sensor = _make_sensor(hass, turn_on_delay=60)
+    sensor = _make_sensor(hass, minimum_off_time=60)
     assert sensor.can_turn_on() is True
 
 
 @freeze_time("2024-01-01 12:00:00+00:00")
-async def test_sensor_can_turn_on_delay_not_elapsed(hass: HomeAssistant) -> None:
+async def test_sensor_can_turn_on_minimum_off_time_not_elapsed(hass: HomeAssistant) -> None:
     """Device turn-on is blocked during the delay period."""
-    sensor = _make_sensor(hass, turn_on_delay=120)
+    sensor = _make_sensor(hass, minimum_off_time=120)
     sensor.async_write_ha_state = MagicMock()
     sensor.deactivate()  # turn off at t=0
     assert sensor.can_turn_on() is False
 
 
-async def test_sensor_can_turn_on_delay_elapsed(
+async def test_sensor_can_turn_on_minimum_off_time_elapsed(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
     """Device can turn on once delay has elapsed."""
-    sensor = _make_sensor(hass, turn_on_delay=60)
+    sensor = _make_sensor(hass, minimum_off_time=60)
     sensor.async_write_ha_state = MagicMock()
     freezer.move_to("2024-01-01 12:00:00+00:00")
     sensor.deactivate()
@@ -238,7 +238,7 @@ async def test_manager_activates_sensor_with_excess_solar(
 ) -> None:
     """Manager activates sensor when grid_power < -buffer."""
     # 500W consumption, 2000W available (well over budget)
-    sensor = _make_sensor(hass, consumption=500, turn_on_delay=0)
+    sensor = _make_sensor(hass, consumption=500, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=50)
 
@@ -250,7 +250,7 @@ async def test_manager_activates_sensor_with_excess_solar(
 
 async def test_manager_no_action_within_buffer(hass: HomeAssistant) -> None:
     """No action taken when grid power is within the hysteresis buffer."""
-    sensor = _make_sensor(hass, turn_on_delay=0)
+    sensor = _make_sensor(hass, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=100)
 
@@ -281,7 +281,7 @@ async def test_manager_deactivates_lowest_priority_when_importing(
 async def test_manager_skips_disabled_sensor(hass: HomeAssistant) -> None:
     """Disabled sensor is skipped when enabled switch is off."""
     switch = _make_enabled_switch(enabled=False)
-    sensor = _make_sensor(hass, enabled_switch=switch, turn_on_delay=0)
+    sensor = _make_sensor(hass, enabled_switch=switch, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -293,7 +293,7 @@ async def test_manager_skips_disabled_sensor(hass: HomeAssistant) -> None:
 async def test_manager_activates_enabled_sensor(hass: HomeAssistant) -> None:
     """Enabled sensor (switch is on) is activated normally."""
     switch = _make_enabled_switch(enabled=True)
-    sensor = _make_sensor(hass, consumption=500, enabled_switch=switch, turn_on_delay=0)
+    sensor = _make_sensor(hass, consumption=500, enabled_switch=switch, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -308,7 +308,7 @@ async def test_manager_skips_scheduled_sensor_on_activation(
     """Sensor on schedule is not activated by the manager."""
     _set_state(hass, "binary_sensor.schedule", "on")
     sensor = _make_sensor(
-        hass, is_on_schedule_entity="binary_sensor.schedule", turn_on_delay=0
+        hass, is_on_schedule_entity="binary_sensor.schedule", minimum_off_time=0
     )
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
@@ -338,9 +338,9 @@ async def test_manager_skips_scheduled_sensor_on_deactivation(
 async def test_manager_short_cycle_prevention(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
-    """Sensor cannot be reactivated during the turn_on_delay window."""
+    """Sensor cannot be reactivated during the minimum_off_time window."""
     # 500W consumption, 3000W available → budget always passes when not blocked
-    sensor = _make_sensor(hass, consumption=500, turn_on_delay=60)
+    sensor = _make_sensor(hass, consumption=500, minimum_off_time=60)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -381,10 +381,10 @@ async def test_manager_minimum_period_blocks_deactivation(
 async def test_manager_priority_order_activation(hass: HomeAssistant) -> None:
     """Highest priority (lowest number) sensor is activated first."""
     lo_prio = _make_sensor(
-        hass, device_entity_id="switch.lo_prio", priority=10, turn_on_delay=0
+        hass, device_entity_id="switch.lo_prio", priority=10, minimum_off_time=0
     )
     hi_prio = _make_sensor(
-        hass, device_entity_id="switch.hi_prio", priority=1, turn_on_delay=0
+        hass, device_entity_id="switch.hi_prio", priority=1, minimum_off_time=0
     )
     for s in [lo_prio, hi_prio]:
         s.async_write_ha_state = MagicMock()
@@ -403,14 +403,14 @@ async def test_manager_budget_skips_too_large_device(hass: HomeAssistant) -> Non
         device_entity_id="switch.big",
         consumption=2000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     small = _make_sensor(
         hass,
         device_entity_id="switch.small",
         consumption=400,
         priority=2,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [big, small]:
         s.async_write_ha_state = MagicMock()
@@ -454,7 +454,7 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 100,
-        "turn_on_delay": 30,
+        "minimum_off_time": 30,
         "power_devices": [
             {
                 "name": "Water Heater",
@@ -485,7 +485,7 @@ async def test_create_manager_from_config(hass: HomeAssistant) -> None:
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 80,
-        "turn_on_delay": 60,
+        "minimum_off_time": 60,
         "power_devices": [],
     }
     sensors = [_make_sensor(hass)]
@@ -508,7 +508,7 @@ async def test_master_switch_starts_enabled(hass: HomeAssistant) -> None:
 
 async def test_master_switch_disable_skips_evaluation(hass: HomeAssistant) -> None:
     """While disabled, _async_evaluate should not activate any sensor."""
-    sensor = _make_sensor(hass, consumption=500, turn_on_delay=0)
+    sensor = _make_sensor(hass, consumption=500, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -523,8 +523,8 @@ async def test_master_switch_disable_deactivates_active_sensors(
     hass: HomeAssistant,
 ) -> None:
     """Disabling the manager immediately deactivates all active sensors."""
-    s1 = _make_sensor(hass, device_entity_id="switch.a", turn_on_delay=0)
-    s2 = _make_sensor(hass, device_entity_id="switch.b", turn_on_delay=0)
+    s1 = _make_sensor(hass, device_entity_id="switch.a", minimum_off_time=0)
+    s2 = _make_sensor(hass, device_entity_id="switch.b", minimum_off_time=0)
     for s in [s1, s2]:
         s.async_write_ha_state = MagicMock()
         s.activate()
@@ -539,7 +539,7 @@ async def test_master_switch_disable_deactivates_active_sensors(
 
 async def test_master_switch_enable_resumes_operation(hass: HomeAssistant) -> None:
     """Re-enabling the manager allows subsequent evaluations to act."""
-    sensor = _make_sensor(hass, consumption=500, turn_on_delay=0)
+    sensor = _make_sensor(hass, consumption=500, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -553,7 +553,7 @@ async def test_master_switch_enable_resumes_operation(hass: HomeAssistant) -> No
 
 async def test_master_switch_entity_turn_off(hass: HomeAssistant) -> None:
     """ExcessSolarMasterSwitch.async_turn_off disables manager and deactivates sensors."""
-    sensor = _make_sensor(hass, turn_on_delay=0)
+    sensor = _make_sensor(hass, minimum_off_time=0)
     sensor.async_write_ha_state = MagicMock()
     sensor.activate()
 
@@ -876,7 +876,7 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         unique_id="excess_solar_device1",
         name="Device 1",
         priority=10,
-        turn_on_delay=0,
+        minimum_off_time=0,
         priority_number_entity=number1,
     )
     sensor1.async_write_ha_state = MagicMock()
@@ -896,7 +896,7 @@ async def test_priority_change_affects_activation_order(hass: HomeAssistant) -> 
         unique_id="excess_solar_device2",
         name="Device 2",
         priority=5,
-        turn_on_delay=0,
+        minimum_off_time=0,
         priority_number_entity=number2,
     )
     sensor2.async_write_ha_state = MagicMock()
@@ -958,7 +958,7 @@ async def test_build_sensors_from_config_creates_number_entities(
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 100,
-        "turn_on_delay": 60,
+        "minimum_off_time": 60,
         "power_devices": [
             {
                 "name": "Water Heater",
@@ -1119,14 +1119,14 @@ async def test_swap_floor_heating_for_water_heater(hass: HomeAssistant) -> None:
         device_entity_id="switch.water_heater",
         consumption=3000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     floor_heating = _make_sensor(
         hass,
         device_entity_id="switch.floor_heating",
         consumption=700,
         priority=2,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [water_heater, floor_heating]:
         s.async_write_ha_state = MagicMock()
@@ -1154,14 +1154,14 @@ async def test_swap_does_not_happen_when_freed_power_still_insufficient(
         device_entity_id="switch.big",
         consumption=5000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     small_device = _make_sensor(
         hass,
         device_entity_id="switch.small",
         consumption=700,
         priority=2,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [big_device, small_device]:
         s.async_write_ha_state = MagicMock()
@@ -1186,7 +1186,7 @@ async def test_swap_respects_minimum_period_on_active_sensor(
         device_entity_id="switch.water_heater",
         consumption=3000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     floor_heating = _make_sensor(
         hass,
@@ -1194,7 +1194,7 @@ async def test_swap_respects_minimum_period_on_active_sensor(
         consumption=700,
         priority=2,
         minimum_period=10,  # 10 minutes
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [water_heater, floor_heating]:
         s.async_write_ha_state = MagicMock()
@@ -1223,7 +1223,7 @@ async def test_swap_respects_is_on_schedule_on_active_sensor(
         device_entity_id="switch.water_heater",
         consumption=3000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     floor_heating = _make_sensor(
         hass,
@@ -1231,7 +1231,7 @@ async def test_swap_respects_is_on_schedule_on_active_sensor(
         consumption=700,
         priority=2,
         is_on_schedule_entity="binary_sensor.floor_schedule",
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [water_heater, floor_heating]:
         s.async_write_ha_state = MagicMock()
@@ -1260,28 +1260,28 @@ async def test_swap_deactivates_only_minimum_needed_sensors(
         device_entity_id="switch.hi",
         consumption=600,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     lo1 = _make_sensor(
         hass,
         device_entity_id="switch.lo1",
         consumption=200,
         priority=10,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     lo2 = _make_sensor(
         hass,
         device_entity_id="switch.lo2",
         consumption=200,
         priority=20,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     lo3 = _make_sensor(
         hass,
         device_entity_id="switch.lo3",
         consumption=200,
         priority=30,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [hi, lo1, lo2, lo3]:
         s.async_write_ha_state = MagicMock()
@@ -1310,14 +1310,14 @@ async def test_swap_does_not_trigger_when_direct_fit(hass: HomeAssistant) -> Non
         device_entity_id="switch.water_heater",
         consumption=3000,
         priority=1,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     floor_heating = _make_sensor(
         hass,
         device_entity_id="switch.floor_heating",
         consumption=700,
         priority=2,
-        turn_on_delay=0,
+        minimum_off_time=0,
     )
     for s in [water_heater, floor_heating]:
         s.async_write_ha_state = MagicMock()
