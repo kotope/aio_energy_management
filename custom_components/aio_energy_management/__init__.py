@@ -39,7 +39,7 @@ from .const import (
     CONF_OFFSET,
     CONF_POWER_DEVICES,
     CONF_PRIORITY,
-    CONF_TURN_ON_DELAY,
+    CONF_MINIMUM_OFF_TIME,
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
@@ -85,7 +85,7 @@ POWER_DEVICE_SCHEMA = vol.Schema(
         vol.Optional(CONF_PRIORITY, default=100): cv.positive_int,
         vol.Optional(CONF_IS_ON_SCHEDULE): cv.entity_id,
         vol.Optional(CONF_MINIMUM_PERIOD, default=0): cv.positive_int,
-        vol.Optional(CONF_TURN_ON_DELAY): cv.positive_int,
+        vol.Optional(CONF_MINIMUM_OFF_TIME): cv.positive_int,
     }
 )
 
@@ -96,7 +96,7 @@ EXCESS_SOLAR_SCHEMA = vol.Schema(
             cv.ensure_list, [POWER_DEVICE_SCHEMA]
         ),
         vol.Optional(CONF_BUFFER, default=0): cv.positive_int,
-        vol.Optional(CONF_TURN_ON_DELAY, default=60): cv.positive_int,
+        vol.Optional(CONF_MINIMUM_OFF_TIME, default=60): cv.positive_int,
     }
 )
 

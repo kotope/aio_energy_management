@@ -20,7 +20,7 @@ from ..const import (
     CONF_NAME,
     CONF_POWER_DEVICES,
     CONF_PRIORITY,
-    CONF_TURN_ON_DELAY,
+    CONF_MINIMUM_OFF_TIME,
     CONF_UNIQUE_ID,
 )
 
@@ -112,7 +112,7 @@ def _build_device_schema_defaults(
             "priority": 100,
             "is_on_schedule": None,
             "minimum_period": 0,
-            "turn_on_delay": None,
+            "minimum_off_time": None,
         }
 
     # When consumption is an entity string from a previous submission
@@ -129,7 +129,7 @@ def _build_device_schema_defaults(
         "priority": int(user_input.get(CONF_PRIORITY, 100)),
         "is_on_schedule": user_input.get(CONF_IS_ON_SCHEDULE),
         "minimum_period": int(user_input.get(CONF_MINIMUM_PERIOD, 0)),
-        "turn_on_delay": user_input.get(CONF_TURN_ON_DELAY),
+        "minimum_off_time": user_input.get(CONF_MINIMUM_OFF_TIME),
     }
 
 
@@ -187,8 +187,8 @@ def _get_excess_solar_device_schema(
             )
         ),
         vol.Optional(
-            CONF_TURN_ON_DELAY,
-            description={"suggested_value": d["turn_on_delay"]},
+            CONF_MINIMUM_OFF_TIME,
+            description={"suggested_value": d["minimum_off_time"]},
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=0,
@@ -234,9 +234,9 @@ def _process_device_input(
         if val:
             device[optional_key] = val
 
-    turn_on_delay = user_input.get(CONF_TURN_ON_DELAY)
-    if turn_on_delay is not None:
-        device[CONF_TURN_ON_DELAY] = int(turn_on_delay)
+    minimum_off_time = user_input.get(CONF_MINIMUM_OFF_TIME)
+    if minimum_off_time is not None:
+        device[CONF_MINIMUM_OFF_TIME] = int(minimum_off_time)
 
     return device, errors
 
@@ -258,7 +258,7 @@ class ExcessSolarConfigFlowMixin:
         """Configure global excess solar settings (first step for new entries)."""
         if user_input is not None:
             user_input[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            user_input[CONF_TURN_ON_DELAY] = int(user_input.get(CONF_TURN_ON_DELAY, 60))
+            user_input[CONF_MINIMUM_OFF_TIME] = int(user_input.get(CONF_MINIMUM_OFF_TIME, 60))
             self._config_data.update(user_input)
             self._config_data[CONF_POWER_DEVICES] = []
             return await self.async_step_excess_solar_device()
@@ -380,7 +380,7 @@ class ExcessSolarConfigFlowMixin:
             new_data = dict(self._config_entry.data)
             new_data[CONF_GRID_POWER_SENSOR] = user_input[CONF_GRID_POWER_SENSOR]
             new_data[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            new_data[CONF_TURN_ON_DELAY] = int(user_input.get(CONF_TURN_ON_DELAY, 60))
+            new_data[CONF_MINIMUM_OFF_TIME] = int(user_input.get(CONF_MINIMUM_OFF_TIME, 60))
 
             self.hass.config_entries.async_update_entry(
                 self._config_entry, data=new_data

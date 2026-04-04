@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # Default delays
-DEFAULT_TURN_ON_DELAY = 60  # seconds: minimum wait after "off" before turning "on"
+DEFAULT_MINIMUM_OFF_TIME = 60  # seconds: minimum wait after "off" before turning "on"
 
 
 class ExcessSolarBinarySensor(BinarySensorEntity):
@@ -43,7 +43,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         is_on_schedule_entity: str | None = None,
         enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
         minimum_period: int = 0,  # minutes
-        turn_on_delay: int = DEFAULT_TURN_ON_DELAY,  # seconds
+        minimum_off_time: int = DEFAULT_MINIMUM_OFF_TIME,  # seconds
         priority_number_entity: Any = None,
     ) -> None:
         """Initialise the excess solar binary sensor."""
@@ -59,7 +59,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self.is_on_schedule_entity = is_on_schedule_entity
         self._enabled_switch = enabled_switch
         self.minimum_period = timedelta(minutes=minimum_period)
-        self.turn_on_delay = timedelta(seconds=turn_on_delay)
+        self.minimum_off_time = timedelta(seconds=minimum_off_time)
 
         self._attr_is_on: bool = False
         self._last_turned_on: Any = None
@@ -147,15 +147,15 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         return self._enabled_switch.is_on
 
     def can_turn_on(self) -> bool:
-        """Return True if turn_on_delay since last turn-off has elapsed."""
+        """Return True if minimum_off_time since last turn-off has elapsed."""
         if self._last_turned_off is None:
             return True
         elapsed = dt_util.now() - self._last_turned_off
-        if elapsed < self.turn_on_delay:
+        if elapsed < self.minimum_off_time:
             _LOGGER.debug(
-                "Sensor %s: turn_on_delay not elapsed (%s remaining)",
+                "Sensor %s: minimum_off_time not elapsed (%s remaining)",
                 self.name,
-                self.turn_on_delay - elapsed,
+                self.minimum_off_time - elapsed,
             )
             return False
         return True
@@ -164,7 +164,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         """Return True if the device is allowed to turn off.
 
         Two guards must both pass:
-        - ``turn_on_delay``: the device must have been on for at least this
+        - ``minimum_off_time``: the device must have been on for at least this
           long before it may be turned off again.  This prevents the manager
           from deactivating a device that was just activated — which would
           happen when the actual load shifts the grid reading into import
@@ -174,12 +174,12 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         if self._last_turned_on is None:
             return True
         elapsed = dt_util.now() - self._last_turned_on
-        if elapsed < self.turn_on_delay:
+        if elapsed < self.minimum_off_time:
             _LOGGER.debug(
-                "Sensor %s: turn_on_delay not elapsed since turn-on (%s remaining),"
+                "Sensor %s: minimum_off_time not elapsed since turn-on (%s remaining),"
                 " cannot turn off yet",
                 self.name,
-                self.turn_on_delay - elapsed,
+                self.minimum_off_time - elapsed,
             )
             return False
         if elapsed < self.minimum_period:
