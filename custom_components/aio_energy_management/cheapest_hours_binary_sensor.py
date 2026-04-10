@@ -3,13 +3,11 @@
 from datetime import date, datetime, timedelta
 import logging
 
-from jinja2 import Template
-
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import template
+from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
 from .coordinator import EnergyManagementCoordinator
@@ -109,7 +107,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         self._archived = None
         self._price_modifications = price_modifications
-
         if mtu is None:
             self._mtu = 60
         else:
@@ -299,9 +296,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data["list"] = []
                 return
             except SystemConfigurationError as e:
-                _LOGGER.error(
-                    "Failed to get data from Strømligning integration: %s", e
-                )
+                _LOGGER.error("Failed to get data from Strømligning integration: %s", e)
                 if self._is_expired():
                     self._data["list"] = []
                 return
@@ -676,7 +671,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         # Validate that today data is actually for today
         if first := get_first(raw_today):
             first_start = from_str_to_datetime(first.get("start"))
-            if first_start and first_start.date() != dt_util.start_of_local_day().date():
+            if (
+                first_start
+                and first_start.date() != dt_util.start_of_local_day().date()
+            ):
                 _LOGGER.debug("Strømligning provided old data: Ignore")
                 raise ValueNotFound
 
@@ -959,13 +957,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         Returns:
             List of HourPrice objects with updated price.
         """
-
         updated = []
         for hp in hour_prices:
             # Use start time for 'time' variable
             context = {
                 "price": hp.value,
-                "time": hp.start if hasattr(hp, "start") else None,
+                "time": dt_util.as_local(hp.start) if hasattr(hp, "start") else None,
             }
             try:
                 new_price = float(template.async_render(**context))

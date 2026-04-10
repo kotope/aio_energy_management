@@ -11,11 +11,12 @@ from custom_components.aio_energy_management.binary_sensor import (
 from custom_components.aio_energy_management.const import DOMAIN
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
-from jinja2 import Template
+
 import numpy as np
 from pytest_homeassistant_custom_component.common import load_fixture
 
 from homeassistant.core import HomeAssistant, State, SupportsResponse
+from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
 
@@ -837,6 +838,38 @@ async def test_max_price(hass: HomeAssistant, freezer: FrozenDateTimeFactory) ->
 
     assert np.size(sensor.extra_state_attributes["list"]) == 1
 
+async def test_price_limit_negative(
+        hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test cheapest binary sensors price limit with negative and no matchces."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_20250313.json",
+        "nordpool_official_service_20250314.json",
+        "nordpool_official_service_20250315.json",
+    )
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=22,
+        last_hour=7,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        price_limit=-10.0,
+        failsafe_starting_hour=0,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2025-03-14 14:30+03:00")
+    await sensor.async_update()
+    assert np.size(sensor.extra_state_attributes["list"]) == 0
 
 async def test_max_price_no_matches(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
@@ -1420,6 +1453,7 @@ async def test_nordpool_official_15min_mtu_summer_time(
         2025, 3, 15, 16, 0, tzinfo=tzinfo
     )
 
+
 async def test_nordpool_official_15min_mtu_summer_time(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
@@ -1489,6 +1523,7 @@ async def test_nordpool_official_15min_mtu_summer_time(
         2026, 3, 30, 0, 0, tzinfo=tzinfo
     )
 
+
 async def test_nordpool_official_60min_mtu_summer_time_starting_today(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
@@ -1541,7 +1576,7 @@ async def test_nordpool_official_60min_mtu_summer_time_starting_today(
 
 
 async def test_nordpool_number_of_slots_mtu15(
-        hass: HomeAssistant, freezer: FrozenDateTimeFactory
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
     coordinator_mock = _setup_coordinator_mock()
@@ -1565,7 +1600,7 @@ async def test_nordpool_number_of_slots_mtu15(
         first_hour=0,
         last_hour=23,
         starting_today=False,
-        number_of_slots=2, # Two slots, 15min each
+        number_of_slots=2,  # Two slots, 15min each
         sequential=False,
         failsafe_starting_hour=0,
         coordinator=coordinator_mock,
@@ -1597,9 +1632,8 @@ async def test_nordpool_number_of_slots_mtu15(
     )
 
 
-
 async def test_nordpool_number_of_slots_mtu60(
-        hass: HomeAssistant, freezer: FrozenDateTimeFactory
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
     coordinator_mock = _setup_coordinator_mock()
@@ -1621,7 +1655,7 @@ async def test_nordpool_number_of_slots_mtu60(
         first_hour=0,
         last_hour=23,
         starting_today=False,
-        number_of_slots=2, # Two slots, 60min each
+        number_of_slots=2,  # Two slots, 60min each
         sequential=False,
         failsafe_starting_hour=0,
         coordinator=coordinator_mock,
@@ -1658,61 +1692,158 @@ async def test_nordpool_number_of_slots_mtu60(
         == datetime.now().replace(hour=2, minute=0).time()
     )
 
+# =============================================
+# Price modifications tests
+# =============================================
+
+async def test_price_modifications(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test official nord pool integration."""
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    coordinator_mock = _setup_coordinator_mock()
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_20250313.json",
+        "nordpool_official_service_20250314.json",
+        "nordpool_official_service_20250315.json",
+    )
+
+    template = Template("""
+            {%- set with_taxes = (price * 2) | float %}
+        {%- if time.hour >= 22 or time.hour <= 7 %}
+          {{ with_taxes + 10 }}
+        {%- else %}
+          {{ with_taxes + 5 }}
+        {%- endif %}""", hass)
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        failsafe_starting_hour=0,
+        price_modifications=template,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2025-03-14 14:30+03:00")
+    await sensor.async_update()
+
+    assert sensor.extra_state_attributes["expiration"] == datetime(
+        2025, 3, 16, 0, 0, tzinfo=tzinfo
+    )
+
+    assert np.size(sensor.extra_state_attributes["list"]) == 1
+    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
+        2025, 3, 15, 10, 0, tzinfo=tzinfo
+    )
+    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
+        2025, 3, 15, 13, 0, tzinfo=tzinfo
+    )
+
+async def test_nordpool_official_price_modifications_timezone(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test 60min vs 15min mtu."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
+
+    # --- Test with Nord Pool official integration
+    freezer.move_to("2026-03-23 14:30+02:00")
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_20260322_15min.json",
+        "nordpool_official_20260323_15min.json",
+        "nordpool_official_20260324_15min.json",
+    )
+
+    tmpl = Template(
+        """
+      {%- set as_snt = price / 10.0 %}
+        {%- set with_taxes = (as_snt * 1.255) | float %}
+        {%- if time.hour >= 22 or time.hour < 7 %}
+          {{ with_taxes + 3.062 }}
+        {%- else %}
+          {{ with_taxes + 4.68 }}
+        {%- endif %}""",
+        hass,
+    )
+
+    # If price modifications would be UTC+0, the calculations would cause the +1 to all values
+    # See https://github.com/kotope/aio_energy_management/issues/147 for more details
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_official_config_entry="DUMMY",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=21,
+        last_hour=7,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=0,
+        price_modifications=tmpl,
+        coordinator=coordinator_mock,
+    )
+
+    freezer.move_to("2026-03-23 14:30+02:00")
+    await sensor.async_update()
+
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2026, 3, 23, 23, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2026, 3, 24, 2, 0, tzinfo=tzinfo)
 
 
+async def test_nordpool_custom_price_modifications_timezone(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
+) -> None:
+    """Test 60min vs 15min mtu."""
+    coordinator_mock = _setup_coordinator_mock()
+    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
 
-# TODO: Fix me!
-# async def test_nordpool_official_price_modifications(
-#    hass: HomeAssistant, freezer: FrozenDateTimeFactory
-# ) -> None:
-#    """Test official nord pool integration."""
-#    tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
-#    coordinator_mock = _setup_coordinator_mock()
-#    freezer.move_to("2024-07-13 14:25+03:00")
-#
-#    _setup_nordpool_official_mock(
-#        hass,
-#        "nordpool_official_service_20250313.json",
-#        "nordpool_official_service_20250314.json",
-#        "nordpool_official_service_20250315.json",
-#    )
-#
-#    template = Template("""
-#            {%- set with_taxes = (price * 2) | float %}
-#        {%- if time.hour >= 22 or time.hour <= 7 %}
-#          {{ with_taxes + 10 }}
-#        {%- else %}
-#          {{ with_taxes + 5 }}
-#        {%- endif %}""")
-#
-#    sensor = CheapestHoursBinarySensor(
-#        hass=hass,
-#        nordpool_official_config_entry="DUMMY",
-#        unique_id="my_sensor",
-#        name="My Sensor",
-#        first_hour=0,
-#        last_hour=23,
-#        starting_today=False,
-#        number_of_hours=3,
-#        sequential=False,
-#        failsafe_starting_hour=0,
-#        price_modifications=template,
-#        coordinator=coordinator_mock,
-#    )
-#    freezer.move_to("2025-03-14 14:30+03:00")
-#    await sensor.async_update()
-#
-#    assert sensor.extra_state_attributes["expiration"] == datetime(
-#        2025, 3, 16, 0, 0, tzinfo=tzinfo
-#    )
-#
-#    assert np.size(sensor.extra_state_attributes["list"]) == 1
-#    assert sensor.extra_state_attributes["list"][0]["start"] == datetime(
-#        2025, 3, 15, 10, 0, tzinfo=tzinfo
-#    )
-#    assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
-#        2025, 3, 15, 13, 0, tzinfo=tzinfo
-#    )
+    tmpl = Template(
+        """
+      {%- set as_snt = price / 10.0 %}
+        {%- set with_taxes = (as_snt * 1.255) | float %}
+        {%- if time.hour >= 22 or time.hour < 7 %}
+          {{ with_taxes + 3.062 }}
+        {%- else %}
+          {{ with_taxes + 4.68 }}
+        {%- endif %}""",
+        hass,
+    )
+
+    # --- Test with nord pool custom integration
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+
+    # Create sensor to test
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="my_sensor",
+        name="My Sensor",
+        first_hour=21,
+        last_hour=7,
+        starting_today=True,
+        number_of_hours=3,
+        sequential=True,
+        failsafe_starting_hour=1,
+        price_modifications=tmpl,
+        coordinator=coordinator_mock,
+    )
+    freezer.move_to("2024-07-13 14:30+02:00")
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+    assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 2, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 5, 0, tzinfo=tzinfo)
+
 
 
 # =============================================
@@ -1762,12 +1893,8 @@ async def test_cheapest_hours_stromligning_non_sequential(
     #          03:00=1.120450, 04:00=1.050230, 05:00=1.110340,
     #          06:00=1.380120, 07:00=1.720890
     # Cheapest 3: 04:00=1.050230, 05:00=1.110340, 03:00=1.120450
-    assert attributes["list"][0]["start"] == datetime(
-        2026, 4, 2, 3, 0, tzinfo=tzinfo
-    )
-    assert attributes["list"][0]["end"] == datetime(
-        2026, 4, 2, 6, 0, tzinfo=tzinfo
-    )
+    assert attributes["list"][0]["start"] == datetime(2026, 4, 2, 3, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2026, 4, 2, 6, 0, tzinfo=tzinfo)
 
     # Verify sensor is off before cheapest hours
     freezer.move_to("2026-04-01 23:00+03:00")
@@ -1818,12 +1945,8 @@ async def test_cheapest_hours_stromligning_sequential(
 
     # Sequential 3 hours: cheapest consecutive block between 21-08
     # 03:00=1.120450, 04:00=1.050230, 05:00=1.110340 => sum=3.281020
-    assert attributes["list"][0]["start"] == datetime(
-        2026, 4, 2, 3, 0, tzinfo=tzinfo
-    )
-    assert attributes["list"][0]["end"] == datetime(
-        2026, 4, 2, 6, 0, tzinfo=tzinfo
-    )
+    assert attributes["list"][0]["start"] == datetime(2026, 4, 2, 3, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2026, 4, 2, 6, 0, tzinfo=tzinfo)
 
     # Verify is_on during sequential block
     freezer.move_to("2026-04-02 05:00+03:00")
@@ -1870,8 +1993,7 @@ async def test_cheapest_hours_stromligning_tomorrow_not_available(
         == datetime.now().replace(hour=1, minute=0).time()
     )
     assert (
-        attributes["failsafe"]["end"]
-        == datetime.now().replace(hour=4, minute=0).time()
+        attributes["failsafe"]["end"] == datetime.now().replace(hour=4, minute=0).time()
     )
 
 
@@ -1962,12 +2084,10 @@ async def test_cheapest_hours_stromligning_daytime(
     # 14=Cph13(1.42045), 15=Cph14(1.35023)
     # Cheapest 3: Hel15(1.35023), Hel14(1.42045), Hel13(1.55089)
     # Contiguous block: 13:00-16:00 Helsinki
-    assert attributes["list"][0]["start"] == datetime(
-        2026, 4, 2, 13, 0, tzinfo=tzinfo
-    )
-    assert attributes["list"][0]["end"] == datetime(
-        2026, 4, 2, 16, 0, tzinfo=tzinfo
-    )
+    assert attributes["list"][0]["start"] == datetime(2026, 4, 2, 13, 0, tzinfo=tzinfo)
+    assert attributes["list"][0]["end"] == datetime(2026, 4, 2, 16, 0, tzinfo=tzinfo)
 
     freezer.move_to("2026-04-02 14:30+03:00")
     assert sensor.is_on is True
+
+
