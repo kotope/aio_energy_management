@@ -389,9 +389,40 @@ def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) ->
 
 
 @freeze_time("2024-07-22 14:25+03:00")
-def test_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) -> None:
-    """Test non-sequential with max price."""
-    with pytest.raises(InvalidInput):  # max price not supported on sequential
-        calculate_sequential_cheapest_hours(
-            today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
-        )
+def test_sequential_cheapest_hours_price_limit(today_valid, tomorrow_valid) -> None:
+    """Test sequential with price_limit."""
+    # Cheapest 10-slot window has mean ~3.276; price_limit below that → empty list
+    result = calculate_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
+    )
+    assert result["list"] == []
+    assert result["extra"]["mean_price"] is None
+    assert result["extra"]["max_price"] is None
+    assert result["extra"]["min_price"] is None
+
+    # price_limit above mean → normal result
+    result = calculate_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=4.0
+    )
+    assert len(result["list"]) == 1
+    assert result["extra"]["mean_price"] is not None
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> None:
+    """Test sequential with inversed=True and price_limit."""
+    # Most expensive 10-slot window has mean ~6.154; price_limit above that → empty list
+    result = calculate_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=7.0
+    )
+    assert result["list"] == []
+    assert result["extra"]["mean_price"] is None
+    assert result["extra"]["max_price"] is None
+    assert result["extra"]["min_price"] is None
+
+    # price_limit below mean → normal result
+    result = calculate_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=5.0
+    )
+    assert len(result["list"]) == 1
+    assert result["extra"]["mean_price"] is not None
