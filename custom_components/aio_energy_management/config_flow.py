@@ -18,11 +18,8 @@ from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
-from .const import CONF_CALENDAR, CONF_UNIQUE_ID, DOMAIN
-from .excess_solar.config_flow import (
-    ENTRY_TYPE_EXCESS_SOLAR,
-    ExcessSolarConfigFlowMixin,
-)
+from .const import CONF_CALENDAR, CONF_ENTITY_EXCESS_SOLAR, CONF_UNIQUE_ID, DOMAIN
+from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,7 +78,7 @@ class AIOEnergyManagementConfigFlow(
                 return await self.async_step_cheapest_hours_data_provider()
             if self._entry_type == ENTRY_TYPE_CALENDAR:
                 return await self.async_step_calendar()
-            if self._entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+            if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
                 return await self.async_step_excess_solar_global()
 
         return self.async_show_form(
@@ -92,7 +89,7 @@ class AIOEnergyManagementConfigFlow(
                         {
                             ENTRY_TYPE_CHEAPEST_HOURS: "Cheapest hours sensor (BETA Configuration)",
                             ENTRY_TYPE_CALENDAR: "Calendar",
-                            ENTRY_TYPE_EXCESS_SOLAR: "Excess solar",
+                            CONF_ENTITY_EXCESS_SOLAR: "Excess solar",
                         }
                     ),
                 }
@@ -152,7 +149,7 @@ class AIOEnergyManagementOptionsFlow(
             return await self.async_step_cheapest_hours_data_provider()
         if self._entry_type == ENTRY_TYPE_CALENDAR:
             return await self.async_step_calendar_options()
-        if self._entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+        if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
             return await self.async_step_excess_solar_menu()
 
         return self.async_abort(reason="unknown_entry_type")

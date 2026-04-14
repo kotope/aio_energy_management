@@ -190,13 +190,13 @@
           "name": "Name",
           "sensor": "Grid power sensor",
           "buffer": "Buffer (W)",
-          "minimum_off_time": "Minimum off time (s)"
+          "minimum_off_time": "Minimum off time (min)"
         },
         "data_description": {
           "name": "Friendly name for this excess solar entry",
           "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
           "buffer": "Minimum excess power (W) required before activating a device",
-          "minimum_off_time": "Global minimum time in seconds a device must stay off before it can turn on again"
+          "minimum_off_time": "Global minimum time in minutes a device must stay off before it can turn on again"
         }
       },
       "excess_solar_device": {
@@ -208,8 +208,8 @@
           "consumption_entity": "Consumption entity",
           "priority": "Priority",
           "is_on_schedule": "Is on schedule entity",
-          "minimum_period": "Minimum on-period (min)",
-          "minimum_off_time": "Minimum off time (s)"
+          "minimum_on_time": "Minimum on-period (min)",
+          "minimum_off_time": "Minimum off time (min)"
         },
         "data_description": {
           "name": "Friendly name for this device",
@@ -217,8 +217,8 @@
           "consumption_entity": "Optional: sensor that reports current consumption in watts. Overrides static value if set",
           "priority": "Priority order (lower number = activated first)",
           "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
-          "minimum_period": "Minimum time in minutes the device must stay on before the manager can turn it off",
-          "minimum_off_time": "Device-specific minimum off time in seconds (overrides global value)"
+          "minimum_on_time": "Minimum time in minutes the device must stay on before the manager can turn it off",
+          "minimum_off_time": "Device-specific minimum off time in minutes (overrides global value)"
         }
       },
       "excess_solar_another_device": {
@@ -482,12 +482,12 @@
         "data": {
           "sensor": "Grid power sensor",
           "buffer": "Buffer (W)",
-          "minimum_off_time": "Minimum off time (s)"
+          "minimum_off_time": "Minimum off time (min)"
         },
         "data_description": {
           "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
           "buffer": "Minimum excess power (W) required before activating a device",
-          "minimum_off_time": "Global minimum time in seconds a device must stay off before it can turn on again"
+          "minimum_off_time": "Global minimum time in minutes a device must stay off before it can turn on again"
         }
       },
       "excess_solar_device": {
@@ -499,8 +499,8 @@
           "consumption_entity": "Consumption entity",
           "priority": "Priority",
           "is_on_schedule": "Is on schedule entity",
-          "minimum_period": "Minimum on-period (min)",
-          "minimum_off_time": "Minimum off time (s)"
+          "minimum_on_time": "Minimum on-period (min)",
+          "minimum_off_time": "Minimum off time (min)"
         },
         "data_description": {
           "name": "Friendly name for this device",
@@ -508,8 +508,8 @@
           "consumption_entity": "Optional: sensor that reports current consumption in watts. Overrides static value if set",
           "priority": "Priority order (lower number = activated first)",
           "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
-          "minimum_period": "Minimum time in minutes the device must stay on before the manager can turn it off",
-          "minimum_off_time": "Device-specific minimum off time in seconds (overrides global value)"
+          "minimum_on_time": "Minimum time in minutes the device must stay on before the manager can turn it off",
+          "minimum_off_time": "Device-specific minimum off time in minutes (overrides global value)"
         }
       },
       "excess_solar_another_device": {

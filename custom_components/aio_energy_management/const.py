@@ -54,6 +54,7 @@ CONF_END_MINUTES_ENTITY = "end_minutes_entity"
 # Entities
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"
 CONF_ENTITY_CALENDAR = "calendar"
+CONF_ENTITY_EXCESS_SOLAR = "excess_solar"
 
 # Common
 CONF_UNIQUE_ID = "unique_id"
@@ -64,13 +65,15 @@ COORDINATOR = "coordinator"
 
 # Excess solar feature
 CONF_EXCESS_SOLAR = "excess_solar"
+# Legacy YAML instance bucket under hass.data[DOMAIN] (single excess solar block)
+YAML_EXCESS_SOLAR_INSTANCE_KEY = "yaml_excess_solar"
 CONF_GRID_POWER_SENSOR = "sensor"
 CONF_POWER_DEVICES = "power_devices"
 CONF_BUFFER = "buffer"
 CONF_CONSUMPTION = "consumption"
 CONF_PRIORITY = "priority"
 CONF_IS_ON_SCHEDULE = "is_on_schedule"
-CONF_MINIMUM_PERIOD = "minimum_period"
+CONF_MINIMUM_ON_TIME = "minimum_on_time"
 CONF_MINIMUM_OFF_TIME = "minimum_off_time"
 EXCESS_SOLAR_MANAGER = "excess_solar_manager"
 EXCESS_SOLAR_SWITCH = "excess_solar_switch"

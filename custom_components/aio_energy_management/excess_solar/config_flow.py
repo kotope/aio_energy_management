@@ -14,19 +14,18 @@ import homeassistant.helpers.config_validation as cv
 from ..const import (
     CONF_BUFFER,
     CONF_CONSUMPTION,
+    CONF_ENTITY_EXCESS_SOLAR,
     CONF_GRID_POWER_SENSOR,
     CONF_IS_ON_SCHEDULE,
-    CONF_MINIMUM_PERIOD,
+    CONF_MINIMUM_OFF_TIME,
+    CONF_MINIMUM_ON_TIME,
     CONF_NAME,
     CONF_POWER_DEVICES,
     CONF_PRIORITY,
-    CONF_MINIMUM_OFF_TIME,
     CONF_UNIQUE_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-ENTRY_TYPE_EXCESS_SOLAR = "excess_solar"
 
 # UI-only config keys (not stored in config entry data)
 CONF_CONSUMPTION_ENTITY = "consumption_entity"
@@ -111,7 +110,7 @@ def _build_device_schema_defaults(
             "consumption_entity": None,
             "priority": 100,
             "is_on_schedule": None,
-            "minimum_period": 0,
+            "minimum_on_time": 0,
             "minimum_off_time": None,
         }
 
@@ -128,7 +127,7 @@ def _build_device_schema_defaults(
         "consumption_entity": consumption_entity,
         "priority": int(user_input.get(CONF_PRIORITY, 100)),
         "is_on_schedule": user_input.get(CONF_IS_ON_SCHEDULE),
-        "minimum_period": int(user_input.get(CONF_MINIMUM_PERIOD, 0)),
+        "minimum_on_time": int(user_input.get(CONF_MINIMUM_ON_TIME, 0)),
         "minimum_off_time": user_input.get(CONF_MINIMUM_OFF_TIME),
     }
 
@@ -175,8 +174,8 @@ def _get_excess_solar_device_schema(
             selector.EntitySelectorConfig(domain=["binary_sensor", "input_boolean"])
         ),
         vol.Optional(
-            CONF_MINIMUM_PERIOD,
-            default=d["minimum_period"],
+            CONF_MINIMUM_ON_TIME,
+            default=d["minimum_on_time"],
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=0,
@@ -192,9 +191,9 @@ def _get_excess_solar_device_schema(
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=0,
-                max=3600,
+                max=1440,
                 step=1,
-                unit_of_measurement="s",
+                unit_of_measurement="min",
                 mode=selector.NumberSelectorMode.BOX,
             )
         ),
@@ -227,7 +226,7 @@ def _process_device_input(
         device[CONF_CONSUMPTION_ENTITY] = consumption_entity
 
     device[CONF_PRIORITY] = int(user_input.get(CONF_PRIORITY, 100))
-    device[CONF_MINIMUM_PERIOD] = int(user_input.get(CONF_MINIMUM_PERIOD, 0))
+    device[CONF_MINIMUM_ON_TIME] = int(user_input.get(CONF_MINIMUM_ON_TIME, 0))
 
     for optional_key in [CONF_IS_ON_SCHEDULE]:
         val = user_input.get(optional_key)
@@ -258,7 +257,9 @@ class ExcessSolarConfigFlowMixin:
         """Configure global excess solar settings (first step for new entries)."""
         if user_input is not None:
             user_input[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            user_input[CONF_MINIMUM_OFF_TIME] = int(user_input.get(CONF_MINIMUM_OFF_TIME, 60))
+            user_input[CONF_MINIMUM_OFF_TIME] = int(
+                user_input.get(CONF_MINIMUM_OFF_TIME, 1)
+            )
             self._config_data.update(user_input)
             self._config_data[CONF_POWER_DEVICES] = []
             return await self.async_step_excess_solar_device()
@@ -320,7 +321,7 @@ class ExcessSolarConfigFlowMixin:
         """Finalise a new excess solar config entry."""
         unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
         self._config_data[CONF_UNIQUE_ID] = unique_id
-        self._config_data["entry_type"] = ENTRY_TYPE_EXCESS_SOLAR
+        self._config_data["entry_type"] = CONF_ENTITY_EXCESS_SOLAR
 
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured()
@@ -380,7 +381,9 @@ class ExcessSolarConfigFlowMixin:
             new_data = dict(self._config_entry.data)
             new_data[CONF_GRID_POWER_SENSOR] = user_input[CONF_GRID_POWER_SENSOR]
             new_data[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            new_data[CONF_MINIMUM_OFF_TIME] = int(user_input.get(CONF_MINIMUM_OFF_TIME, 60))
+            new_data[CONF_MINIMUM_OFF_TIME] = int(
+                user_input.get(CONF_MINIMUM_OFF_TIME, 1)
+            )
 
             self.hass.config_entries.async_update_entry(
                 self._config_entry, data=new_data

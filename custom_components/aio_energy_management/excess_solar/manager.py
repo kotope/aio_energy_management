@@ -27,11 +27,12 @@ from ..const import (
     CONF_CONSUMPTION,
     CONF_GRID_POWER_SENSOR,
     CONF_IS_ON_SCHEDULE,
-    CONF_MINIMUM_PERIOD,
+    CONF_MINIMUM_OFF_TIME,
+    CONF_MINIMUM_ON_TIME,
     CONF_NAME,
     CONF_PRIORITY,
 )
-from .binary_sensor import ExcessSolarBinarySensor
+from .binary_sensor import DEFAULT_MINIMUM_OFF_TIME, ExcessSolarBinarySensor
 from .config_flow import CONF_CONSUMPTION_ENTITY
 
 _LOGGER = logging.getLogger(__name__)
@@ -275,7 +276,7 @@ class ExcessSolarManager:
         Iterates active sensors from lowest priority upward, accumulating freed
         power until the candidate's consumption can be covered.  Returns an
         empty list when a valid swap is not possible (e.g. guarded by
-        ``minimum_period`` or ``is_on_schedule``).
+        ``minimum_on_time`` or ``is_on_schedule``).
         """
         # Collect eligible lower-priority active sensors, lowest priority first
         lower_active = [
@@ -379,6 +380,11 @@ def build_sensors_from_config(
         consumption: int = dev_conf.get(CONF_CONSUMPTION, 0)
         consumption_entity: str | None = dev_conf.get(CONF_CONSUMPTION_ENTITY)
 
+        min_off = dev_conf.get(CONF_MINIMUM_OFF_TIME)
+        minimum_off_time = (
+            int(min_off) if min_off is not None else DEFAULT_MINIMUM_OFF_TIME
+        )
+
         sensor = ExcessSolarBinarySensor(
             hass=hass,
             device_entity_id=display_name,
@@ -389,7 +395,8 @@ def build_sensors_from_config(
             priority=initial_priority,
             is_on_schedule_entity=dev_conf.get(CONF_IS_ON_SCHEDULE),
             enabled_switch=enabled_switch,
-            minimum_period=dev_conf.get(CONF_MINIMUM_PERIOD, 0),
+            minimum_on_time=dev_conf.get(CONF_MINIMUM_ON_TIME, 0),
+            minimum_off_time=minimum_off_time,
             priority_number_entity=priority_number,
         )
         sensors.append(sensor)

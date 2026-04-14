@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # Default delays
-DEFAULT_MINIMUM_OFF_TIME = 60  # seconds: minimum wait after "off" before turning "on"
+DEFAULT_MINIMUM_OFF_TIME = 1  # minute: minimum wait after "off" before turning "on"
 
 
 class ExcessSolarBinarySensor(BinarySensorEntity):
@@ -42,8 +42,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         priority: int = 100,
         is_on_schedule_entity: str | None = None,
         enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
-        minimum_period: int = 0,  # minutes
-        minimum_off_time: int = DEFAULT_MINIMUM_OFF_TIME,  # seconds
+        minimum_on_time: int = 0,  # minutes
+        minimum_off_time: int = DEFAULT_MINIMUM_OFF_TIME,  # minutes
         priority_number_entity: Any = None,
     ) -> None:
         """Initialise the excess solar binary sensor."""
@@ -58,8 +58,8 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         self._priority_number_entity = priority_number_entity
         self.is_on_schedule_entity = is_on_schedule_entity
         self._enabled_switch = enabled_switch
-        self.minimum_period = timedelta(minutes=minimum_period)
-        self.minimum_off_time = timedelta(seconds=minimum_off_time)
+        self.minimum_on_time = timedelta(minutes=minimum_on_time)
+        self.minimum_off_time = timedelta(minutes=minimum_off_time)
 
         self._attr_is_on: bool = False
         self._last_turned_on: Any = None
@@ -169,7 +169,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
           from deactivating a device that was just activated — which would
           happen when the actual load shifts the grid reading into import
           territory immediately after turn-on.
-        - ``minimum_period``: an optional user-configured minimum run time.
+        - ``minimum_on_time``: an optional user-configured minimum run time.
         """
         if self._last_turned_on is None:
             return True
@@ -182,11 +182,11 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
                 self.minimum_off_time - elapsed,
             )
             return False
-        if elapsed < self.minimum_period:
+        if elapsed < self.minimum_on_time:
             _LOGGER.debug(
-                "Sensor %s: minimum_period not elapsed (%s remaining)",
+                "Sensor %s: minimum_on_time not elapsed (%s remaining)",
                 self.name,
-                self.minimum_period - elapsed,
+                self.minimum_on_time - elapsed,
             )
             return False
         return True
