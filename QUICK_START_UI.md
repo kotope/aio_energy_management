@@ -82,7 +82,7 @@ Depending on the provider selected above, fill in:
 
 #### Step 6 — Time Offset *(only shown if "Configure time offset" is enabled)*
 
-Configure how much the on/off times are shifted relative to the calculated slot boundaries.  
+Configure how much the on/off times are shifted relative to the calculated slot boundaries.
 Each field accepts a **static integer value** or a **dynamic entity** (mutually exclusive):
 
 | Field | Description |
@@ -282,8 +282,9 @@ Changes take effect immediately!
 
 - 📖 Read the full [Configuration Flow Guide](CONFIG_FLOW_GUIDE.md)
 - 📝 Check the [README](README.md) for detailed documentation
-- 💬 Join the discussion on [Home Assistant Community](https://community.home-assistant.io/)
+- 💬 Join the discussion on [GitHub Discussion](https://github.com/kotope/aio_energy_management/discussions)
 - ⭐ Star the project on [GitHub](https://github.com/kotope/aio_energy_management)
+- 📖 Check blog articles about AIO Energy Management at [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/)
 
 ### Support
 
