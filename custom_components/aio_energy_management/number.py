@@ -9,8 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import DiscoveryInfoType
 
-from .const import DOMAIN, EXCESS_SOLAR_MANAGER
-from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
+from .const import (
+    CONF_ENTITY_EXCESS_SOLAR,
+    CONF_UNIQUE_ID,
+    DOMAIN,
+    YAML_EXCESS_SOLAR_INSTANCE_KEY,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,7 +25,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up number entities from a config entry."""
-    if entry.data.get("entry_type") != ENTRY_TYPE_EXCESS_SOLAR:
+    if entry.data.get("entry_type") != CONF_ENTITY_EXCESS_SOLAR:
         return
 
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
@@ -47,8 +51,12 @@ async def async_setup_platform(
 
     entry_type = discovery_info.get("entry_type")
 
-    if entry_type == "excess_solar":
-        if DOMAIN in hass.data and "excess_solar_number_entities" in hass.data[DOMAIN]:
-            number_entities = hass.data[DOMAIN]["excess_solar_number_entities"]
+    if entry_type == CONF_ENTITY_EXCESS_SOLAR:
+        storage_key = discovery_info.get(CONF_UNIQUE_ID, YAML_EXCESS_SOLAR_INSTANCE_KEY)
+        entry_data = hass.data.get(DOMAIN, {}).get(storage_key, {})
+        number_entities = entry_data.get("excess_solar_number_entities", [])
+        if number_entities:
             async_add_entities(number_entities)
-            _LOGGER.info("Added %d excess solar priority number entities", len(number_entities))
+            _LOGGER.info(
+                "Added %d excess solar priority number entities", len(number_entities)
+            )

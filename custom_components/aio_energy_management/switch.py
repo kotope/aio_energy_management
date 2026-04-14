@@ -10,13 +10,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import (
-    CONF_EXCESS_SOLAR,
+    CONF_ENTITY_EXCESS_SOLAR,
+    CONF_UNIQUE_ID,
     DOMAIN,
     EXCESS_SOLAR_ENABLED_SWITCHES,
     EXCESS_SOLAR_SWITCH,
+    YAML_EXCESS_SOLAR_INSTANCE_KEY,
 )
 from .excess_solar import ExcessSolarDeviceEnabledSwitch, ExcessSolarMasterSwitch
-from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up excess solar switches from a config entry."""
-    if entry.data.get("entry_type") != ENTRY_TYPE_EXCESS_SOLAR:
+    if entry.data.get("entry_type") != CONF_ENTITY_EXCESS_SOLAR:
         return
 
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
@@ -56,10 +57,11 @@ async def async_setup_platform(
     """Set up excess solar switches from discovery (YAML legacy path)."""
     if discovery_info is None:
         return
-    if discovery_info.get("entry_type") != CONF_EXCESS_SOLAR:
+    if discovery_info.get("entry_type") != CONF_ENTITY_EXCESS_SOLAR:
         return
 
-    domain_data = hass.data.get(DOMAIN, {})
+    storage_key = discovery_info.get(CONF_UNIQUE_ID, YAML_EXCESS_SOLAR_INSTANCE_KEY)
+    domain_data = hass.data.get(DOMAIN, {}).get(storage_key, {})
 
     switch: ExcessSolarMasterSwitch | None = domain_data.get(EXCESS_SOLAR_SWITCH)
     if switch is None:

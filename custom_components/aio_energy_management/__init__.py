@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from typing import Any
 
 import voluptuous as vol
 
@@ -25,27 +26,22 @@ from .const import (
     CONF_CONSUMPTION,
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
+    CONF_ENTITY_EXCESS_SOLAR,
     CONF_EXCESS_SOLAR,
     CONF_GRID_POWER_SENSOR,
     CONF_IS_ON_SCHEDULE,
-    CONF_MINIMUM_PERIOD,
+    CONF_MINIMUM_OFF_TIME,
+    CONF_MINIMUM_ON_TIME,
     CONF_NAME,
-    CONF_NORDPOOL_ENTITY,
-    CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
-    CONF_STROMLIGNING_ENTITY,
-    CONF_STROMLIGNING_TOMORROW_ENTITY,
-    CONF_NUMBER_OF_HOURS,
-    CONF_NUMBER_OF_SLOTS,
-    CONF_OFFSET,
     CONF_POWER_DEVICES,
     CONF_PRIORITY,
-    CONF_MINIMUM_OFF_TIME,
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
     EXCESS_SOLAR_ENABLED_SWITCHES,
     EXCESS_SOLAR_MANAGER,
     EXCESS_SOLAR_SWITCH,
+    YAML_EXCESS_SOLAR_INSTANCE_KEY,
 )
 from .coordinator import EnergyManagementCoordinator
 from .excess_solar import (
@@ -53,7 +49,6 @@ from .excess_solar import (
     build_sensors_from_config,
     create_manager_from_config,
 )
-from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
 from .services import async_setup_services
 
 PLATFORMS = [
@@ -64,10 +59,6 @@ PLATFORMS = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
-
-# TODO:
-# - Solar energy forecast best hours
-# - Cheapest hours multi-state sensor (low, high, normal) to avoid expensive and boost cheapest!
 
 # YAML configuration schema for backward compatibility
 CALENDAR_SCHEMA = vol.Schema(
@@ -84,9 +75,10 @@ POWER_DEVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_CONSUMPTION): vol.Any(vol.Coerce(int), cv.entity_id),
         vol.Optional(CONF_PRIORITY, default=100): cv.positive_int,
         vol.Optional(CONF_IS_ON_SCHEDULE): cv.entity_id,
-        vol.Optional(CONF_MINIMUM_PERIOD, default=0): cv.positive_int,
+        vol.Optional(CONF_MINIMUM_ON_TIME, default=0): cv.positive_int,
         vol.Optional(CONF_MINIMUM_OFF_TIME): cv.positive_int,
-    }
+    },
+    extra=vol.REMOVE_EXTRA,
 )
 
 EXCESS_SOLAR_SCHEMA = vol.Schema(
@@ -96,8 +88,9 @@ EXCESS_SOLAR_SCHEMA = vol.Schema(
             cv.ensure_list, [POWER_DEVICE_SCHEMA]
         ),
         vol.Optional(CONF_BUFFER, default=0): cv.positive_int,
-        vol.Optional(CONF_MINIMUM_OFF_TIME, default=60): cv.positive_int,
-    }
+        vol.Optional(CONF_MINIMUM_OFF_TIME, default=1): cv.positive_int,
+    },
+    extra=vol.REMOVE_EXTRA,
 )
 
 
@@ -156,7 +149,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     elif entry_type == CONF_ENTITY_CALENDAR:
         await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
-    elif entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+    elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         await _async_setup_excess_solar_entry(hass, entry)
     else:
         _LOGGER.error("Unknown entry type: %s", entry_type)
@@ -168,11 +161,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_setup_excess_solar_entry(
-    hass: HomeAssistant, entry: ConfigEntry
+async def _async_setup_excess_solar_from_entry_data(
+    hass: HomeAssistant,
+    entry_data: dict[str, Any],
+    storage_key: str,
+    *,
+    master_switch_unique_id: str,
 ) -> None:
-    """Set up excess solar from a config entry."""
-    config = dict(entry.data)
+    """Prepare excess solar manager and entities under hass.data[DOMAIN][storage_key]."""
+    config = dict(entry_data)
     manager = create_manager_from_config(hass, config, [])
     sensors, number_entities, enabled_switches = build_sensors_from_config(
         hass, config, manager
@@ -182,12 +179,11 @@ async def _async_setup_excess_solar_entry(
 
     master_switch = ExcessSolarMasterSwitch(
         manager=manager,
-        unique_id=f"excess_solar_master_switch_{entry.entry_id}",
-        name=entry.data.get(CONF_NAME, "Excess Solar"),
+        unique_id=master_switch_unique_id,
+        name=config.get(CONF_NAME, "Excess Solar"),
     )
 
-    # Store per-entry data to avoid conflicts between multiple excess solar entries
-    hass.data[DOMAIN][entry.entry_id] = {
+    hass.data[DOMAIN][storage_key] = {
         EXCESS_SOLAR_MANAGER: manager,
         "excess_solar_sensors": sensors,
         "excess_solar_number_entities": number_entities,
@@ -195,14 +191,27 @@ async def _async_setup_excess_solar_entry(
         EXCESS_SOLAR_SWITCH: master_switch,
     }
 
+
+async def _async_setup_excess_solar_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Set up excess solar from a config entry."""
+    await _async_setup_excess_solar_from_entry_data(
+        hass,
+        dict(entry.data),
+        entry.entry_id,
+        master_switch_unique_id=f"excess_solar_master_switch_{entry.entry_id}",
+    )
+
     await hass.config_entries.async_forward_entry_setups(
         entry, [Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SWITCH]
     )
+    manager = hass.data[DOMAIN][entry.entry_id][EXCESS_SOLAR_MANAGER]
     await manager.async_start()
     _LOGGER.info(
         "Excess solar entry '%s' started with %d device(s)",
         entry.data.get(CONF_NAME),
-        len(sensors),
+        len(hass.data[DOMAIN][entry.entry_id]["excess_solar_sensors"]),
     )
 
 
@@ -218,7 +227,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.CALENDAR]
         )
-    elif entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+    elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
         manager = entry_data.get(EXCESS_SOLAR_MANAGER)
         if manager is not None:
@@ -266,59 +275,66 @@ async def _async_process_config(hass: HomeAssistant, config: dict) -> bool:
     # Excess solar
     if excess_solar_config := config[DOMAIN].get(CONF_EXCESS_SOLAR):
         try:
-            validated = EXCESS_SOLAR_SCHEMA(excess_solar_config)
-            # Create manager first (without sensors)
-            manager = create_manager_from_config(hass, validated, [])
-            # Build sensors, number entities, and enabled switches with manager reference
-            sensors, number_entities, enabled_switches = build_sensors_from_config(
-                hass, validated, manager
+            excess_entry = dict(EXCESS_SOLAR_SCHEMA(excess_solar_config))
+            excess_entry["entry_type"] = CONF_ENTITY_EXCESS_SOLAR
+            excess_entry.setdefault(CONF_NAME, "Excess Solar")
+            excess_entry[CONF_UNIQUE_ID] = YAML_EXCESS_SOLAR_INSTANCE_KEY
+
+            await _async_setup_excess_solar_from_entry_data(
+                hass,
+                excess_entry,
+                YAML_EXCESS_SOLAR_INSTANCE_KEY,
+                master_switch_unique_id="excess_solar_master_switch",
             )
-            # Update manager with sensors
-            manager.sensors = sensors
-            manager.sort_sensors()
-            # Master switch
-            master_switch = ExcessSolarMasterSwitch(
-                manager=manager,
-                unique_id="excess_solar_master_switch",
-                name="Excess Solar",
-            )
-            hass.data[DOMAIN][EXCESS_SOLAR_MANAGER] = manager
-            hass.data[DOMAIN]["excess_solar_sensors"] = sensors
-            hass.data[DOMAIN]["excess_solar_number_entities"] = number_entities
-            hass.data[DOMAIN][EXCESS_SOLAR_ENABLED_SWITCHES] = enabled_switches
-            hass.data[DOMAIN][EXCESS_SOLAR_SWITCH] = master_switch
-            # Load binary sensor platform
-            discovery = {"entry_type": CONF_EXCESS_SOLAR}
-            hass.async_create_task(
-                async_load_platform(
-                    hass, Platform.BINARY_SENSOR, DOMAIN, discovery, config
+
+            for platform in (
+                Platform.BINARY_SENSOR,
+                Platform.NUMBER,
+                Platform.SWITCH,
+            ):
+                hass.async_create_task(
+                    async_load_platform(hass, platform, DOMAIN, excess_entry, config)
                 )
-            )
-            # Load number platform
-            hass.async_create_task(
-                async_load_platform(hass, Platform.NUMBER, DOMAIN, discovery, config)
-            )
-            # Load switch platform
-            hass.async_create_task(
-                async_load_platform(hass, Platform.SWITCH, DOMAIN, discovery, config)
-            )
+
+            manager = hass.data[DOMAIN][YAML_EXCESS_SOLAR_INSTANCE_KEY][
+                EXCESS_SOLAR_MANAGER
+            ]
             await manager.async_start()
+            bucket = hass.data[DOMAIN][YAML_EXCESS_SOLAR_INSTANCE_KEY]
             _LOGGER.info(
                 "Excess solar manager started with %d sensor(s), %d number entities, "
                 "%d enabled switches, and master switch",
-                len(sensors),
-                len(number_entities),
-                len(enabled_switches),
+                len(bucket["excess_solar_sensors"]),
+                len(bucket["excess_solar_number_entities"]),
+                len(bucket[EXCESS_SOLAR_ENABLED_SWITCHES]),
             )
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Failed to set up excess solar: %s", e)
+        except vol.Invalid as err:
+            _LOGGER.error(
+                "Failed to set up excess solar (invalid configuration): %s", err
+            )
+        except Exception:
+            _LOGGER.exception("Failed to set up excess solar")
 
     return True
 
 
 async def _async_stop_excess_solar(hass: HomeAssistant) -> None:
     """Stop and remove the excess solar manager if running."""
-    if DOMAIN in hass.data:
-        manager = hass.data[DOMAIN].pop(EXCESS_SOLAR_MANAGER, None)
+    if DOMAIN not in hass.data:
+        return
+
+    domain_data = hass.data[DOMAIN]
+    bucket = domain_data.pop(YAML_EXCESS_SOLAR_INSTANCE_KEY, None)
+    if bucket:
+        manager = bucket.get(EXCESS_SOLAR_MANAGER)
         if manager is not None:
             await manager.async_stop()
+
+    # Legacy layout before per-instance buckets
+    manager = domain_data.pop(EXCESS_SOLAR_MANAGER, None)
+    if manager is not None:
+        await manager.async_stop()
+    domain_data.pop("excess_solar_sensors", None)
+    domain_data.pop("excess_solar_number_entities", None)
+    domain_data.pop(EXCESS_SOLAR_ENABLED_SWITCHES, None)
+    domain_data.pop(EXCESS_SOLAR_SWITCH, None)

@@ -41,7 +41,7 @@ def _make_sensor(
     priority: int = 1,
     is_on_schedule_entity: str | None = None,
     enabled_switch: ExcessSolarDeviceEnabledSwitch | None = None,
-    minimum_period: int = 0,
+    minimum_on_time: int = 0,
     minimum_off_time: int = 0,  # 0 for tests to avoid timing complexity
 ) -> ExcessSolarBinarySensor:
     """Create a test binary sensor."""
@@ -55,7 +55,7 @@ def _make_sensor(
         priority=priority,
         is_on_schedule_entity=is_on_schedule_entity,
         enabled_switch=enabled_switch,
-        minimum_period=minimum_period,
+        minimum_on_time=minimum_on_time,
         minimum_off_time=minimum_off_time,
     )
 
@@ -155,14 +155,14 @@ async def test_sensor_is_enabled_no_switch(hass: HomeAssistant) -> None:
 
 async def test_sensor_can_turn_on_no_history(hass: HomeAssistant) -> None:
     """Device with no history can always turn on."""
-    sensor = _make_sensor(hass, minimum_off_time=60)
+    sensor = _make_sensor(hass, minimum_off_time=1)
     assert sensor.can_turn_on() is True
 
 
 @freeze_time("2024-01-01 12:00:00+00:00")
 async def test_sensor_can_turn_on_minimum_off_time_not_elapsed(hass: HomeAssistant) -> None:
     """Device turn-on is blocked during the delay period."""
-    sensor = _make_sensor(hass, minimum_off_time=120)
+    sensor = _make_sensor(hass, minimum_off_time=2)
     sensor.async_write_ha_state = MagicMock()
     sensor.deactivate()  # turn off at t=0
     assert sensor.can_turn_on() is False
@@ -172,7 +172,7 @@ async def test_sensor_can_turn_on_minimum_off_time_elapsed(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
     """Device can turn on once delay has elapsed."""
-    sensor = _make_sensor(hass, minimum_off_time=60)
+    sensor = _make_sensor(hass, minimum_off_time=1)
     sensor.async_write_ha_state = MagicMock()
     freezer.move_to("2024-01-01 12:00:00+00:00")
     sensor.deactivate()
@@ -184,11 +184,11 @@ async def test_sensor_can_turn_on_minimum_off_time_elapsed(
     assert sensor.can_turn_on() is True
 
 
-async def test_sensor_minimum_period_blocks_deactivation(
+async def test_sensor_minimum_on_time_blocks_deactivation(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
     """Sensor deactivation is blocked during the minimum period."""
-    sensor = _make_sensor(hass, minimum_period=5)  # 5 minutes
+    sensor = _make_sensor(hass, minimum_on_time=5)  # 5 minutes
     sensor.async_write_ha_state = MagicMock()
     freezer.move_to("2024-01-01 12:00:00+00:00")
     sensor.activate()
@@ -263,8 +263,8 @@ async def test_manager_deactivates_lowest_priority_when_importing(
     hass: HomeAssistant,
 ) -> None:
     """When importing, the lowest priority active sensor is deactivated first."""
-    hi = _make_sensor(hass, device_entity_id="switch.hi", priority=1, minimum_period=0)
-    lo = _make_sensor(hass, device_entity_id="switch.lo", priority=10, minimum_period=0)
+    hi = _make_sensor(hass, device_entity_id="switch.hi", priority=1, minimum_on_time=0)
+    lo = _make_sensor(hass, device_entity_id="switch.lo", priority=10, minimum_on_time=0)
     for s in [hi, lo]:
         s.async_write_ha_state = MagicMock()
         s.activate()
@@ -324,7 +324,7 @@ async def test_manager_skips_scheduled_sensor_on_deactivation(
     """Manager does not turn off a sensor that is on a schedule."""
     _set_state(hass, "binary_sensor.schedule", "on")
     sensor = _make_sensor(
-        hass, is_on_schedule_entity="binary_sensor.schedule", minimum_period=0
+        hass, is_on_schedule_entity="binary_sensor.schedule", minimum_on_time=0
     )
     sensor.async_write_ha_state = MagicMock()
     sensor.activate()  # mark as active
@@ -340,7 +340,7 @@ async def test_manager_short_cycle_prevention(
 ) -> None:
     """Sensor cannot be reactivated during the minimum_off_time window."""
     # 500W consumption, 3000W available → budget always passes when not blocked
-    sensor = _make_sensor(hass, consumption=500, minimum_off_time=60)
+    sensor = _make_sensor(hass, consumption=500, minimum_off_time=1)
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -358,11 +358,11 @@ async def test_manager_short_cycle_prevention(
     assert sensor.is_on is True
 
 
-async def test_manager_minimum_period_blocks_deactivation(
+async def test_manager_minimum_on_time_blocks_deactivation(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
-    """Manager cannot deactivate a sensor before minimum_period has passed."""
-    sensor = _make_sensor(hass, minimum_period=5)  # 5 min
+    """Manager cannot deactivate a sensor before minimum_on_time has passed."""
+    sensor = _make_sensor(hass, minimum_on_time=5)  # 5 min
     sensor.async_write_ha_state = MagicMock()
     manager = _make_manager(hass, sensors=[sensor], buffer=0)
 
@@ -454,19 +454,19 @@ async def test_build_sensors_from_config(hass: HomeAssistant) -> None:
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 100,
-        "minimum_off_time": 30,
+        "minimum_off_time": 1,
         "power_devices": [
             {
                 "name": "Water Heater",
                 "consumption": 2000,
                 "priority": 1,
-                "minimum_period": 10,
+                "minimum_on_time": 10,
             },
             {
                 "name": "EV Charger",
                 "consumption": 7400,
                 "priority": 2,
-                "minimum_period": 30,
+                "minimum_on_time": 30,
             },
         ],
     }
@@ -485,7 +485,7 @@ async def test_create_manager_from_config(hass: HomeAssistant) -> None:
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 80,
-        "minimum_off_time": 60,
+        "minimum_off_time": 1,
         "power_devices": [],
     }
     sensors = [_make_sensor(hass)]
@@ -958,7 +958,7 @@ async def test_build_sensors_from_config_creates_number_entities(
     config = {
         "sensor": "sensor.grid_power",
         "buffer": 100,
-        "minimum_off_time": 60,
+        "minimum_off_time": 1,
         "power_devices": [
             {
                 "name": "Water Heater",
@@ -1177,10 +1177,10 @@ async def test_swap_does_not_happen_when_freed_power_still_insufficient(
     assert small_device.is_on is True  # must not be deactivated
 
 
-async def test_swap_respects_minimum_period_on_active_sensor(
+async def test_swap_respects_minimum_on_time_on_active_sensor(
     freezer: FrozenDateTimeFactory, hass: HomeAssistant
 ) -> None:
-    """Active lower-priority sensor protected by minimum_period cannot be swapped out."""
+    """Active lower-priority sensor protected by minimum_on_time cannot be swapped out."""
     water_heater = _make_sensor(
         hass,
         device_entity_id="switch.water_heater",
@@ -1193,7 +1193,7 @@ async def test_swap_respects_minimum_period_on_active_sensor(
         device_entity_id="switch.floor_heating",
         consumption=700,
         priority=2,
-        minimum_period=10,  # 10 minutes
+        minimum_on_time=10,  # 10 minutes
         minimum_off_time=0,
     )
     for s in [water_heater, floor_heating]:
@@ -1204,11 +1204,11 @@ async def test_swap_respects_minimum_period_on_active_sensor(
     freezer.move_to("2024-01-01 12:00:00+00:00")
     floor_heating.activate()
 
-    # Only 3 minutes in – minimum_period (10 min) has not elapsed
+    # Only 3 minutes in – minimum_on_time (10 min) has not elapsed
     freezer.move_to("2024-01-01 12:03:00+00:00")
     await manager._async_evaluate(-2400.0)
 
-    assert water_heater.is_on is False  # swap blocked by minimum_period
+    assert water_heater.is_on is False  # swap blocked by minimum_on_time
     assert floor_heating.is_on is True
 
 

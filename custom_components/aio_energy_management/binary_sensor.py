@@ -19,8 +19,8 @@ from .const import (
     CONF_CALENDAR,
     CONF_END,
     CONF_ENTITY_CHEAPEST_HOURS,
+    CONF_ENTITY_EXCESS_SOLAR,
     CONF_ENTSOE_ENTITY,
-    CONF_EXCESS_SOLAR,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
     CONF_HOURS,
@@ -32,8 +32,6 @@ from .const import (
     CONF_NAME,
     CONF_NORDPOOL_ENTITY,
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
-    CONF_STROMLIGNING_ENTITY,
-    CONF_STROMLIGNING_TOMORROW_ENTITY,
     CONF_NUMBER_OF_HOURS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
@@ -44,14 +42,16 @@ from .const import (
     CONF_SEQUENTIAL,
     CONF_START,
     CONF_STARTING_TODAY,
+    CONF_STROMLIGNING_ENTITY,
+    CONF_STROMLIGNING_TOMORROW_ENTITY,
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_TIME,
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
+    YAML_EXCESS_SOLAR_INSTANCE_KEY,
 )
 from .excess_solar import ExcessSolarBinarySensor
-from .excess_solar.config_flow import ENTRY_TYPE_EXCESS_SOLAR
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ async def async_setup_entry(
     """Set up binary sensor from a config entry."""
     entry_type = entry.data.get("entry_type")
 
-    if entry_type == ENTRY_TYPE_EXCESS_SOLAR:
+    if entry_type == CONF_ENTITY_EXCESS_SOLAR:
         entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
         sensors: list[ExcessSolarBinarySensor] = entry_data.get(
             "excess_solar_sensors", []
@@ -142,10 +142,11 @@ async def async_setup_platform(
                 e,
             )
 
-    elif entry_type == CONF_EXCESS_SOLAR:
-        # Sensors were pre-built by __init__.py and stored in hass.data
-        excess_sensors: list[ExcessSolarBinarySensor] = (
-            hass.data.get(DOMAIN, {}).get("excess_solar_sensors", [])
+    elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
+        storage_key = discovery_info.get(CONF_UNIQUE_ID, YAML_EXCESS_SOLAR_INSTANCE_KEY)
+        entry_data = hass.data.get(DOMAIN, {}).get(storage_key, {})
+        excess_sensors: list[ExcessSolarBinarySensor] = entry_data.get(
+            "excess_solar_sensors", []
         )
         if not excess_sensors:
             _LOGGER.warning(

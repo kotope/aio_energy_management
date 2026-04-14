@@ -29,8 +29,10 @@ wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/
 
 ## Features
 * Cheapest Hours (or most expensive) - Nord Pool, Entso-E and Strømligning integration support
+* Excess Solar
 * Event Calendar
 * Service utility
+
 
 ## Cheapest hours sensor (supports Nord Pool, Entso-E and Strømligning integrations)
 The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the cheapest hours per day.<br>
@@ -198,6 +200,58 @@ aio_energy_management:
 
 ```
 
+## Excess Solar
+Excess solar feature will try to 'route' your solar energy to your own devices that can be used to store energy - like hot water heater, electric floor heating and such. This can be very useful when there's no batteries and electricity price is so cheap that it's not effective to sell it back to network.
+
+**Requirements** for this feature are: Solar panels (no measurement support needed), grid sensor entity to read grid energy and controllabled devices (as many as you want).
+
+### Configuration
+**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
+
+**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
+
+#### 🆕 UI Configuration (Recommended): Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
+
+#### Legacy YAML Configuration: Configuration can also be done through configuration.yaml (still fully supported).<br>
+
+Configuration parameters are shown below:
+
+
+| Configuration    | Mandatory | Description |
+|------------------|-----------|-------------|
+| sensor  | yes       | The required grid in/out sensor |
+| buffer    | yes     | Hystersis to prevent rapid on/off cycles |
+| power_devices | yes | list of controllable devices (see below for details) |
+
+Power device configurations
+| Configuration    | Mandatory | Description |
+|------------------|-----------|-------------|
+| name | yes | Name of the device |
+| consumption | yes | Consumption amount of the device in watts. Used to determine when the device should be turned on / off |
+| consumption_entity | no | Entity of devices live consumption data |
+| priority | yes | default priority value of the devices. Lower priority will get turned on first |
+| minumum_on_time | yes | How long the device must be on (minutes) before it can be turned off again | 
+| minumum_off_time | no | How long the device must be off (minutes) before it can be turned on again | 
+| is_on_schedule | no | When the device is on schedule, it won't be intererfered by the Excess Solar. (e.g. AIO Energy Management cheapest hours sensor) |
+
+```
+aio_energy_management:
+    excess_solar:
+      sensor: input_number.grid_power
+      buffer: 100
+      power_devices:
+        - name: Water Heater
+          consumption: 3000
+          consumption_entity: sensor.water_heather_power_consumption
+          priority: 1
+          minimum_on_time: 5
+          is_on_schedule: binary_sensor.cheapest_hours
+        - name: EV Charger
+          consumption: 1000
+          priority: 2
+          minimum_on_time: 10
+          minumum_off_time: 1
+````
 
 ## Calendar
 Calendar feature will create a new calendar entity to display all upcoming scheduled energy management events.
