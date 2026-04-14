@@ -107,7 +107,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
             return 0.0
         try:
             return float(self._consumption)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             _LOGGER.error(
                 "Invalid consumption value for %s: %r – check your configuration",
                 self.name,
@@ -125,7 +125,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         """
         try:
             return float(self._consumption)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             _LOGGER.error(
                 "Invalid consumption value for %s: %r – check your configuration",
                 self.name,
@@ -163,25 +163,13 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
     def can_turn_off(self) -> bool:
         """Return True if the device is allowed to turn off.
 
-        Two guards must both pass:
-        - ``minimum_off_time``: the device must have been on for at least this
-          long before it may be turned off again.  This prevents the manager
-          from deactivating a device that was just activated — which would
-          happen when the actual load shifts the grid reading into import
-          territory immediately after turn-on.
-        - ``minimum_on_time``: an optional user-configured minimum run time.
+        The ``minimum_on_time`` guard must pass: an optional user-configured
+        minimum run time that prevents the device from being turned off before
+        it has run for the required duration.
         """
         if self._last_turned_on is None:
             return True
         elapsed = dt_util.now() - self._last_turned_on
-        if elapsed < self.minimum_off_time:
-            _LOGGER.debug(
-                "Sensor %s: minimum_off_time not elapsed since turn-on (%s remaining),"
-                " cannot turn off yet",
-                self.name,
-                self.minimum_off_time - elapsed,
-            )
-            return False
         if elapsed < self.minimum_on_time:
             _LOGGER.debug(
                 "Sensor %s: minimum_on_time not elapsed (%s remaining)",
