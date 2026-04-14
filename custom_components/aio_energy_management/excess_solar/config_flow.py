@@ -257,9 +257,6 @@ class ExcessSolarConfigFlowMixin:
         """Configure global excess solar settings (first step for new entries)."""
         if user_input is not None:
             user_input[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            user_input[CONF_MINIMUM_OFF_TIME] = int(
-                user_input.get(CONF_MINIMUM_OFF_TIME, 1)
-            )
             self._config_data.update(user_input)
             self._config_data[CONF_POWER_DEVICES] = []
             return await self.async_step_excess_solar_device()
@@ -322,6 +319,7 @@ class ExcessSolarConfigFlowMixin:
         unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
         self._config_data[CONF_UNIQUE_ID] = unique_id
         self._config_data["entry_type"] = CONF_ENTITY_EXCESS_SOLAR
+        self._config_data.pop(CONF_MINIMUM_OFF_TIME, None)
 
         await self.async_set_unique_id(unique_id)
         self._abort_if_unique_id_configured()
@@ -381,9 +379,7 @@ class ExcessSolarConfigFlowMixin:
             new_data = dict(self._config_entry.data)
             new_data[CONF_GRID_POWER_SENSOR] = user_input[CONF_GRID_POWER_SENSOR]
             new_data[CONF_BUFFER] = int(user_input.get(CONF_BUFFER, 0))
-            new_data[CONF_MINIMUM_OFF_TIME] = int(
-                user_input.get(CONF_MINIMUM_OFF_TIME, 1)
-            )
+            new_data.pop(CONF_MINIMUM_OFF_TIME, None)
 
             self.hass.config_entries.async_update_entry(
                 self._config_entry, data=new_data
@@ -424,6 +420,7 @@ class ExcessSolarConfigFlowMixin:
                 d for d in existing_devices if d[CONF_NAME] not in names_to_remove
             ]
             new_data = {**self._config_entry.data, CONF_POWER_DEVICES: updated_devices}
+            new_data.pop(CONF_MINIMUM_OFF_TIME, None)
             self.hass.config_entries.async_update_entry(
                 self._config_entry, data=new_data
             )
@@ -453,5 +450,6 @@ class ExcessSolarConfigFlowMixin:
             **self._config_entry.data,
             CONF_POWER_DEVICES: self._config_data[CONF_POWER_DEVICES],
         }
+        new_data.pop(CONF_MINIMUM_OFF_TIME, None)
         self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
         return self.async_create_entry(title="", data={})

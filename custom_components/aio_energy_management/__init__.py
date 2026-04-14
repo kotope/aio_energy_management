@@ -88,7 +88,6 @@ EXCESS_SOLAR_SCHEMA = vol.Schema(
             cv.ensure_list, [POWER_DEVICE_SCHEMA]
         ),
         vol.Optional(CONF_BUFFER, default=0): cv.positive_int,
-        vol.Optional(CONF_MINIMUM_OFF_TIME, default=1): cv.positive_int,
     },
     extra=vol.REMOVE_EXTRA,
 )

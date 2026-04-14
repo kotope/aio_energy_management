@@ -189,14 +189,12 @@
         "data": {
           "name": "Name",
           "sensor": "Grid power sensor",
-          "buffer": "Buffer (W)",
-          "minimum_off_time": "Minimum off time (min)"
+          "buffer": "Buffer (W)"
         },
         "data_description": {
           "name": "Friendly name for this excess solar entry",
           "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
-          "buffer": "Minimum excess power (W) required before activating a device",
-          "minimum_off_time": "Global minimum time in minutes a device must stay off before it can turn on again"
+          "buffer": "Minimum excess power (W) required before activating a device"
         }
       },
       "excess_solar_device": {
@@ -218,7 +216,7 @@
           "priority": "Priority order (lower number = activated first)",
           "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
           "minimum_on_time": "Minimum time in minutes the device must stay on before the manager can turn it off",
-          "minimum_off_time": "Device-specific minimum off time in minutes (overrides global value)"
+          "minimum_off_time": "Optional minimum minutes the device must stay off before it can turn on again; omit to use the integration default"
         }
       },
       "excess_solar_another_device": {
@@ -481,13 +479,11 @@
         "description": "Update global settings for this excess solar entry",
         "data": {
           "sensor": "Grid power sensor",
-          "buffer": "Buffer (W)",
-          "minimum_off_time": "Minimum off time (min)"
+          "buffer": "Buffer (W)"
         },
         "data_description": {
           "sensor": "Sensor reporting grid import/export power. Negative values mean solar export",
-          "buffer": "Minimum excess power (W) required before activating a device",
-          "minimum_off_time": "Global minimum time in minutes a device must stay off before it can turn on again"
+          "buffer": "Minimum excess power (W) required before activating a device"
         }
       },
       "excess_solar_device": {
@@ -509,7 +505,7 @@
           "priority": "Priority order (lower number = activated first)",
           "is_on_schedule": "Optional: binary sensor that is `on` when this device runs on its own schedule",
           "minimum_on_time": "Minimum time in minutes the device must stay on before the manager can turn it off",
-          "minimum_off_time": "Device-specific minimum off time in minutes (overrides global value)"
+          "minimum_off_time": "Optional minimum minutes the device must stay off before it can turn on again; omit to use the integration default"
         }
       },
       "excess_solar_another_device": {
