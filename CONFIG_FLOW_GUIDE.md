@@ -5,8 +5,8 @@ This guide explains how to use the UI-based configuration flow for AIO Energy Ma
 ## Overview
 
 AIO Energy Management supports both:
-- **UI Configuration** (recommended) - Configure through Home Assistant's UI
-- **YAML Configuration** (legacy) - Still supported for backward compatibility
+- **UI Configuration** (recommended) — configure through Home Assistant’s UI (**Cheapest hours**, **Calendar**, **Excess solar**)
+- **YAML Configuration** (legacy) — still supported for backward compatibility
 
 ## UI Configuration
 
@@ -18,6 +18,7 @@ AIO Energy Management supports both:
 4. Select the type of entity:
    - **Cheapest hours sensor** - Binary sensor that tracks cheapest/expensive hours
    - **Calendar** - Calendar entity to display energy management events. Only one supported.
+   - **Excess solar** - Manages loads when grid power shows solar export (surplus). You can add multiple excess solar entries if you want separate setups.
 
 ---
 
@@ -114,14 +115,73 @@ Simple single-step configuration:
 
 ---
 
+### Configuring Excess solar
+
+Excess solar turns devices on when your **grid power** sensor shows enough export (surplus), using priority and per-device rules. Typical use: divert spare PV to a water heater, floor heating, or similar when you are not selling or storing all production in a battery.
+
+The flow is: **global settings** → **one or more power devices** → optional **add another device** loop.
+
+#### Step 1: Global settings
+
+| Field | Description | Validation |
+|---|---|---|
+| Name (required) | Friendly name for this excess solar entry (also used for the master switch and device grouping) | — |
+| Grid power sensor (required) | `sensor` entity for grid import/export power. **Negative values mean export** (solar feeding the grid) | `sensor` domain |
+| Buffer (optional) | Extra watts of surplus required before any device is activated (reduces flapping). Default: `0` | 0–10000 W |
+
+#### Step 2: Power device (repeat for each device)
+
+You configure at least one device. After each device you can add more in the next step.
+
+| Field | Description | Validation |
+|---|---|---|
+| Device name (required) | Label for this load (used in entity names) | Non-empty |
+| Consumption (W) (required) | Static power in watts used for **turn-on** budgeting. Must be **greater than `0`** or the manager will never activate this device. Set it to the load you expect when the device runs (for example rated heater power) | 0–100000 |
+| Consumption entity (optional) | `sensor` reporting live consumption in watts; used with **current** surplus while devices run (static watts still define eligibility and expected load for activation) | `sensor` domain |
+| Priority (optional) | Lower number = higher priority (turned on first). Default: `100` | 1–999 |
+| Is on schedule entity (optional) | `binary_sensor` or `input_boolean` that is `on` when this device is already running on its own schedule; excess solar avoids interfering while it is `on` | `binary_sensor` or `input_boolean` |
+| Minimum on-period (min) (optional) | Minimum time the device stays on before the manager may turn it off. Default: `0` | 0–1440 |
+| Minimum off time (min) (optional) | Minimum minutes the device must stay off before it can turn on again; omit to use the integration default (1 minute) | 0–1440 |
+
+#### Step 3: Add another device?
+
+- Enable **Add another device** to return to Step 2 for the next load.
+- Leave it disabled to finish and create the config entry.
+
+#### Created entities
+
+For each entry you get:
+
+- One **binary sensor** per device — `on` when excess solar logic wants that load active (name: `"{entry name} {device name}"`).
+- One **number** per device — adjustable **priority**.
+- **Master switch** — enables or disables the whole excess solar manager for this entry (name matches the entry **Name**).
+- One **enabled switch** per device — include or exclude that device without deleting it.
+
+---
+
+### Modifying existing entities (Excess solar)
+
+1. Go to **Settings** → **Devices & Services** → **AIO Energy Management** → choose the excess solar entry → **Configure**.
+2. Choose an action:
+   - **Edit global settings** — grid power sensor and buffer.
+   - **Add a device** — same device form as initial setup; then optionally add more devices.
+   - **Remove device(s)** — multi-select device names to remove.
+
+Submit completes the chosen action and returns to Home Assistant.
+
+---
+
 ### Modifying Existing Entities
 
 1. Go to **Settings** → **Devices & Services**
 2. Find **AIO Energy Management**
-3. Click on the entity you want to modify
-4. Click **Configure**
-5. Walk through the same steps as the initial setup — existing values are pre-filled
-6. Click **Submit**
+3. Open the config entry you want to change → **Configure**
+
+**Cheapest hours:** Walk through the same steps as the initial setup — existing values are pre-filled — then **Submit**.
+
+**Calendar:** Options may only confirm there are no extra settings.
+
+**Excess solar:** Use the **manage** menu (edit global settings, add device, remove devices) as described in [Modifying existing entities (Excess solar)](#modifying-existing-entities-excess-solar).
 
 ---
 
@@ -186,6 +246,16 @@ The YAML configuration method is still supported. See [README.md](README.md) for
 - **Start hours**: 0, **Start minutes**: 30
 - **End hours**: 1, **End minutes**: 15
 
+### Example 5: Excess solar (water heater + buffer)
+- **Entry type**: Excess solar
+- **Name**: "Excess Solar"
+- **Grid power sensor**: `sensor.grid_power` *(negative when exporting to the grid)*
+- **Buffer**: `200` W
+- **Device 1**: Name "Water heater", **Consumption (W)**: `3000`, **Priority**: `10`, **Minimum on-period**: `15` min
+- **Add another device**: No
+
+Automate your real switch or climate entity from the binary sensor that Home Assistant creates for `"Excess Solar Water heater"` (see **Created entities** above).
+
 ---
 
 ## Troubleshooting
@@ -214,6 +284,16 @@ Start/end **minutes** offset fields only accept values between 0 and 59.
 - Ensure **Add to calendar** is enabled for your cheapest hours sensors
 - Verify a calendar entity has been created
 - Check that the calendar entity is not disabled
+
+### Excess solar device never turns `on`
+- Confirm **Consumption (W)** is greater than `0` for that device
+- Check the **grid power** sensor: export should appear as **negative** power (import positive); adjust your sensor or template if your sign convention differs
+- Ensure the **master switch** and that device’s **enabled switch** are on
+- If **Buffer** is large, surplus must exceed it before activation
+- If **Is on schedule entity** is `on`, excess solar will not start that device
+
+### Excess solar "already configured"
+- Each excess solar entry uses a unique id derived from its **Name**. Pick a different name or remove the existing entry first
 
 ---
 

@@ -5,10 +5,11 @@
 ### Prerequisites
 - Home Assistant installed and running
 - AIO Energy Management integration installed (via HACS or manually)
-- One of the following price integrations configured:
+- **Cheapest hours path:** one of the following price integrations configured:
   - Nord Pool (custom integration)
   - Nord Pool (official integration)
   - Entso-E
+- **Excess solar path:** a `sensor` entity for **grid import/export power** (the integration expects **negative** values when you export solar to the grid)
 
 ---
 
@@ -109,6 +110,48 @@ Each field accepts a **static integer value** or a **dynamic entity** (mutually 
 
 ---
 
+### Option 3: Excess solar
+
+Excess solar drives **binary sensors** (one per configured device) when your grid meter shows enough **export**; you wire real devices with automations. You can add **several** excess solar entries if you need separate setups.
+
+#### Step 1 — Add integration
+- **Settings → Devices & Services** → **+ Add Integration** → **AIO Energy Management**
+- Choose **Excess solar**
+
+#### Step 2 — Global settings
+
+| Field | Description |
+|---|---|
+| **Name** | Title for this entry (master switch and device names use it) |
+| **Grid power sensor** | `sensor` for grid power; **negative = solar export** |
+| **Buffer** | Extra watts of surplus required before turning anything on (default `0`) |
+
+#### Step 3 — Each power device
+
+Configure at least one device. Fields you will use most:
+
+| Field | Tips |
+|---|---|
+| **Device name** | Shown in entity names |
+| **Consumption (W)** | **Must be greater than 0** or this device is never activated (expected load for budgeting) |
+| **Priority** | Lower number = turned on first (default `100`) |
+| **Consumption entity** | Optional live watts while running |
+| **Is on schedule entity** | Optional; when `on`, excess solar leaves that device alone (for example cheapest-hours windows) |
+| **Minimum on-period / off time** | Optional short-cycle protection (minutes) |
+
+#### Step 4 — Add another device?
+- Toggle **Add another device** to repeat Step 3, or finish the wizard.
+
+#### What you get
+- **`binary_sensor`** per device — automate your real `switch` / `climate` / etc. from these
+- **`number`** per device — change **priority** from the UI
+- **Master switch** — disables the whole excess solar manager for this entry
+- **Per-device enabled switches** — temporarily exclude one load
+
+✅ **Done!** Open **Developer tools → States** and filter by your entry name to find the new entities.
+
+---
+
 ### Common Sensor Configurations
 
 #### 🌙 Night Charging (Sequential)
@@ -127,6 +170,13 @@ Sequential: No       Use case: Dishwasher, washing machine
 ```
 Number of slots: 3   First hour: 0   Last hour: 23
 Sequential: No       Inversed: Yes   Use case: Avoid peak prices
+```
+
+#### ☀️ Excess solar (example)
+```
+Grid sensor: negative when exporting
+Buffer: 100–300 W     Device consumption (W): match real load (e.g. 3000)
+Priority: lower = first   Optional: is_on_schedule → cheapest hours binary
 ```
 
 #### 🏠 With Tariffs (Price Modifications template)
@@ -157,6 +207,8 @@ automation:
         target:
           entity_id: switch.dishwasher
 ```
+
+**Excess solar:** each device gets a **binary sensor** whose friendly name is `"{entry name} {device name}"` — copy the exact **entity ID** from **Developer tools → States**. Turn the real load **on** when that sensor is `on` and **off** when it is `off`; you can add conditions using the master switch and per-device enabled switches.
 
 #### In Scripts
 ```yaml
@@ -192,8 +244,8 @@ sensor:
 1. Go to **Settings → Devices & Services**
 2. Find **"AIO Energy Management"**
 3. Click **"Configure"** on the entry you want to change
-4. Step through the wizard (same steps as initial setup — current values are pre-filled)
-5. Submit at the final step
+4. **Cheapest hours:** step through the wizard (same steps as initial setup — current values are pre-filled)
+5. **Excess solar:** pick **Edit global settings**, **Add a device**, or **Remove device(s)** from the menu, then submit
 
 Changes take effect immediately!
 
@@ -218,6 +270,11 @@ Changes take effect immediately!
 
 **"Already configured" error when adding a calendar?**
 - Only one calendar entity is allowed; it already exists. Find it under your existing AIO Energy Management entries.
+
+**Excess solar never activates?**
+- Set **Consumption (W)** above zero for each device
+- Confirm the grid sensor goes **negative** when you export solar
+- Check the **master** and **enabled** switches for that entry
 
 ---
 
