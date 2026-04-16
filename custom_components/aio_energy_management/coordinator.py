@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta
 import logging
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -20,7 +21,7 @@ class EnergyManagementCoordinator:
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Init persistent store."""
-        self._store = Store[dict[str, any]](hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
         self.listeners = []
         self.data = {}
         self.requires_calendar_update = False

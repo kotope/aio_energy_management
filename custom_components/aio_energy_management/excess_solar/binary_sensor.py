@@ -107,7 +107,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
             return 0.0
         try:
             return float(self._consumption)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             _LOGGER.error(
                 "Invalid consumption value for %s: %r – check your configuration",
                 self.name,
@@ -125,7 +125,7 @@ class ExcessSolarBinarySensor(BinarySensorEntity):
         """
         try:
             return float(self._consumption)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             _LOGGER.error(
                 "Invalid consumption value for %s: %r – check your configuration",
                 self.name,

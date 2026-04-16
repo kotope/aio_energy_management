@@ -2,6 +2,7 @@
 
 from datetime import datetime
 import logging
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -19,7 +20,7 @@ class EnergyManagementStore:
 
     def __init__(self, hass: HomeAssistant) -> None:
         """Init persistent store."""
-        self._store = Store[dict[str, any]](hass, STORAGE_VERSION, STORAGE_KEY)
+        self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
         self.listeners = []
         self.data = {}
 
@@ -54,7 +55,7 @@ class EnergyManagementStore:
             return None
 
         expires = data.get("expiration")
-        if expires is not datetime:
+        if not isinstance(expires, datetime):
             data["expiration"] = from_str_to_datetime(data.get("expiration"))
         else:
             data["expiration"] = expires

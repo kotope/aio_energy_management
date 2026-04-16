@@ -69,7 +69,7 @@ class ExcessSolarPriorityNumber(NumberEntity, RestoreEntity):
                             self.name,
                             self._initial_priority,
                         )
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     _LOGGER.warning(
                         "Could not restore priority for %s, using initial value %d",
                         self.name,
