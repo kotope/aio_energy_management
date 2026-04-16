@@ -9,6 +9,15 @@
         },
         "data_description": {
           "entry_type": "Choose between cheapest hours sensor or calendar entity"
+        },
+        "selector": {
+          "entry_type": {
+            "options": {
+              "cheapest_hours": "Cheapest hours sensor",
+              "calendar": "Calendar",
+              "excess_solar": "Excess solar"
+            }
+          }
         }
       },
       "cheapest_hours_data_provider": {

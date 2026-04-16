@@ -16,6 +16,7 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import CONF_CALENDAR, CONF_ENTITY_EXCESS_SOLAR, CONF_UNIQUE_ID, DOMAIN
@@ -85,12 +86,15 @@ class AIOEnergyManagementConfigFlow(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ENTRY_TYPE): vol.In(
-                        {
-                            ENTRY_TYPE_CHEAPEST_HOURS: "Cheapest hours sensor (BETA Configuration)",
-                            ENTRY_TYPE_CALENDAR: "Calendar",
-                            CONF_ENTITY_EXCESS_SOLAR: "Excess solar",
-                        }
+                    vol.Required(CONF_ENTRY_TYPE): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                ENTRY_TYPE_CHEAPEST_HOURS,
+                                ENTRY_TYPE_CALENDAR,
+                                CONF_ENTITY_EXCESS_SOLAR,
+                            ],
+                            translation_key="entry_type",
+                        )
                     ),
                 }
             ),
