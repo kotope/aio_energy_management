@@ -1,0 +1,116 @@
+alias: "Excess Solar: Management"
+description: "Handles on-off states of devices according to the states of AIO Energy Management: excess solar integration"
+triggers:
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_bathroom_heating
+    id: bathroom_on
+    from:
+      - "off"
+    to:
+      - "on"
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_bathroom_heating
+    id: bathroom_off
+    from:
+      - "on"
+    to:
+      - "off"
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_hot_tub
+    from:
+      - "off"
+    to:
+      - "on"
+    id: hottub_on
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_hot_tub
+    from:
+      - "on"
+    to:
+      - "off"
+    id: hottub_off
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_water_heater
+    from:
+      - "off"
+    to:
+      - "on"
+    id: waterheater_on
+  - trigger: state
+    entity_id:
+      - binary_sensor.excess_solar_water_heater
+    from:
+      - "on"
+    to:
+      - "off"
+    id: waterheater_off
+conditions: []
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - waterheater_on
+        sequence:
+          - action: switch.turn_on
+            metadata: {}
+            target:
+              entity_id: switch.water_boiler
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - waterheater_off
+        sequence:
+          - action: switch.turn_off
+            metadata: {}
+            target:
+              entity_id: switch.water_boiler
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - bathroom_on
+        sequence:
+          - action: scene.turn_on
+            metadata: {}
+            target:
+              entity_id: scene.heating_bathroom_hi
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - bathroom_off
+        sequence:
+          - action: scene.turn_on
+            metadata: {}
+            target:
+              entity_id: scene.heating_bathroom_normal
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - hottub_on
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id: script.utility_set_spa_to_hi
+            data: {}
+      - conditions:
+          - condition: trigger
+            id:
+              - hottub_off
+        sequence:
+          - action: script.turn_on
+            metadata: {}
+            target:
+              entity_id: script.utility_set_spa_to_lo
+            data: {}
+mode: parallel
+max: 10
