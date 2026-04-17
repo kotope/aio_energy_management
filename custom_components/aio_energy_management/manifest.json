@@ -8,5 +8,5 @@
   "iot_class": "calculated",
   "name": "AIO Energy Management",
   "requirements": [],
-  "version": "1.0.0-beta1"
+  "version": "1.0.0"
 }
