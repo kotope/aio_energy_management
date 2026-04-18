@@ -1,8 +1,8 @@
 # All in One Energy Management for Home Assistant
 Purpose of this component is to provide easily configurable energy management for Home Assistant automations.
 
-During the first phase it supports only to find Nord Pool / Strømligning cheapest hours (or most expensive) per day and automatic calendar creation.
-Later AIO Energy Management is planned to integrate into solar forecast to get support for solar energy usage.
+* Supports finding Nord Pool / Entso-E / Strømligning cheapest hours (or most expensive) per day and automatic calendar creation.
+* Supports excess solar energy routing to selected device(s)
 
 Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
 
