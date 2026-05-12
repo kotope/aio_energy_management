@@ -9,12 +9,15 @@ from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
 )
 from custom_components.aio_energy_management.const import DOMAIN
+from custom_components.aio_energy_management.exceptions import InvalidEntityState
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
 
 import numpy as np
+import pytest
 from pytest_homeassistant_custom_component.common import load_fixture
 
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
 from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
@@ -2089,5 +2092,42 @@ async def test_cheapest_hours_stromligning_daytime(
 
     freezer.move_to("2026-04-02 14:30+03:00")
     assert sensor.is_on is True
+
+
+def _make_sensor(hass: HomeAssistant) -> CheapestHoursBinarySensor:
+    return CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="x",
+        name="X",
+        first_hour=0,
+        last_hour=23,
+        starting_today=False,
+        number_of_hours=3,
+        sequential=False,
+        coordinator=_setup_coordinator_mock(),
+    )
+
+
+@pytest.mark.parametrize("bad_state", [STATE_UNAVAILABLE, STATE_UNKNOWN, "n/a"])
+async def test_int_from_entity_handles_non_numeric_state(
+    hass: HomeAssistant, bad_state: str
+) -> None:
+    """Non-numeric helper states must raise InvalidEntityState, not ValueError."""
+    sensor = _make_sensor(hass)
+    hass.states.async_set("input_number.slots", bad_state)
+    with pytest.raises(InvalidEntityState):
+        sensor._int_from_entity("input_number.slots")
+
+
+@pytest.mark.parametrize("bad_state", [STATE_UNAVAILABLE, STATE_UNKNOWN, "n/a"])
+async def test_float_from_entity_handles_non_numeric_state(
+    hass: HomeAssistant, bad_state: str
+) -> None:
+    """Non-numeric helper states must raise InvalidEntityState, not ValueError."""
+    sensor = _make_sensor(hass)
+    hass.states.async_set("input_number.price_limit", bad_state)
+    with pytest.raises(InvalidEntityState):
+        sensor._float_from_entity("input_number.price_limit")
 
 
