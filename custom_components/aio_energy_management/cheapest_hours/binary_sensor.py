@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.const import STATE_UNKNOWN
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.template import Template
@@ -921,11 +921,18 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if isinstance(entity_id, float):
             return entity_id
 
-        value = self.hass.states.get(entity_id).state
-        if value is not None:
+        state = self.hass.states.get(entity_id)
+        value = state.state if state is not None else None
+        if value in (None, STATE_UNAVAILABLE, STATE_UNKNOWN):
+            _LOGGER.error("Could not get entity state for %s", entity_id)
+            raise InvalidEntityState
+        try:
             return float(value)
-        _LOGGER.error("Could not get entity state for %s", entity_id)
-        raise InvalidEntityState
+        except (TypeError, ValueError) as err:
+            _LOGGER.error(
+                "Entity %s has non-numeric state %r: %s", entity_id, value, err
+            )
+            raise InvalidEntityState from err
 
     def _int_from_entity(self, entity_id) -> int | None:
         """Get int value from another entity."""
@@ -936,11 +943,18 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if isinstance(entity_id, float):
             return int(entity_id)
 
-        value = self.hass.states.get(entity_id).state
-        if value is not None:
+        state = self.hass.states.get(entity_id)
+        value = state.state if state is not None else None
+        if value in (None, STATE_UNAVAILABLE, STATE_UNKNOWN):
+            _LOGGER.error("Could not get entity state for %s", entity_id)
+            raise InvalidEntityState
+        try:
             return int(float(value))
-        _LOGGER.error("Could not get entity state for %s", entity_id)
-        raise InvalidEntityState
+        except (TypeError, ValueError) as err:
+            _LOGGER.error(
+                "Entity %s has non-numeric state %r: %s", entity_id, value, err
+            )
+            raise InvalidEntityState from err
 
     def _is_15min_period_in_use(self, data: list) -> bool:
         """Check if data mtu is 15min."""
