@@ -426,3 +426,105 @@ def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> 
     )
     assert len(result["list"]) == 1
     assert result["extra"]["mean_price"] is not None
+
+
+def _gen_quarter_hour_prices(day: str, count: int = 96, base: float = 50.0) -> list:
+    """Build a list of `count` 15-min HourPrice entries starting at <day> 00:00."""
+    start = datetime.strptime(f"{day} 00:00", "%Y-%m-%d %H:%M")
+    return [HourPrice(base + i, start + timedelta(minutes=15 * i)) for i in range(count)]
+
+
+@freeze_time("2026-05-28 06:00+03:00")
+def test_sequential_cheapest_hours_fills_single_missing_15min_slot() -> None:
+    """Single missing 15-min slot in `today` is filled and computation succeeds.
+
+    Reproduces the ENTSO-e PT15M scenario where prices_today has 95 items
+    because one quarter-hour slot is absent mid-day. Before the fix this
+    raised ValueNotFound; now the gap is filled with a penalty value and the
+    cheapest-hours selection skips the synthetic slot.
+    """
+    # Make the synthetic slot a clearly *not-cheapest* spot by giving the
+    # neighbourhood a noticeable price; the lowest real prices are placed at
+    # the end of `tomorrow` so the cheapest 4-slot window lands there.
+    today = _gen_quarter_hour_prices("2026-05-28", 96, base=50.0)
+    tomorrow = _gen_quarter_hour_prices("2026-05-29", 96, base=10.0)
+    # Drop the 00:45 slot (index 3) — mimicking the real bselo005 prod data.
+    today_missing = today[:3] + today[4:]
+    assert len(today_missing) == 95
+
+    result = calculate_sequential_cheapest_hours(
+        today_missing,
+        tomorrow,
+        number_of_slots=4,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        mtu=15,
+    )
+    assert result["list"] != [], "expected cheapest hours to be computed"
+    # The synthetic 00:45 slot has MAX_PRICE_VALUE; the chosen 4-slot window
+    # must not include it (it lives in `today`, not `tomorrow`).
+    first = result["list"][0]
+    assert first["start"].date() == datetime.strptime(
+        "2026-05-29", "%Y-%m-%d"
+    ).date()
+    assert result["extra"]["max_price"] is not None
+    assert result["extra"]["max_price"] < 99999.0  # i.e. didn't pick the penalty
+
+
+@freeze_time("2026-05-28 06:00+03:00")
+def test_sequential_expensive_hours_fills_single_missing_15min_slot() -> None:
+    """Inversed selection also tolerates a single missing 15-min slot.
+
+    The penalty value for inversed mode is MIN_PRICE_VALUE so the synthetic
+    slot can never be picked as the most-expensive window either.
+    """
+    today = _gen_quarter_hour_prices("2026-05-28", 96, base=50.0)
+    tomorrow = _gen_quarter_hour_prices("2026-05-29", 96, base=200.0)
+    today_missing = today[:20] + today[21:]
+    assert len(today_missing) == 95
+
+    result = calculate_sequential_cheapest_hours(
+        today_missing,
+        tomorrow,
+        number_of_slots=4,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        inversed=True,
+        mtu=15,
+    )
+    assert result["list"] != []
+    # The chosen window must not include any synthetic slot — the penalty is
+    # MIN_PRICE_VALUE in inversed mode, so a window touching it could never
+    # win the "most expensive" comparison.
+    assert result["extra"]["min_price"] is not None
+    assert result["extra"]["min_price"] > -99999.0
+
+
+@freeze_time("2026-05-28 06:00+03:00")
+def test_arbitrary_gap_fill_refuses_large_shortfall() -> None:
+    """Cap kicks in: a deeply incomplete day is NOT silently papered over.
+
+    With 80 items out of 96 (≈ 17 % shortfall, above the 10 % cap) the helper
+    must return the input unchanged so the existing strict-length check still
+    raises ValueNotFound. Otherwise an integration receiving a half-broken
+    day would publish meaningful-looking cheapest/expensive results derived
+    mostly from synthetic penalty values.
+    """
+    from custom_components.aio_energy_management.exceptions import ValueNotFound
+
+    today = _gen_quarter_hour_prices("2026-05-28", 96, base=50.0)
+    tomorrow = _gen_quarter_hour_prices("2026-05-29", 96, base=200.0)
+    today_short = today[:80]  # 80 items, shortfall = 16 > max_fill = 9
+
+    with pytest.raises(ValueNotFound):
+        calculate_sequential_cheapest_hours(
+            today_short,
+            tomorrow,
+            number_of_slots=4,
+            starting_today=False,
+            first_hour=0,
+            last_hour=23,
+            mtu=15,
+        )

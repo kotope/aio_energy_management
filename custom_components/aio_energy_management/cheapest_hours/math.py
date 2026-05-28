@@ -291,6 +291,8 @@ def _check_day_light_savings(
             return result
         if len(hours) == 100:
             return _remove_duplicate_starts(hours)
+        if 0 < len(hours) < 96:
+            return _fill_arbitrary_gaps(hours, inversed, expected=96, mtu=mtu)
         return hours
 
     # mtu 60: same two-scenario pattern as mtu=15 for Nord Pool Official data.
@@ -304,7 +306,84 @@ def _check_day_light_savings(
         return result
     if len(hours) == 25:
         return _remove_duplicate_starts(hours)
+    if 0 < len(hours) < 24:
+        return _fill_arbitrary_gaps(hours, inversed, expected=24, mtu=mtu)
     return hours
+
+
+def _fill_arbitrary_gaps(
+    hours: list,
+    inversed: bool,
+    expected: int,
+    mtu: int,
+    max_fill_ratio: float = 0.1,
+) -> list:
+    """Fill non-DST gaps in price data with penalty-value entries.
+
+    Some upstream providers (notably ENTSO-e) occasionally drop a single slot
+    in the middle of the day, so prices_today comes back at 95 (or 23 for
+    hourly) instead of the expected 96 / 24. The DST-specific paths above only
+    fire on exact lengths (92, 100, 23, 25), so a single missing slot falls
+    through and the strict `_is_valid_data_length` check then raises
+    ValueNotFound — the consumer integration silently stops producing
+    cheapest/expensive periods.
+
+    This helper walks consecutive entries, detects any gap whose duration
+    exceeds `mtu` minutes, and inserts synthetic entries with
+    MAX_PRICE_VALUE (or MIN_PRICE_VALUE when `inversed=True`) so the synthetic
+    slot is never picked as cheapest / most-expensive. Any remaining shortfall
+    after gap-filling is padded at the end.
+
+    The fill is bounded by `max_fill_ratio` (default 10 %) of `expected`
+    to avoid papering over fundamentally broken responses; if the shortfall
+    exceeds that cap the input is returned unchanged and the caller's
+    validation will raise as before.
+    """
+    if not hours:
+        return hours
+    if len(hours) >= expected:
+        return hours
+
+    shortfall = expected - len(hours)
+    max_fill = max(1, int(expected * max_fill_ratio))
+    if shortfall > max_fill:
+        _LOGGER.warning(
+            "Refusing to fill %d missing %dmin slot(s); shortfall exceeds max_fill=%d. "
+            "Data provider returned %d items, expected %d.",
+            shortfall, mtu, max_fill, len(hours), expected,
+        )
+        return hours
+
+    value = MIN_PRICE_VALUE if inversed else MAX_PRICE_VALUE
+    step = timedelta(minutes=mtu)
+    result: list = [hours[0]]
+    inserted = 0
+
+    for i in range(1, len(hours)):
+        prev_start = result[-1].start
+        cur_start = hours[i].start
+        gap_minutes = (cur_start - prev_start).total_seconds() / 60.0
+        # Number of synthetic slots that fit strictly between prev and cur.
+        # E.g. prev=00:30, cur=01:00, mtu=15 → gap=30 → 1 synthetic at 00:45.
+        slots_in_gap = max(0, round(gap_minutes / mtu) - 1)
+        for j in range(1, slots_in_gap + 1):
+            result.append(HourPrice(value=value, start=prev_start + step * j))
+            inserted += 1
+        result.append(hours[i])
+
+    # Pad at end if the trailing slot(s) are missing.
+    while len(result) < expected:
+        result.append(HourPrice(value=value, start=result[-1].start + step))
+        inserted += 1
+
+    if inserted:
+        _LOGGER.warning(
+            "Filled %d missing %dmin slot(s) with penalty value to reach expected length %d. "
+            "Likely a transient gap in upstream price data.",
+            inserted, mtu, expected,
+        )
+
+    return result
 
 
 def _is_valid_data_length(hours: list, mtu: int) -> bool:
