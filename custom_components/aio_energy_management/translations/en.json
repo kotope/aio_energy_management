@@ -258,6 +258,15 @@
       "no_devices_to_remove": "No devices are configured for this entry"
     }
   },
+  "selector": {
+    "entry_type": {
+      "options": {
+        "cheapest_hours": "Cheapest hours sensor",
+        "calendar": "Calendar",
+        "excess_solar": "Excess solar"
+      }
+    }
+  },
   "options": {
     "step": {
       "cheapest_hours_data_provider": {

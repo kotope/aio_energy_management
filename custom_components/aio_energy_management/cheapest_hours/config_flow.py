@@ -99,7 +99,7 @@ def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema
             vol.Optional(
                 CONF_MTU,
                 default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.In([15, 60]),
+            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
             vol.Required(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -135,7 +135,7 @@ def _get_nordpool_official_schema(
             vol.Optional(
                 CONF_MTU,
                 default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.In([15, 60]),
+            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -165,7 +165,7 @@ def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_MTU,
                 default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.In([15, 60]),
+            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -207,7 +207,7 @@ def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Sc
             vol.Optional(
                 CONF_MTU,
                 default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.In([15, 60]),
+            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
