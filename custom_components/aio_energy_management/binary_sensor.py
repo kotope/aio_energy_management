@@ -15,6 +15,7 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .cheapest_hours import CheapestHoursBinarySensor
 from .const import (
+    CONF_ADD_FLEXIBLE,
     CONF_AREA,
     CONF_CALENDAR,
     CONF_END,
@@ -26,6 +27,8 @@ from .const import (
     CONF_HOURS,
     CONF_INVERSED,
     CONF_LAST_HOUR,
+    CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MAX_PRICE,
     CONF_MINUTES,
     CONF_MTU,
@@ -37,6 +40,7 @@ from .const import (
     CONF_NUMBER_OF_SLOTS_ENTITY,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
+    CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
@@ -76,6 +80,12 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_TRIGGER_HOUR): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_MAX_PRICE): vol.Any(float, cv.entity_id),
         vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
+        vol.Optional(CONF_ADD_FLEXIBLE): {
+            vol.Optional(CONF_MAX_NUMBER_OF_SLOTS): vol.Any(int, cv.entity_id),
+            vol.Optional(CONF_MAX_NUMBER_OF_SLOTS_ENTITY): cv.entity_id,
+            vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
+            vol.Optional(CONF_PRICE_LIMIT_ENTITY): cv.entity_id,
+        },
         vol.Optional(CONF_CALENDAR): bool,
         vol.Optional(CONF_RETENTION_DAYS): int,
         vol.Optional(CONF_OFFSET): {
@@ -184,6 +194,7 @@ def _create_cheapest_hours_entity(
         CONF_MAX_PRICE
     )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
     trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR)
+    add_flexible = discovery_info.get(CONF_ADD_FLEXIBLE)
     calendar = discovery_info.get(CONF_CALENDAR)
     retention_days = discovery_info.get(CONF_RETENTION_DAYS) or 1
     offset = discovery_info.get(CONF_OFFSET)
@@ -218,6 +229,7 @@ def _create_cheapest_hours_entity(
         trigger_time=trigger_time,
         trigger_hour=trigger_hour,
         price_limit=price_limit,
+        add_flexible=add_flexible,
         calendar=calendar,
         offset=offset,
         mtu=mtu,

@@ -410,6 +410,150 @@ def test_sequential_cheapest_hours_price_limit(today_valid, tomorrow_valid) -> N
 
 
 @freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_stops_at_limit(
+    today_valid, tomorrow_valid
+) -> None:
+    """Flexible slots extend the base until a slot exceeds the price limit.
+
+    Base 2 cheapest tomorrow slots are 10 (1.547) and 13 (1.71). The next
+    cheapest is 12 (1.851) which is below 1.9 so it is added; the following
+    candidate (2.461) exceeds the limit so extension stops. The result is the
+    same set of slots as requesting 3 fixed slots (10, 12, 13).
+    """
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        max_number_of_slots=5,
+        flexible_price_limit=1.9,
+    )
+    lis: list = result.get("list")
+    assert np.size(lis) == 2
+    assert lis[0]["start"] == datetime(
+        2024, 7, 23, 10, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert lis[0]["end"] == datetime(
+        2024, 7, 23, 11, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert lis[1]["start"] == datetime(
+        2024, 7, 23, 12, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert lis[1]["end"] == datetime(
+        2024, 7, 23, 14, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert result["extra"]["mean_price"] == 1.7026666666666666
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 1.851
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_capped_at_max(today_valid, tomorrow_valid) -> None:
+    """Flexible extension never exceeds max_number_of_slots."""
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        max_number_of_slots=4,
+        flexible_price_limit=3.0,
+    )
+    lis: list = result.get("list")
+    # Selected slots: 10, 13, 12 and 1 (4 total) -> 12 & 13 merge into one item.
+    assert np.size(lis) == 3
+    assert lis[0]["start"] == datetime(
+        2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 2.461
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_inversed(today_valid, tomorrow_valid) -> None:
+    """Flexible extension works for inversed (expensive) calculation."""
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        inversed=True,
+        max_number_of_slots=5,
+        flexible_price_limit=4.6,
+    )
+    # Base 11 (25.874), 14 (4.774); extra 15 (4.706) is >= 4.6 so added; the
+    # next candidate 16 (4.598) is below 4.6 so extension stops.
+    assert result["extra"]["mean_price"] == 11.784666666666666
+    assert result["extra"]["min_price"] == 4.706
+    assert result["extra"]["max_price"] == 25.874
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_noop_without_both_params(
+    today_valid, tomorrow_valid
+) -> None:
+    """Without both max and flexible price limit the base slots are returned."""
+    base = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 2, False, 0, 23
+    )
+    only_max = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 2, False, 0, 23, max_number_of_slots=5
+    )
+    only_limit = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        flexible_price_limit=1.9,
+    )
+    assert only_max["list"] == base["list"]
+    assert only_limit["list"] == base["list"]
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_max_below_base(
+    today_valid, tomorrow_valid
+) -> None:
+    """max_number_of_slots below number_of_slots falls back to base slots."""
+    base = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 3, False, 0, 23
+    )
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        3,
+        False,
+        0,
+        23,
+        max_number_of_slots=2,
+        flexible_price_limit=10.0,
+    )
+    assert result["list"] == base["list"]
+
+
+def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) -> None:
+    """max_number_of_slots above the MTU cap is rejected."""
+    with pytest.raises(InvalidInput):
+        calculate_non_sequential_cheapest_hours(
+            today_valid,
+            tomorrow_valid,
+            2,
+            False,
+            0,
+            23,
+            max_number_of_slots=25,
+            flexible_price_limit=1.0,
+        )
+
+
+@freeze_time("2024-07-22 14:25+03:00")
 def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> None:
     """Test sequential with inversed=True and price_limit."""
     # Most expensive 10-slot window has mean ~6.154; price_limit above that → empty list

@@ -28,6 +28,10 @@ CONF_TRIGGER_TIME = "trigger_time"  # DEPRECATED: use trigger_hour instead
 CONF_TRIGGER_HOUR = "trigger_hour"
 CONF_MAX_PRICE = "max_price"  # DEPRECATED: use price_limit instead
 CONF_PRICE_LIMIT = "price_limit"
+# Flexible slots: extend number_of_slots up to max_number_of_slots while the
+# per-slot price stays below (or above, when inversed) the nested price_limit.
+CONF_ADD_FLEXIBLE = "add_flexible"
+CONF_MAX_NUMBER_OF_SLOTS = "max_number_of_slots"
 CONF_CALENDAR = "calendar"
 CONF_OFFSET = "offset"
 CONF_USE_OFFSET = "use_offset"
@@ -44,6 +48,7 @@ CONF_AREA = "area"
 # Optional UI configurations for entity ids
 CONF_ALLOW_DYNAMIC_ENTITIES = "allow_dynamic_entities"
 CONF_NUMBER_OF_SLOTS_ENTITY = "number_of_slots_entity"
+CONF_MAX_NUMBER_OF_SLOTS_ENTITY = "max_number_of_slots_entity"
 CONF_PRICE_LIMIT_ENTITY = "price_limit_entity"
 CONF_TRIGGER_HOUR_ENTITY = "trigger_hour_entity"
 CONF_START_HOURS_ENTITY = "start_hours_entity"

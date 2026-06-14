@@ -8,7 +8,13 @@ import zoneinfo
 from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
 )
-from custom_components.aio_energy_management.const import DOMAIN
+from custom_components.aio_energy_management.const import (
+    CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_PRICE_LIMIT,
+    CONF_PRICE_LIMIT_ENTITY,
+    DOMAIN,
+)
 from custom_components.aio_energy_management.exceptions import InvalidEntityState
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
@@ -2157,3 +2163,91 @@ async def test_float_from_entity_handles_non_numeric_state(
     hass.states.async_set("input_number.price_limit", bad_state)
     with pytest.raises(InvalidEntityState):
         sensor._float_from_entity("input_number.price_limit")
+
+
+def _covered_hours(attributes: dict) -> float:
+    """Return the total number of hours covered by the sensor's slot list."""
+    return sum(
+        (item["end"] - item["start"]).total_seconds() / 3600.0
+        for item in attributes["list"]
+    )
+
+
+async def test_cheapest_hours_add_flexible_extends_slots(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """add_flexible extends a non-sequential sensor beyond number_of_slots."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    base_sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="base_sensor",
+        name="Base Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        coordinator=_setup_coordinator_mock(),
+    )
+    await base_sensor.async_update()
+    base_attributes = base_sensor.extra_state_attributes
+    base_hours = _covered_hours(base_attributes)
+
+    flexible_sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="flexible_sensor",
+        name="Flexible Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        add_flexible={CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_PRICE_LIMIT: 9999.0},
+        coordinator=_setup_coordinator_mock(),
+    )
+    await flexible_sensor.async_update()
+    flexible_attributes = flexible_sensor.extra_state_attributes
+
+    # A generous price limit pulls in every slot in the 18-23 window (6 hours),
+    # which is more than the base two slots.
+    assert _covered_hours(flexible_attributes) > base_hours
+    assert _covered_hours(flexible_attributes) == 6.0
+    assert flexible_attributes["max_number_of_slots"] == 10
+    assert flexible_attributes["flexible_price_limit"] == 9999.0
+
+
+async def test_cheapest_hours_add_flexible_dynamic_entities(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """add_flexible resolves its values from dynamic entities."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    hass.states.async_set("input_number.max_slots", "10")
+    hass.states.async_set("input_number.flex_limit", "9999")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="flexible_dynamic_sensor",
+        name="Flexible Dynamic Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        add_flexible={
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
+            CONF_PRICE_LIMIT_ENTITY: "input_number.flex_limit",
+        },
+        coordinator=_setup_coordinator_mock(),
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert _covered_hours(attributes) == 6.0
+    assert attributes["max_number_of_slots"] == "input_number.max_slots"
+    assert attributes["flexible_price_limit"] == "input_number.flex_limit"

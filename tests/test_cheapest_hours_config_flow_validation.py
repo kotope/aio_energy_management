@@ -10,17 +10,25 @@ sys.path.insert(
 )
 
 from aio_energy_management.cheapest_hours.config_flow import (  # noqa: E402
+    CONF_FLEXIBLE_PRICE_LIMIT,
+    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
     _validate_advanced_integer_fields,
+    _validate_and_build_add_flexible,
     _validate_basic_integer_fields,
     _validate_offset_integer_fields,
 )
 from aio_energy_management.const import (  # noqa: E402
+    CONF_ADD_FLEXIBLE,
     CONF_END,
     CONF_FAILSAFE_STARTING_HOUR,
     CONF_FIRST_HOUR,
     CONF_LAST_HOUR,
+    CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MINUTES,
     CONF_NUMBER_OF_SLOTS,
+    CONF_PRICE_LIMIT,
+    CONF_PRICE_LIMIT_ENTITY,
     CONF_START,
     CONF_TRIGGER_HOUR,
 )
@@ -272,3 +280,98 @@ class TestValidateOffsetIntegerFields:
         )
         assert self.START_MINUTES in errors
         assert self.END_MINUTES in errors
+
+
+# ---------------------------------------------------------------------------
+# _validate_and_build_add_flexible
+# ---------------------------------------------------------------------------
+
+
+class TestValidateAndBuildAddFlexible:
+    """Tests for _validate_and_build_add_flexible."""
+
+    def test_valid_static_builds_nested_dict(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert not errors
+        assert user_input[CONF_ADD_FLEXIBLE] == {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_PRICE_LIMIT: 0.05,
+        }
+        # Flat fields are consumed.
+        assert CONF_MAX_NUMBER_OF_SLOTS not in user_input
+        assert CONF_FLEXIBLE_PRICE_LIMIT not in user_input
+
+    def test_valid_entities_build_nested_dict(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
+            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY: "input_number.flex_limit",
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert not errors
+        assert user_input[CONF_ADD_FLEXIBLE] == {
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
+            CONF_PRICE_LIMIT_ENTITY: "input_number.flex_limit",
+        }
+
+    def test_empty_is_noop(self):
+        user_input = {}
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert not errors
+        assert CONF_ADD_FLEXIBLE not in user_input
+
+    def test_only_max_is_incomplete(self):
+        user_input = {CONF_MAX_NUMBER_OF_SLOTS: 21}
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert errors.get("base") == "add_flexible_incomplete"
+
+    def test_only_price_limit_is_incomplete(self):
+        user_input = {CONF_FLEXIBLE_PRICE_LIMIT: 0.05}
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert errors.get("base") == "add_flexible_incomplete"
+
+    def test_max_above_cap_60(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 25,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert (
+            errors.get(CONF_MAX_NUMBER_OF_SLOTS) == "max_number_of_slots_out_of_range"
+        )
+
+    def test_max_within_cap_15(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 90,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 15)
+        assert not errors
+
+    def test_max_smaller_than_number_of_slots(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 3,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert errors.get(CONF_MAX_NUMBER_OF_SLOTS) == "max_number_of_slots_too_small"
+
+    def test_max_not_compared_when_number_of_slots_is_entity(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 3,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, "input_number.slots", 60)
+        assert not errors
+
+    def test_both_max_static_and_entity(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        assert errors.get("base") == "both_max_number_of_slots_configured"
