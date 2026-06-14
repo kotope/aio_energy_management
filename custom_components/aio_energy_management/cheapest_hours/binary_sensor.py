@@ -10,6 +10,12 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
+from ..const import (
+    CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_PRICE_LIMIT,
+    CONF_PRICE_LIMIT_ENTITY,
+)
 from ..coordinator import EnergyManagementCoordinator
 from ..enums import HourPriceType
 from ..exceptions import (
@@ -61,6 +67,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         trigger_time=None,
         trigger_hour=None,
         price_limit=None,
+        add_flexible=None,
         calendar=True,
         offset=None,
         mtu=60,
@@ -100,6 +107,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._trigger_time = None
         self._trigger_hour = trigger_hour
         self._price_limit = price_limit
+        self._add_flexible = add_flexible or {}
         self._calendar = calendar
         self._last_known_day = None
         self._retention_days = retention_days
@@ -334,6 +342,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._inversed,
                     self._data.get("active_price_limit"),
                     self._mtu,
+                    self._data.get("active_max_number_of_slots"),
+                    self._data.get("active_flexible_price_limit"),
                 )
         except InvalidInput:
             # Logging already made on math.py, just return
@@ -905,6 +915,17 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             attrs["trigger_time"] = trigger_time
         if trigger_hour := self._trigger_hour:
             attrs["trigger_hour"] = trigger_hour
+        if add_flexible := self._add_flexible:
+            max_slots = add_flexible.get(
+                CONF_MAX_NUMBER_OF_SLOTS_ENTITY
+            ) or add_flexible.get(CONF_MAX_NUMBER_OF_SLOTS)
+            flexible_price_limit = add_flexible.get(
+                CONF_PRICE_LIMIT_ENTITY
+            ) or add_flexible.get(CONF_PRICE_LIMIT)
+            if max_slots is not None:
+                attrs["max_number_of_slots"] = max_slots
+            if flexible_price_limit is not None:
+                attrs["flexible_price_limit"] = flexible_price_limit
 
         return attrs
 
@@ -926,6 +947,17 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
         if price_limit := self._price_limit:
             self._data["active_price_limit"] = self._float_from_entity(price_limit)
+        if add_flexible := self._add_flexible:
+            max_slots = add_flexible.get(
+                CONF_MAX_NUMBER_OF_SLOTS_ENTITY
+            ) or add_flexible.get(CONF_MAX_NUMBER_OF_SLOTS)
+            flexible_price_limit = add_flexible.get(
+                CONF_PRICE_LIMIT_ENTITY
+            ) or add_flexible.get(CONF_PRICE_LIMIT)
+            self._data["active_max_number_of_slots"] = self._int_from_entity(max_slots)
+            self._data["active_flexible_price_limit"] = self._float_from_entity(
+                flexible_price_limit
+            )
 
     def _float_from_entity(self, entity_id) -> float | None:
         """Get float value from another entity."""

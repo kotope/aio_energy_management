@@ -97,6 +97,7 @@ Configuration parameters are shown below:
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
 | price_limit      | no        | Only accept prices less than given float value or more than given float value if inversed is used. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Can contain entity_id of dynamic entity to get value from e.g. input_number. On sequential cheapest hours mean price is compared and all-or-nothing is returned |
+| add_flexible     | no        | Extend `number_of_slots` with additional cheap (or expensive if inversed) slots when prices are favorable. Only applies to **non-sequential** sensors. See its own section below. |
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
 | offset    | no      | Possible start and end offset. On non-sequential the start offset is only added to first item and end offset to last item. Avg/min/max prices does not take the offset into account. See example below. |
@@ -167,6 +168,37 @@ aio_energy_management:
             hours: 1
             minutes: 15
 
+```
+
+### Flexible slots (add_flexible)
+`add_flexible` lets a **non-sequential** sensor opportunistically grab more slots than `number_of_slots` when prices are cheap (or expensive when `inversed: true`).
+
+The base `number_of_slots` cheapest slots are always selected. After that, the next-cheapest slots are added one by one **as long as each slot's price stays below `price_limit`** (above it when `inversed: true`), up to a total of `max_number_of_slots`.
+
+| Key | Required | Description |
+|-----|----------|-------------|
+| max_number_of_slots | yes | Maximum total number of slots (matches the selected MTU, i.e. 15/60 min). Must be ≥ `number_of_slots` and within the MTU cap (24 for 60-min, 96 for 15-min). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
+| price_limit | yes | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
+
+Notes:
+* Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
+* `add_flexible` has no effect on `sequential: true` sensors.
+
+Example: always take the 5 cheapest slots, and keep adding more (up to 21 total) while each extra slot costs less than 0.05.
+```
+aio_energy_management:
+    cheapest_hours:
+      - nordpool_entity: sensor.nordpool
+        unique_id: my_flexible_cheapest_hours
+        name: My Flexible Cheapest Hours
+        first_hour: 21
+        last_hour: 12
+        starting_today: true
+        number_of_slots: 5
+        sequential: false
+        add_flexible:
+          max_number_of_slots: 21
+          price_limit: 0.05
 ```
 
 ### Price modifications

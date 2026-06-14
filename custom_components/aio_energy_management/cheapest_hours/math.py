@@ -170,11 +170,25 @@ def calculate_non_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
+    max_number_of_slots: int | None = None,
+    flexible_price_limit: float | None = None,
 ) -> dict:
-    """Calculate non-sequential cheapest hours."""
+    """Calculate non-sequential cheapest hours.
+
+    When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
+    the base ``number_of_slots`` cheapest slots are always selected and then
+    extended with the next-cheapest slots while their individual price stays
+    below ``flexible_price_limit`` (above it when ``inversed``), up to
+    ``max_number_of_slots`` slots in total.
+    """
     if (
         _is_cheapest_hours_input_valid(
-            number_of_slots, starting_today, first_hour, last_hour, mtu
+            number_of_slots,
+            starting_today,
+            first_hour,
+            last_hour,
+            mtu,
+            max_number_of_slots,
         )
         is False
     ):
@@ -256,7 +270,9 @@ def calculate_non_sequential_cheapest_hours(
 
     data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
 
-    data = data[:number_of_slots]
+    data = _select_flexible_slots(
+        data, number_of_slots, max_number_of_slots, flexible_price_limit, inversed
+    )
     data.sort(key=lambda x: x["start"])
     if inversed:
         if mp := price_limit:
@@ -306,6 +322,42 @@ def calculate_non_sequential_cheapest_hours(
     return fd
 
 
+def _select_flexible_slots(
+    data: list,
+    number_of_slots: int,
+    max_number_of_slots: int | None,
+    flexible_price_limit: float | None,
+    inversed: bool,
+) -> list:
+    """Select base slots and optionally extend them with flexible slots.
+
+    ``data`` must already be sorted from best to worst price. The base
+    ``number_of_slots`` slots are always selected. If both
+    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, the
+    next-best slots are appended while their price stays within the limit,
+    up to ``max_number_of_slots`` slots in total.
+    """
+    if max_number_of_slots is None or flexible_price_limit is None:
+        return data[:number_of_slots]
+
+    if max_number_of_slots <= number_of_slots:
+        return data[:number_of_slots]
+
+    selected = data[:number_of_slots]
+    for slot in data[number_of_slots:max_number_of_slots]:
+        within_limit = (
+            slot["price"] >= flexible_price_limit
+            if inversed
+            else slot["price"] <= flexible_price_limit
+        )
+        if not within_limit:
+            # Data is sorted, so no later slot can satisfy the limit either.
+            break
+        selected.append(slot)
+
+    return selected
+
+
 def _get_average(data: list) -> float | None:
     if len(data) == 0:
         return None
@@ -331,6 +383,7 @@ def _is_cheapest_hours_input_valid(
     first_hour: int,
     last_hour: int,
     mtu: int,
+    max_number_of_slots: int | None = None,
 ) -> bool:
     if starting_today is False:
         if last_hour < first_hour:
@@ -339,12 +392,11 @@ def _is_cheapest_hours_input_valid(
         if first_hour < last_hour:
             return False
 
-    if mtu == 15:
-        if number_of_slots > 96:
-            return False
-    else:
-        if number_of_slots > 24:
-            return False
+    cap = 96 if mtu == 15 else 24
+    if number_of_slots > cap:
+        return False
+    if max_number_of_slots is not None and max_number_of_slots > cap:
+        return False
     return True
 
 
