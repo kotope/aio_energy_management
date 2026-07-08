@@ -80,6 +80,34 @@ def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
     )
 
 
+def _mtu_selector() -> selector.SelectSelector:
+    """Return the MTU dropdown selector.
+
+    String option values are used (instead of ``vol.In([15, 60])``) because the
+    frontend only reliably pre-selects string-valued select options. The value
+    is coerced back to an int via ``_coerce_mtu`` in the step handler.
+    """
+    return selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=["15", "60"],
+            mode=selector.SelectSelectorMode.DROPDOWN,
+        )
+    )
+
+
+def _mtu_default(user_input: dict[str, Any] | None) -> str:
+    """Return the MTU dropdown default as a string."""
+    if user_input and user_input.get(CONF_MTU) is not None:
+        return str(user_input[CONF_MTU])
+    return "60"
+
+
+def _coerce_mtu(user_input: dict[str, Any]) -> None:
+    """Coerce the MTU dropdown value (a string) back to an int in place."""
+    if user_input.get(CONF_MTU) is not None:
+        user_input[CONF_MTU] = int(user_input[CONF_MTU])
+
+
 def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
     """Get Nord Pool entity selection schema."""
     return vol.Schema(
@@ -98,8 +126,8 @@ def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema
             ),
             vol.Optional(
                 CONF_MTU,
-                default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
+                default=_mtu_default(user_input),
+            ): _mtu_selector(),
             vol.Required(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -134,8 +162,8 @@ def _get_nordpool_official_schema(
             ): cv.string,
             vol.Optional(
                 CONF_MTU,
-                default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
+                default=_mtu_default(user_input),
+            ): _mtu_selector(),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -164,8 +192,8 @@ def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_MTU,
-                default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
+                default=_mtu_default(user_input),
+            ): _mtu_selector(),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -206,8 +234,8 @@ def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Sc
             ),
             vol.Optional(
                 CONF_MTU,
-                default=user_input.get(CONF_MTU) if user_input else 60,
-            ): vol.All(vol.Coerce(int), vol.In([15, 60])),
+                default=_mtu_default(user_input),
+            ): _mtu_selector(),
             vol.Optional(
                 CONF_ALLOW_DYNAMIC_ENTITIES,
                 default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
@@ -731,6 +759,7 @@ class CheapestHoursConfigFlowMixin:
         """Select data provider type for cheapest hours."""
         if user_input is not None:
             self._data_provider_type = user_input[CONF_DATA_PROVIDER_TYPE]
+            self._config_data[CONF_DATA_PROVIDER_TYPE] = self._data_provider_type
 
             if self._data_provider_type == DATA_PROVIDER_NORDPOOL:
                 return await self.async_step_cheapest_hours_nordpool()
@@ -755,6 +784,7 @@ class CheapestHoursConfigFlowMixin:
     ) -> ConfigFlowResult:
         """Configure Nord Pool entity for cheapest hours."""
         if user_input is not None:
+            _coerce_mtu(user_input)
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -772,6 +802,7 @@ class CheapestHoursConfigFlowMixin:
     ) -> ConfigFlowResult:
         """Configure Nord Pool official config entry for cheapest hours."""
         if user_input is not None:
+            _coerce_mtu(user_input)
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -791,6 +822,7 @@ class CheapestHoursConfigFlowMixin:
     ) -> ConfigFlowResult:
         """Configure Entso-E entity for cheapest hours."""
         if user_input is not None:
+            _coerce_mtu(user_input)
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -808,6 +840,7 @@ class CheapestHoursConfigFlowMixin:
     ) -> ConfigFlowResult:
         """Configure Strømligning entities for cheapest hours."""
         if user_input is not None:
+            _coerce_mtu(user_input)
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -866,13 +899,7 @@ class CheapestHoursConfigFlowMixin:
             errors.update(advanced_errors)
             if not errors:
                 use_offset = user_input.get(CONF_USE_OFFSET, False)
-                if hasattr(self, "_config_entry"):
-                    preserved_calendar = self._config_data.get(CONF_CALENDAR)
-                    self._config_data.update(user_input)
-                    if preserved_calendar is not None:
-                        self._config_data[CONF_CALENDAR] = preserved_calendar
-                else:
-                    self._config_data.update(user_input)
+                self._config_data.update(user_input)
 
                 if use_offset:
                     return await self.async_step_cheapest_hours_offset()
@@ -882,12 +909,12 @@ class CheapestHoursConfigFlowMixin:
                         **self._config_data,
                         CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS,
                         CONF_UNIQUE_ID: self._config_entry.data.get(CONF_UNIQUE_ID),
-                        CONF_NAME: self._config_entry.data.get(CONF_NAME),
                         CONF_DATA_PROVIDER_TYPE: self._data_provider_type,
                     }
 
                     self.hass.config_entries.async_update_entry(
                         self._config_entry,
+                        title=new_data[CONF_NAME],
                         data=new_data,
                     )
                     return self.async_create_entry(title="", data={})
@@ -945,12 +972,12 @@ class CheapestHoursConfigFlowMixin:
                         **self._config_data,
                         CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS,
                         CONF_UNIQUE_ID: self._config_entry.data.get(CONF_UNIQUE_ID),
-                        CONF_NAME: self._config_entry.data.get(CONF_NAME),
                         CONF_DATA_PROVIDER_TYPE: self._data_provider_type,
                     }
 
                     self.hass.config_entries.async_update_entry(
                         self._config_entry,
+                        title=new_data[CONF_NAME],
                         data=new_data,
                     )
                     return self.async_create_entry(title="", data={})
