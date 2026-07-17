@@ -41,7 +41,7 @@ def calculate_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
-    # Check daylight saivings & TODAY is mandatory
+    # Check daylight savings & TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
     if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
@@ -54,7 +54,7 @@ def calculate_sequential_cheapest_hours(
     tm = []
     if tomorrow:
         try:
-            # Check daylight saivings
+            # Check daylight savings
             tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
             if _is_valid_data_length(tm_temp, mtu):
                 tm = tm_temp
@@ -64,7 +64,7 @@ def calculate_sequential_cheapest_hours(
                 "Tomorrow's data is invalid or empty. Proceeding with today's data only."
             )
 
-    # Function specific varialbes
+    # Function specific variables
     prices = [item.value for item in td] + [item.value for item in tm]
     cheapest_price = MAX_PRICE_VALUE
     mean_price: float = 0.0
