@@ -7,6 +7,7 @@ from custom_components.aio_energy_management.exceptions import InvalidInput
 from custom_components.aio_energy_management.cheapest_hours.math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
+    ValueNotFound,
 )
 from custom_components.aio_energy_management.models.hour_price import HourPrice
 from freezegun import freeze_time
@@ -426,3 +427,58 @@ def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> 
     )
     assert len(result["list"]) == 1
     assert result["extra"]["mean_price"] is not None
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "first_hour, last_hour, starting_today, pass_tomorrow, expect_raise, test_id",
+    [
+        # CONFIGURATION 1: Regular window during day, no overnight hours
+        (7, 19, False, True, False, "time_window_with_tomorrow"),
+        (7, 19, False, False, False, "time_window_without_tomorrow"),
+        # CONFIGURATION 2: Regular window during day, with overnight hours
+        (22, 21, True, True, False, "overnight_window_with_tomorrow"),
+        (22, 21, True, False, True, "overnight_window_without_tomorrow_must_fail"),
+    ],
+)
+def test_cheapest_hours_scenarios(
+    today_valid,
+    tomorrow_valid,
+    first_hour,
+    last_hour,
+    starting_today,
+    pass_tomorrow,
+    expect_raise,
+    test_id,
+) -> None:
+    """Test combinations of regular and overnight window with and without tomorrow prices."""
+
+    tomorrow_data = tomorrow_valid if pass_tomorrow else []
+
+    # Scenarios where we expect a ValueNotFound
+    if expect_raise:
+        with pytest.raises(ValueNotFound):
+            calculate_non_sequential_cheapest_hours(
+                today=today_valid,
+                tomorrow=tomorrow_data,
+                number_of_slots=3,
+                starting_today=starting_today,
+                first_hour=first_hour,
+                last_hour=last_hour,
+            )
+
+    # Scenarios with valid data
+    else:
+        result = calculate_non_sequential_cheapest_hours(
+            today=today_valid,
+            tomorrow=tomorrow_data,
+            number_of_slots=3,
+            starting_today=starting_today,
+            first_hour=first_hour,
+            last_hour=last_hour,
+        )
+
+        assert isinstance(result, dict)
+        assert "list" in result
+        assert "extra" in result
+        assert len(result["list"]) > 0
