@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import json
-from unittest.mock import AsyncMock, PropertyMock, patch
+from unittest.mock import AsyncMock, PropertyMock
 import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
@@ -2108,9 +2108,9 @@ async def test_nordpool_official_missing_tomorrow(hass: HomeAssistant) -> None:
     mock_responses = [
         {
             "indices": [{"start": "2026-07-16T12:00:00+02:00", "value": 10.0}]
-        },  # Gisteren
-        {"indices": [{"start": "2026-07-17T12:00:00+02:00", "value": 12.0}]},  # Vandaag
-        ServiceValidationError("Geen data beschikbaar voor morgen"),  # Morgen (Fout!)
+        },  # Yesterday
+        {"indices": [{"start": "2026-07-17T12:00:00+02:00", "value": 12.0}]},  # Today
+        ServiceValidationError("No data available for tomorrow"),  # Tomorrow (Wrong!)
     ]
 
     def side_effect(*args, **kwargs):
@@ -2120,12 +2120,6 @@ async def test_nordpool_official_missing_tomorrow(hass: HomeAssistant) -> None:
         if isinstance(response, Exception):
             raise response
         return response
-
-    # TO DO: verify if this is needed:
-    with patch(
-        "homeassistant.core.ServiceRegistry.async_call", side_effect=side_effect
-    ):
-        pass
 
 
 def _make_sensor(hass: HomeAssistant) -> CheapestHoursBinarySensor:
