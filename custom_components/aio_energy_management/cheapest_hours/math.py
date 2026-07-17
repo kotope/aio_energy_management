@@ -81,15 +81,20 @@ def calculate_sequential_cheapest_hours(
     if not starting_today and has_tomorrow:
         starting = first_hour + 24
 
+    # Check if an overnight window has been configured, to prevent undesired calculations
+    if first_hour > last_hour and not has_tomorrow:
+        _LOGGER.warning(
+            "Overnight window (%s:00 to %s:00) crosses midnight, but tomorrow's prices are not available yet. "
+            "Skipping calculation to preserve current calendar events.",
+            first_hour,
+            last_hour,
+        )
+        raise ValueNotFound
+
     if has_tomorrow:
         ending = last_hour + 1 + 24
     else:
-        if first_hour > last_hour:
-            # Edge case: Overnight window (22:00 - 06:00), but prices of tomorrow are not known yet.
-            # Cap search window by the end of today.
-            ending = 24
-        else:
-            ending = last_hour + 1
+        ending = last_hour + 1
 
     if starting >= ending:
         _LOGGER.warning(
@@ -211,15 +216,20 @@ def calculate_non_sequential_cheapest_hours(
     if not starting_today and has_tomorrow:
         starting = first_hour + 24
 
+    # Check if an overnight window has been configured, to prevent undesired calculations
+    if first_hour > last_hour and not has_tomorrow:
+        _LOGGER.warning(
+            "Overnight window (%s:00 to %s:00) crosses midnight, but tomorrow's prices are not available yet. "
+            "Skipping calculation to preserve current calendar events.",
+            first_hour,
+            last_hour,
+        )
+        raise ValueNotFound
+
     if has_tomorrow:
         ending = last_hour + 1 + 24
     else:
-        if first_hour > last_hour:
-            # Edge case: Overnight window (22:00 - 06:00), but prices of tomorrow are not known yet.
-            # Cap search window by the end of today.
-            ending = 24
-        else:
-            ending = last_hour + 1
+        ending = last_hour + 1
 
     if starting >= ending:
         _LOGGER.warning(
