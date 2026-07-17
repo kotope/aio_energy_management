@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import json
-from unittest.mock import AsyncMock, PropertyMock
+from unittest.mock import AsyncMock, PropertyMock, patch
 import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
@@ -20,6 +20,7 @@ from pytest_homeassistant_custom_component.common import load_fixture
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
 from homeassistant.helpers.template import Template
+from homeassistant.exceptions import ServiceValidationError
 import homeassistant.util.dt as dt_util
 
 
@@ -841,8 +842,9 @@ async def test_max_price(hass: HomeAssistant, freezer: FrozenDateTimeFactory) ->
 
     assert np.size(sensor.extra_state_attributes["list"]) == 1
 
+
 async def test_price_limit_negative(
-        hass: HomeAssistant, freezer: FrozenDateTimeFactory
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:
     """Test cheapest binary sensors price limit with negative and no matchces."""
     tzinfo = zoneinfo.ZoneInfo(key="Europe/Helsinki")
@@ -873,6 +875,7 @@ async def test_price_limit_negative(
     freezer.move_to("2025-03-14 14:30+03:00")
     await sensor.async_update()
     assert np.size(sensor.extra_state_attributes["list"]) == 0
+
 
 async def test_max_price_no_matches(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
@@ -1695,9 +1698,11 @@ async def test_nordpool_number_of_slots_mtu60(
         == datetime.now().replace(hour=2, minute=0).time()
     )
 
+
 # =============================================
 # Price modifications tests
 # =============================================
+
 
 async def test_price_modifications(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
@@ -1714,13 +1719,16 @@ async def test_price_modifications(
         "nordpool_official_service_20250315.json",
     )
 
-    template = Template("""
+    template = Template(
+        """
             {%- set with_taxes = (price * 2) | float %}
         {%- if time.hour >= 22 or time.hour <= 7 %}
           {{ with_taxes + 10 }}
         {%- else %}
           {{ with_taxes + 5 }}
-        {%- endif %}""", hass)
+        {%- endif %}""",
+        hass,
+    )
 
     sensor = CheapestHoursBinarySensor(
         hass=hass,
@@ -1750,6 +1758,7 @@ async def test_price_modifications(
     assert sensor.extra_state_attributes["list"][0]["end"] == datetime(
         2025, 3, 15, 13, 0, tzinfo=tzinfo
     )
+
 
 async def test_nordpool_official_price_modifications_timezone(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
@@ -1846,7 +1855,6 @@ async def test_nordpool_custom_price_modifications_timezone(
     attributes = sensor.extra_state_attributes
     assert attributes["list"][0]["start"] == datetime(2024, 7, 14, 2, 0, tzinfo=tzinfo)
     assert attributes["list"][0]["end"] == datetime(2024, 7, 14, 5, 0, tzinfo=tzinfo)
-
 
 
 # =============================================
@@ -2094,6 +2102,32 @@ async def test_cheapest_hours_stromligning_daytime(
     assert sensor.is_on is True
 
 
+async def test_nordpool_official_missing_tomorrow(hass: HomeAssistant) -> None:
+    """Test if tomorrow prices are not known yet."""
+
+    mock_responses = [
+        {
+            "indices": [{"start": "2026-07-16T12:00:00+02:00", "value": 10.0}]
+        },  # Gisteren
+        {"indices": [{"start": "2026-07-17T12:00:00+02:00", "value": 12.0}]},  # Vandaag
+        ServiceValidationError("Geen data beschikbaar voor morgen"),  # Morgen (Fout!)
+    ]
+
+    def side_effect(*args, **kwargs):
+        if not mock_responses:
+            return {}
+        response = mock_responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    # TO DO: verify if this is needed:
+    with patch(
+        "homeassistant.core.ServiceRegistry.async_call", side_effect=side_effect
+    ):
+        pass
+
+
 def _make_sensor(hass: HomeAssistant) -> CheapestHoursBinarySensor:
     return CheapestHoursBinarySensor(
         hass=hass,
@@ -2129,5 +2163,3 @@ async def test_float_from_entity_handles_non_numeric_state(
     hass.states.async_set("input_number.price_limit", bad_state)
     with pytest.raises(InvalidEntityState):
         sensor._float_from_entity("input_number.price_limit")
-
-
