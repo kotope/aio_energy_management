@@ -765,18 +765,26 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             blocking=True,
         )
 
-        tomorrow_data = await self.hass.services.async_call(
-            domain="nordpool",
-            service="get_price_indices_for_date",
-            service_data=service_data(dt_util.now() + timedelta(days=1), self._area),
-            return_response=True,
-            blocking=True,
-        )
+        try:
+            # Get data for tomorrow if present
+            tomorrow_data = await self.hass.services.async_call(
+                domain="nordpool",
+                service="get_price_indices_for_date",
+                service_data=service_data(
+                    dt_util.now() + timedelta(days=1), self._area
+                ),
+                return_response=True,
+                blocking=True,
+            )
+        except Exception as e:
+            # If not present, log this and return empty list
+            _LOGGER.debug("Could not fetch tomorrow's prices: %s", e)
+            tomorrow_data = {}
 
         # Extract values from returned dicts
-        value_yesterday = next(iter(yesterday_data.values()))
-        value_today = next(iter(today_data.values()))
-        value_tomorrow = next(iter(tomorrow_data.values()))
+        value_yesterday = next(iter(yesterday_data.values())) if yesterday_data else []
+        value_today = next(iter(today_data.values())) if today_data else []
+        value_tomorrow = next(iter(tomorrow_data.values())) if tomorrow_data else []
 
         # Combine all periods into a single list
         combined = value_yesterday + value_today + value_tomorrow
@@ -833,8 +841,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             for item in tomorrow_prices
         ]
-        if len(tomorrow) < 10:
+        if len(today) < 10:
             raise ValueNotFound
+
+        if len(tomorrow) < 10:
+            _LOGGER.debug(
+                "Tomorrow's prices are not yet available. "
+                "Calculations will proceed using today's data only."
+            )
 
         if active_mtu != self._mtu:
             raise SystemConfigurationError(

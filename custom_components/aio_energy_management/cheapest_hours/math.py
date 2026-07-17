@@ -41,15 +41,27 @@ def calculate_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
-    # Check daylight saivings
+    # TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
-    tm = _check_day_light_savings(tomorrow, mtu=mtu)
-
-    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
+    if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+            "Today's data provided for calculation has invalid amount of values."
         )
         raise ValueNotFound
+
+    # TOMORROW is optional
+    has_tomorrow = False
+    tm = []
+    if tomorrow:
+        try:
+            tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
+            if _is_valid_data_length(tm_temp, mtu):
+                tm = tm_temp
+                has_tomorrow = True
+        except Exception:
+            _LOGGER.debug(
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only."
+            )
 
     # Function specific varialbes
     prices = [item.value for item in td] + [item.value for item in tm]
@@ -63,15 +75,37 @@ def calculate_sequential_cheapest_hours(
 
     cheapest_hour = dt_util.start_of_local_day()
     counter = 0.00
-    starting = first_hour
-    ending = last_hour + 1 + 24
 
-    if starting_today is False:
+    starting = first_hour
+    if not starting_today and has_tomorrow:
         starting = first_hour + 24
+
+    if has_tomorrow:
+        ending = last_hour + 1 + 24
+    else:
+        if first_hour > last_hour:
+            # Edge case: Overnight window (22:00 - 06:00), but prices of tomorrow are not known yet.
+            # Cap search window by the end of today.
+            ending = 24
+        else:
+            ending = last_hour + 1
+
+    if starting >= ending:
+        _LOGGER.warning(
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)."
+        )
+        raise ValueNotFound
 
     if mtu == 15:
         starting = starting * 4
         ending = ending * 4
+
+    # Extra safety check if the number of slots fits within the number of available slots.
+    if (starting + number_of_slots) > ending:
+        _LOGGER.warning(
+            "The search window is too small for the requested number of sequential slots (e.g. overnight window capped to today's end)."
+        )
+        raise ValueNotFound
 
     for i in range(starting + number_of_slots, ending + 1):
         counter = 0.0
@@ -141,14 +175,27 @@ def calculate_non_sequential_cheapest_hours(
         _LOGGER.error("Invalid configuration for non-sequential cheapest hours sensor")
         raise InvalidInput
 
+    # TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
-    tm = _check_day_light_savings(tomorrow, mtu=mtu)
-    # Ensure valid data length for items. mtu can be 15 or 60
-    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
+    if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+            "Today's data provided for calculation has invalid amount of values."
         )
         raise ValueNotFound
+
+    # TOMORROW is optional
+    has_tomorrow = False
+    tm = []
+    if tomorrow:
+        try:
+            tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
+            if _is_valid_data_length(tm_temp, mtu):
+                tm = tm_temp
+                has_tomorrow = True
+        except Exception:
+            _LOGGER.debug(
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only."
+            )
 
     arr = [
         {
@@ -160,9 +207,25 @@ def calculate_non_sequential_cheapest_hours(
     ]  # combined array with tomorrow and today.
 
     starting = first_hour
-    if not starting_today:
+    if not starting_today and has_tomorrow:
         starting = first_hour + 24
-    ending = last_hour + 1 + 24
+
+    if has_tomorrow:
+        ending = last_hour + 1 + 24
+    else:
+        if first_hour > last_hour:
+            # Edge case: Overnight window (22:00 - 06:00), but prices of tomorrow are not known yet.
+            # Cap search window by the end of today.
+            ending = 24
+        else:
+            ending = last_hour + 1
+
+    if starting >= ending:
+        _LOGGER.warning(
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)."
+        )
+        raise ValueNotFound
+
     data = []
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
@@ -286,7 +349,11 @@ def _check_day_light_savings(
     if mtu == 15:
         if len(hours) == 92:
             result = _add_missing_hour(hours, inversed, mtu=mtu)
-            if len(result) == 92 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+            if (
+                len(result) == 92
+                and hours
+                and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL
+            ):
                 return _insert_at_local_dst_gap(result, count=4, inversed=inversed)
             return result
         if len(hours) == 100:
@@ -299,7 +366,11 @@ def _check_day_light_savings(
     #    23 consecutive items. Fall back to local wall-clock gap insertion.
     if len(hours) == 23:
         result = _add_missing_hour(hours, inversed, mtu=mtu)
-        if len(result) == 23 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+        if (
+            len(result) == 23
+            and hours
+            and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL
+        ):
             return _insert_at_local_dst_gap(result, count=1, inversed=inversed, mtu=mtu)
         return result
     if len(hours) == 25:
@@ -384,13 +455,17 @@ def _insert_at_local_dst_gap(
             for k in range(count):
                 hours.insert(
                     i + k,
-                    HourPrice(value=value, start=insert_start + timedelta(minutes=k * mtu)),
+                    HourPrice(
+                        value=value, start=insert_start + timedelta(minutes=k * mtu)
+                    ),
                 )
             return hours
         prev_local_minutes = local_minutes
     # Fallback: no gap found — pad at end.
     for _ in range(count):
-        hours.append(HourPrice(value=value, start=hours[-1].start + timedelta(minutes=mtu)))
+        hours.append(
+            HourPrice(value=value, start=hours[-1].start + timedelta(minutes=mtu))
+        )
     return hours
 
 
