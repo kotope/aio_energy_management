@@ -41,7 +41,7 @@ def calculate_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
-    # TODAY is mandatory
+    # Check daylight saivings & TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
     if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
@@ -54,6 +54,7 @@ def calculate_sequential_cheapest_hours(
     tm = []
     if tomorrow:
         try:
+            # Check daylight saivings
             tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
             if _is_valid_data_length(tm_temp, mtu):
                 tm = tm_temp
@@ -100,7 +101,7 @@ def calculate_sequential_cheapest_hours(
         starting = starting * 4
         ending = ending * 4
 
-    # Extra safety check if the number of slots fits within the number of available slots.
+    # Extra safety check if the number of slots fits within the amounts of slots we have.
     if (starting + number_of_slots) > ending:
         _LOGGER.warning(
             "The search window is too small for the requested number of sequential slots (e.g. overnight window capped to today's end)."
