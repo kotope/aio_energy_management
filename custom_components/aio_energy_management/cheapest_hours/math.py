@@ -61,7 +61,7 @@ def calculate_sequential_cheapest_hours(
                 has_tomorrow = True
         except Exception:
             _LOGGER.debug(
-                "Tomorrow's data is invalid or empty. Proceeding with today's data only."
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only"
             )
 
     # Function specific variables
@@ -83,9 +83,9 @@ def calculate_sequential_cheapest_hours(
 
     # Check if an overnight window has been configured, to prevent undesired calculations
     if first_hour > last_hour and not has_tomorrow:
-        _LOGGER.warning(
+        _LOGGER.debug(
             "Overnight window first_hour=%s, last_hour=%s crosses midnight, but tomorrow's prices are not available yet. "
-            "Skipping calculation to preserve current calendar events.",
+            "Skipping calculation to preserve current calendar events",
             first_hour,
             last_hour,
         )
@@ -98,7 +98,7 @@ def calculate_sequential_cheapest_hours(
 
     if starting >= ending:
         _LOGGER.warning(
-            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)."
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)"
         )
         raise ValueNotFound
 
@@ -109,7 +109,7 @@ def calculate_sequential_cheapest_hours(
     # Extra safety check if the number of slots fits within the amounts of slots we have.
     if (starting + number_of_slots) > ending:
         _LOGGER.warning(
-            "The search window is too small for the requested number of sequential slots (e.g. overnight window capped to today's end)."
+            "The search window is too small for the requested number of sequential slots (e.g. overnight window capped to today's end)"
         )
         raise ValueNotFound
 
@@ -214,7 +214,7 @@ def calculate_non_sequential_cheapest_hours(
                 has_tomorrow = True
         except Exception:
             _LOGGER.debug(
-                "Tomorrow's data is invalid or empty. Proceeding with today's data only."
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only"
             )
 
     arr = [
@@ -234,7 +234,7 @@ def calculate_non_sequential_cheapest_hours(
     if first_hour > last_hour and not has_tomorrow:
         _LOGGER.warning(
             "Overnight window (%s:00 to %s:00) crosses midnight, but tomorrow's prices are not available yet. "
-            "Skipping calculation to preserve current calendar events.",
+            "Skipping calculation to preserve current calendar events",
             first_hour,
             last_hour,
         )
@@ -247,7 +247,7 @@ def calculate_non_sequential_cheapest_hours(
 
     if starting >= ending:
         _LOGGER.warning(
-            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)."
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)"
         )
         raise ValueNotFound
 
