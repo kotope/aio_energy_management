@@ -45,7 +45,7 @@ def calculate_sequential_cheapest_hours(
     td = _check_day_light_savings(today, mtu=mtu)
     if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Today's data provided for calculation has invalid amount of values."
+            "Today's data provided for calculation has invalid amount of values"
         )
         raise ValueNotFound
 
