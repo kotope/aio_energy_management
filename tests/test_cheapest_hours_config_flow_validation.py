@@ -12,6 +12,7 @@ sys.path.insert(
 from aio_energy_management.cheapest_hours.config_flow import (  # noqa: E402
     CONF_FLEXIBLE_PRICE_LIMIT,
     CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+    _get_cheapest_hours_advanced_schema,
     _validate_advanced_integer_fields,
     _validate_and_build_add_flexible,
     _validate_basic_integer_fields,
@@ -295,7 +296,7 @@ class TestValidateAndBuildAddFlexible:
             CONF_MAX_NUMBER_OF_SLOTS: 21,
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert not errors
         assert user_input[CONF_ADD_FLEXIBLE] == {
             CONF_MAX_NUMBER_OF_SLOTS: 21,
@@ -310,7 +311,7 @@ class TestValidateAndBuildAddFlexible:
             CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
             CONF_FLEXIBLE_PRICE_LIMIT_ENTITY: "input_number.flex_limit",
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert not errors
         assert user_input[CONF_ADD_FLEXIBLE] == {
             CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
@@ -319,18 +320,18 @@ class TestValidateAndBuildAddFlexible:
 
     def test_empty_is_noop(self):
         user_input = {}
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert not errors
         assert CONF_ADD_FLEXIBLE not in user_input
 
     def test_only_max_is_incomplete(self):
         user_input = {CONF_MAX_NUMBER_OF_SLOTS: 21}
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert errors.get("base") == "add_flexible_incomplete"
 
     def test_only_price_limit_is_incomplete(self):
         user_input = {CONF_FLEXIBLE_PRICE_LIMIT: 0.05}
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert errors.get("base") == "add_flexible_incomplete"
 
     def test_max_above_cap_60(self):
@@ -338,7 +339,7 @@ class TestValidateAndBuildAddFlexible:
             CONF_MAX_NUMBER_OF_SLOTS: 25,
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert (
             errors.get(CONF_MAX_NUMBER_OF_SLOTS) == "max_number_of_slots_out_of_range"
         )
@@ -348,23 +349,17 @@ class TestValidateAndBuildAddFlexible:
             CONF_MAX_NUMBER_OF_SLOTS: 90,
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 15)
+        errors = _validate_and_build_add_flexible(user_input, 15)
         assert not errors
 
-    def test_max_smaller_than_number_of_slots(self):
+    def test_max_smaller_than_number_of_slots_is_allowed(self):
+        # max_number_of_slots now counts extra slots on top of the base slots,
+        # so it may be smaller than number_of_slots without being an error.
         user_input = {
             CONF_MAX_NUMBER_OF_SLOTS: 3,
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
-        assert errors.get(CONF_MAX_NUMBER_OF_SLOTS) == "max_number_of_slots_too_small"
-
-    def test_max_not_compared_when_number_of_slots_is_entity(self):
-        user_input = {
-            CONF_MAX_NUMBER_OF_SLOTS: 3,
-            CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
-        }
-        errors = _validate_and_build_add_flexible(user_input, "input_number.slots", 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert not errors
 
     def test_both_max_static_and_entity(self):
@@ -373,5 +368,65 @@ class TestValidateAndBuildAddFlexible:
             CONF_MAX_NUMBER_OF_SLOTS_ENTITY: "input_number.max_slots",
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,
         }
-        errors = _validate_and_build_add_flexible(user_input, 5, 60)
+        errors = _validate_and_build_add_flexible(user_input, 60)
         assert errors.get("base") == "both_max_number_of_slots_configured"
+
+    def test_flexible_price_limit_not_below_price_limit(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.5,
+            CONF_PRICE_LIMIT: 0.5,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 60)
+        assert (
+            errors.get(CONF_FLEXIBLE_PRICE_LIMIT)
+            == "flexible_price_limit_not_below_price_limit"
+        )
+
+    def test_flexible_price_limit_below_price_limit_is_valid(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.4,
+            CONF_PRICE_LIMIT: 0.5,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 60)
+        assert not errors
+
+    def test_flexible_price_limit_not_guarded_without_price_limit(self):
+        user_input = {
+            CONF_MAX_NUMBER_OF_SLOTS: 21,
+            CONF_FLEXIBLE_PRICE_LIMIT: 0.5,
+        }
+        errors = _validate_and_build_add_flexible(user_input, 60)
+        assert not errors
+
+
+# ---------------------------------------------------------------------------
+# _get_cheapest_hours_advanced_schema
+# ---------------------------------------------------------------------------
+
+
+def _schema_field_names(schema) -> set:
+    return {getattr(key, "schema", key) for key in schema.schema}
+
+
+class TestAdvancedSchemaSequential:
+    """The flexible fields must only appear for non-sequential sensors."""
+
+    def test_flexible_fields_present_when_not_sequential(self):
+        fields = _schema_field_names(
+            _get_cheapest_hours_advanced_schema(sequential=False)
+        )
+        assert CONF_MAX_NUMBER_OF_SLOTS in fields
+        assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY in fields
+        assert CONF_FLEXIBLE_PRICE_LIMIT in fields
+        assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in fields
+
+    def test_flexible_fields_absent_when_sequential(self):
+        fields = _schema_field_names(
+            _get_cheapest_hours_advanced_schema(sequential=True)
+        )
+        assert CONF_MAX_NUMBER_OF_SLOTS not in fields
+        assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY not in fields
+        assert CONF_FLEXIBLE_PRICE_LIMIT not in fields
+        assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY not in fields
