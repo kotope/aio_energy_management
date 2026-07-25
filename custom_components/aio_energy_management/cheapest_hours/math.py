@@ -176,10 +176,11 @@ def calculate_non_sequential_cheapest_hours(
     """Calculate non-sequential cheapest hours.
 
     When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
-    the base ``number_of_slots`` cheapest slots are always selected and then
-    extended with the next-cheapest slots while their individual price stays
-    below ``flexible_price_limit`` (above it when ``inversed``), up to
-    ``max_number_of_slots`` slots in total.
+    the base ``number_of_slots`` cheapest slots are always selected (subject to
+    the regular ``price_limit``) and then extended with up to
+    ``max_number_of_slots`` additional next-cheapest slots while their individual
+    price stays below ``flexible_price_limit`` (above it when ``inversed``), for
+    at most ``number_of_slots + max_number_of_slots`` slots in total.
     """
     if (
         _is_cheapest_hours_input_valid(
@@ -199,7 +200,7 @@ def calculate_non_sequential_cheapest_hours(
     td = _check_day_light_savings(today, mtu=mtu)
     if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Today's data provided for calculation has invalid amount of values."
+            "Today's data provided for calculation has invalid amount of values"
         )
         raise ValueNotFound
 
@@ -332,19 +333,19 @@ def _select_flexible_slots(
     """Select base slots and optionally extend them with flexible slots.
 
     ``data`` must already be sorted from best to worst price. The base
-    ``number_of_slots`` slots are always selected. If both
-    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, the
-    next-best slots are appended while their price stays within the limit,
-    up to ``max_number_of_slots`` slots in total.
+    ``number_of_slots`` slots are always selected (the caller applies the
+    regular ``price_limit`` to them afterwards). When both
+    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
+    ``max_number_of_slots`` additional slots are appended while their price
+    stays within ``flexible_price_limit``, for at most
+    ``number_of_slots + max_number_of_slots`` slots in total.
     """
     if max_number_of_slots is None or flexible_price_limit is None:
         return data[:number_of_slots]
 
-    if max_number_of_slots <= number_of_slots:
-        return data[:number_of_slots]
-
     selected = data[:number_of_slots]
-    for slot in data[number_of_slots:max_number_of_slots]:
+    flexible_end = number_of_slots + max_number_of_slots
+    for slot in data[number_of_slots:flexible_end]:
         within_limit = (
             slot["price"] >= flexible_price_limit
             if inversed
@@ -354,7 +355,6 @@ def _select_flexible_slots(
             # Data is sorted, so no later slot can satisfy the limit either.
             break
         selected.append(slot)
-
     return selected
 
 

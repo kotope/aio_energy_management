@@ -450,8 +450,10 @@ def test_non_sequential_add_flexible_stops_at_limit(
 
 
 @freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_capped_at_max(today_valid, tomorrow_valid) -> None:
-    """Flexible extension never exceeds max_number_of_slots."""
+def test_non_sequential_add_flexible_extends_by_max_extra_slots(
+    today_valid, tomorrow_valid
+) -> None:
+    """max_number_of_slots counts extra slots added on top of the base slots."""
     result = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
@@ -463,13 +465,43 @@ def test_non_sequential_add_flexible_capped_at_max(today_valid, tomorrow_valid) 
         flexible_price_limit=3.0,
     )
     lis: list = result.get("list")
-    # Selected slots: 10, 13, 12 and 1 (4 total) -> 12 & 13 merge into one item.
+    # Base 2 cheapest: 10 (1.547), 13 (1.71). Up to 4 extra slots are added while
+    # each stays within 3.0: 12 (1.851), 1 (2.461), 3 (2.859), 2 (2.967). Total 6
+    # slots across hours 1, 2, 3, 10, 12, 13. Hours 1-3 merge into one item, hour
+    # 10 stands alone, and hours 12-13 merge into one item.
     assert np.size(lis) == 3
     assert lis[0]["start"] == datetime(
         2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
+    assert lis[0]["end"] == datetime(
+        2024, 7, 23, 4, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+    )
     assert result["extra"]["min_price"] == 1.547
-    assert result["extra"]["max_price"] == 2.461
+    assert result["extra"]["max_price"] == 2.967
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_non_sequential_add_flexible_base_slots_ignore_flexible_limit(
+    today_valid, tomorrow_valid
+) -> None:
+    """Base slots are always kept (subject only to price_limit), not the flexible limit."""
+    result = calculate_non_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        price_limit=2.0,
+        max_number_of_slots=5,
+        flexible_price_limit=1.6,
+    )
+    lis: list = result.get("list")
+    # Base 10 (1.547) and 13 (1.71) are kept even though 13 exceeds the flexible
+    # limit of 1.6; no extra slot is added since 12 (1.851) exceeds it too.
+    assert np.size(lis) == 2
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 1.71
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -518,10 +550,10 @@ def test_non_sequential_add_flexible_noop_without_both_params(
 
 
 @freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_max_below_base(
+def test_non_sequential_add_flexible_max_smaller_than_base(
     today_valid, tomorrow_valid
 ) -> None:
-    """max_number_of_slots below number_of_slots falls back to base slots."""
+    """max_number_of_slots may be smaller than number_of_slots (it is a count of extra slots)."""
     base = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23
     )
@@ -535,7 +567,10 @@ def test_non_sequential_add_flexible_max_below_base(
         max_number_of_slots=2,
         flexible_price_limit=10.0,
     )
-    assert result["list"] == base["list"]
+    # Base 3 slots (10, 12, 13) get 2 extra slots (1, 3) appended.
+    assert result["list"] != base["list"]
+    assert result["extra"]["min_price"] == 1.547
+    assert result["extra"]["max_price"] == 2.859
 
 
 def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) -> None:
