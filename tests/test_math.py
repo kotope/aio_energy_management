@@ -679,7 +679,6 @@ def test_cheapest_hours_scenarios(
             first_hour=first_hour,
             last_hour=last_hour,
         )
-        print("\nDEBUG RESULT:", result)
 
         assert isinstance(result, dict)
         assert "list" in result
