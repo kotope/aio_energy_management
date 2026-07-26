@@ -27,7 +27,7 @@ def calculate_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
-) -> dict:
+) -> (dict, bool):
     """Calculate sequential cheapest hours."""
     if (
         _is_cheapest_hours_input_valid(
@@ -157,7 +157,7 @@ def calculate_sequential_cheapest_hours(
     fd["extra"]["mean_price"] = mean_price
     fd["extra"]["max_price"] = max_price
     fd["extra"]["min_price"] = min_price
-    return fd
+    return (fd, not has_tomorrow)
 
 
 def calculate_non_sequential_cheapest_hours(
@@ -170,11 +170,26 @@ def calculate_non_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
-) -> dict:
-    """Calculate non-sequential cheapest hours."""
+    max_number_of_slots: int | None = None,
+    flexible_price_limit: float | None = None,
+) -> (dict, bool):
+    """Calculate non-sequential cheapest hours.
+
+    When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
+    the base ``number_of_slots`` cheapest slots are always selected (subject to
+    the regular ``price_limit``) and then extended with up to
+    ``max_number_of_slots`` additional next-cheapest slots while their individual
+    price stays below ``flexible_price_limit`` (above it when ``inversed``), for
+    at most ``number_of_slots + max_number_of_slots`` slots in total.
+    """
     if (
         _is_cheapest_hours_input_valid(
-            number_of_slots, starting_today, first_hour, last_hour, mtu
+            number_of_slots,
+            starting_today,
+            first_hour,
+            last_hour,
+            mtu,
+            max_number_of_slots,
         )
         is False
     ):
@@ -256,7 +271,9 @@ def calculate_non_sequential_cheapest_hours(
 
     data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
 
-    data = data[:number_of_slots]
+    data = _select_flexible_slots(
+        data, number_of_slots, max_number_of_slots, flexible_price_limit, inversed
+    )
     data.sort(key=lambda x: x["start"])
     if inversed:
         if mp := price_limit:
@@ -303,7 +320,42 @@ def calculate_non_sequential_cheapest_hours(
             iterate = False
 
     fd["list"] = data
-    return fd
+    return (fd, not has_tomorrow)
+
+
+def _select_flexible_slots(
+    data: list,
+    number_of_slots: int,
+    max_number_of_slots: int | None,
+    flexible_price_limit: float | None,
+    inversed: bool,
+) -> list:
+    """Select base slots and optionally extend them with flexible slots.
+
+    ``data`` must already be sorted from best to worst price. The base
+    ``number_of_slots`` slots are always selected (the caller applies the
+    regular ``price_limit`` to them afterwards). When both
+    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
+    ``max_number_of_slots`` additional slots are appended while their price
+    stays within ``flexible_price_limit``, for at most
+    ``number_of_slots + max_number_of_slots`` slots in total.
+    """
+    if max_number_of_slots is None or flexible_price_limit is None:
+        return data[:number_of_slots]
+
+    selected = data[:number_of_slots]
+    flexible_end = number_of_slots + max_number_of_slots
+    for slot in data[number_of_slots:flexible_end]:
+        within_limit = (
+            slot["price"] >= flexible_price_limit
+            if inversed
+            else slot["price"] <= flexible_price_limit
+        )
+        if not within_limit:
+            # Data is sorted, so no later slot can satisfy the limit either.
+            break
+        selected.append(slot)
+    return selected
 
 
 def _get_average(data: list) -> float | None:
@@ -331,6 +383,7 @@ def _is_cheapest_hours_input_valid(
     first_hour: int,
     last_hour: int,
     mtu: int,
+    max_number_of_slots: int | None = None,
 ) -> bool:
     if starting_today is False:
         if last_hour < first_hour:
@@ -339,12 +392,11 @@ def _is_cheapest_hours_input_valid(
         if first_hour < last_hour:
             return False
 
-    if mtu == 15:
-        if number_of_slots > 96:
-            return False
-    else:
-        if number_of_slots > 24:
-            return False
+    cap = 96 if mtu == 15 else 24
+    if number_of_slots > cap:
+        return False
+    if max_number_of_slots is not None and max_number_of_slots > cap:
+        return False
     return True
 
 

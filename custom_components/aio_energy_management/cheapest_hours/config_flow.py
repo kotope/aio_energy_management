@@ -13,6 +13,7 @@ from homeassistant.helpers import selector
 import homeassistant.helpers.config_validation as cv
 
 from ..const import (
+    CONF_ADD_FLEXIBLE,
     CONF_ALLOW_DYNAMIC_ENTITIES,
     CONF_AREA,
     CONF_CALENDAR,
@@ -26,6 +27,8 @@ from ..const import (
     CONF_HOURS,
     CONF_INVERSED,
     CONF_LAST_HOUR,
+    CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MINUTES,
     CONF_MTU,
     CONF_NORDPOOL_ENTITY,
@@ -57,6 +60,13 @@ _LOGGER = logging.getLogger(__name__)
 
 CONF_ENTRY_TYPE = "entry_type"
 ENTRY_TYPE_CHEAPEST_HOURS = "cheapest_hours"
+
+# Flat UI field names for the flexible price limit. They are assembled into the
+# nested ``add_flexible`` dict (using CONF_PRICE_LIMIT / CONF_PRICE_LIMIT_ENTITY)
+# before the config entry is stored, so they cannot reuse the top-level
+# price_limit field names.
+CONF_FLEXIBLE_PRICE_LIMIT = "flexible_price_limit"
+CONF_FLEXIBLE_PRICE_LIMIT_ENTITY = "flexible_price_limit_entity"
 
 
 def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
@@ -303,8 +313,14 @@ def _get_cheapest_hours_basic_schema(
 def _get_cheapest_hours_advanced_schema(
     user_input: dict[str, Any] | None = None,
     allow_dynamic_entities: bool = True,
+    sequential: bool = False,
 ) -> vol.Schema:
-    """Get advanced cheapest hours configuration schema."""
+    """Get advanced cheapest hours configuration schema.
+
+    The flexible slot fields (``max_number_of_slots`` and
+    ``flexible_price_limit``) only apply to non-sequential sensors, so they are
+    omitted when ``sequential`` is set.
+    """
     schema_dict = {
         vol.Optional(
             CONF_FAILSAFE_STARTING_HOUR,
@@ -366,6 +382,52 @@ def _get_cheapest_hours_advanced_schema(
         ] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
         )
+
+    # Flexible slots only make sense for non-sequential sensors.
+    if not sequential:
+        add_flexible = (user_input or {}).get(CONF_ADD_FLEXIBLE) or {}
+
+        schema_dict[
+            vol.Optional(
+                CONF_MAX_NUMBER_OF_SLOTS,
+                description={
+                    "suggested_value": add_flexible.get(CONF_MAX_NUMBER_OF_SLOTS)
+                },
+            )
+        ] = int
+
+        if allow_dynamic_entities:
+            schema_dict[
+                vol.Optional(
+                    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+                    description={
+                        "suggested_value": add_flexible.get(
+                            CONF_MAX_NUMBER_OF_SLOTS_ENTITY
+                        )
+                    },
+                )
+            ] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
+            )
+
+        schema_dict[
+            vol.Optional(
+                CONF_FLEXIBLE_PRICE_LIMIT,
+                description={"suggested_value": add_flexible.get(CONF_PRICE_LIMIT)},
+            )
+        ] = vol.Coerce(float)
+
+        if allow_dynamic_entities:
+            schema_dict[
+                vol.Optional(
+                    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+                    description={
+                        "suggested_value": add_flexible.get(CONF_PRICE_LIMIT_ENTITY)
+                    },
+                )
+            ] = selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
+            )
 
     schema_dict.update(
         {
@@ -619,6 +681,97 @@ def _validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str,
     )
     if price_errors:
         errors.update(price_errors)
+
+    return errors
+
+
+def _validate_and_build_add_flexible(
+    user_input: dict[str, Any],
+    mtu: int,
+) -> dict[str, str]:
+    """Validate flexible slot fields and assemble them into a nested dict.
+
+    The flat ``max_number_of_slots`` / ``flexible_price_limit`` UI fields (and
+    their entity variants) are validated and, on success, collapsed into a
+    nested ``add_flexible`` dict stored on ``user_input``. Both the max slots
+    and the price limit must be provided together, since one without the other
+    has no effect.
+    """
+    errors: dict[str, str] = {}
+
+    max_errors = _validate_and_clean_static_or_entity(
+        user_input,
+        CONF_MAX_NUMBER_OF_SLOTS,
+        CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+        "max_number_of_slots",
+        allow_both_empty=True,
+    )
+    errors.update(max_errors)
+
+    price_errors = _validate_and_clean_static_or_entity(
+        user_input,
+        CONF_FLEXIBLE_PRICE_LIMIT,
+        CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+        "flexible_price_limit",
+        allow_both_empty=True,
+    )
+    errors.update(price_errors)
+
+    if errors:
+        return errors
+
+    has_max = (
+        CONF_MAX_NUMBER_OF_SLOTS in user_input
+        or CONF_MAX_NUMBER_OF_SLOTS_ENTITY in user_input
+    )
+    has_price = (
+        CONF_FLEXIBLE_PRICE_LIMIT in user_input
+        or CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in user_input
+    )
+
+    if has_max != has_price:
+        errors["base"] = "add_flexible_incomplete"
+        return errors
+
+    max_slots = user_input.get(CONF_MAX_NUMBER_OF_SLOTS)
+    if max_slots is not None:
+        cap = 96 if mtu == 15 else 24
+        if max_slots < 1 or max_slots > cap:
+            errors[CONF_MAX_NUMBER_OF_SLOTS] = "max_number_of_slots_out_of_range"
+            return errors
+
+    # The flexible price limit only extends the base slots with cheaper ones, so
+    # a static flexible limit must stay below the regular (static) price limit.
+    flexible_price_limit = user_input.get(CONF_FLEXIBLE_PRICE_LIMIT)
+    price_limit = user_input.get(CONF_PRICE_LIMIT)
+    if (
+        flexible_price_limit is not None
+        and price_limit is not None
+        and flexible_price_limit >= price_limit
+    ):
+        errors[CONF_FLEXIBLE_PRICE_LIMIT] = "flexible_price_limit_not_below_price_limit"
+        return errors
+
+    add_flexible: dict[str, Any] = {}
+    if CONF_MAX_NUMBER_OF_SLOTS in user_input:
+        add_flexible[CONF_MAX_NUMBER_OF_SLOTS] = user_input.pop(
+            CONF_MAX_NUMBER_OF_SLOTS
+        )
+    if CONF_MAX_NUMBER_OF_SLOTS_ENTITY in user_input:
+        add_flexible[CONF_MAX_NUMBER_OF_SLOTS_ENTITY] = user_input.pop(
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY
+        )
+    if CONF_FLEXIBLE_PRICE_LIMIT in user_input:
+        add_flexible[CONF_PRICE_LIMIT] = user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT)
+    if CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in user_input:
+        add_flexible[CONF_PRICE_LIMIT_ENTITY] = user_input.pop(
+            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY
+        )
+
+    if add_flexible:
+        user_input[CONF_ADD_FLEXIBLE] = add_flexible
+    else:
+        user_input.pop(CONF_ADD_FLEXIBLE, None)
 
     return errors
 
@@ -889,14 +1042,33 @@ class CheapestHoursConfigFlowMixin:
         """Configure advanced cheapest hours settings."""
         errors: dict[str, str] = {}
 
+        sequential = self._config_data.get(CONF_SEQUENTIAL, False)
+
         if user_input is not None:
             allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
             if not allow_dynamic:
                 user_input.pop(CONF_TRIGGER_HOUR_ENTITY, None)
                 user_input.pop(CONF_PRICE_LIMIT_ENTITY, None)
+                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS_ENTITY, None)
+                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
             errors = _validate_advanced_integer_fields(user_input)
             advanced_errors = _validate_and_clean_advanced_fields(user_input)
             errors.update(advanced_errors)
+            if sequential:
+                # Flexible slots do not apply to sequential sensors; drop any
+                # flexible fields (including a previously stored config).
+                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS, None)
+                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS_ENTITY, None)
+                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
+                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
+                user_input.pop(CONF_ADD_FLEXIBLE, None)
+                self._config_data.pop(CONF_ADD_FLEXIBLE, None)
+            else:
+                flexible_errors = _validate_and_build_add_flexible(
+                    user_input,
+                    self._config_data.get(CONF_MTU) or 60,
+                )
+                errors.update(flexible_errors)
             if not errors:
                 use_offset = user_input.get(CONF_USE_OFFSET, False)
                 self._config_data.update(user_input)
@@ -940,7 +1112,7 @@ class CheapestHoursConfigFlowMixin:
         return self.async_show_form(
             step_id="cheapest_hours_advanced",
             data_schema=_get_cheapest_hours_advanced_schema(
-                existing_data or user_input, allow_dynamic
+                existing_data or user_input, allow_dynamic, sequential
             ),
             errors=errors,
         )
