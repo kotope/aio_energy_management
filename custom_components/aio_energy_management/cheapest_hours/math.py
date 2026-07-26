@@ -27,7 +27,7 @@ def calculate_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
-) -> dict:
+) -> (dict, bool):
     """Calculate sequential cheapest hours."""
     if (
         _is_cheapest_hours_input_valid(
@@ -157,7 +157,7 @@ def calculate_sequential_cheapest_hours(
     fd["extra"]["mean_price"] = mean_price
     fd["extra"]["max_price"] = max_price
     fd["extra"]["min_price"] = min_price
-    return fd
+    return (fd, not has_tomorrow)
 
 
 def calculate_non_sequential_cheapest_hours(
@@ -172,7 +172,7 @@ def calculate_non_sequential_cheapest_hours(
     mtu: int = 60,
     max_number_of_slots: int | None = None,
     flexible_price_limit: float | None = None,
-) -> dict:
+) -> (dict, bool):
     """Calculate non-sequential cheapest hours.
 
     When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
@@ -320,7 +320,7 @@ def calculate_non_sequential_cheapest_hours(
             iterate = False
 
     fd["list"] = data
-    return fd
+    return (fd, not has_tomorrow)
 
 
 def _select_flexible_slots(
