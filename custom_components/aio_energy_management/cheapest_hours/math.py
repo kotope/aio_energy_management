@@ -234,7 +234,7 @@ def calculate_non_sequential_cheapest_hours(
     # Check if an overnight window has been configured, to prevent undesired calculations
     if first_hour > last_hour and not has_tomorrow:
         _LOGGER.debug(
-            "Overnight window (%s:00 to %s:00) crosses midnight, but tomorrow's prices are not available yet. "
+            "Overnight window (first_hour=%s to last_hour=%s) crosses midnight, but tomorrow's prices are not available yet. "
             "Skipping calculation to preserve current calendar events",
             first_hour,
             last_hour,
