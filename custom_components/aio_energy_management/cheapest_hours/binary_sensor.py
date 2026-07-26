@@ -369,7 +369,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 cheapest.get("extra") or {},
             )
 
-        self._data["fetch_date"] = self._create_fetch_date()
+        self._data["fetch_date"] = self._create_fetch_date(today_only=today_only)
 
         # Finally store the data
         await self._store_data()
@@ -530,9 +530,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             hours=(0 if today_only else 24) + 1 + self._last_hour
         )
 
-    def _create_fetch_date(self) -> date:
+    def _create_fetch_date(self, today_only: bool = False) -> date:
         """Return fetch date."""
-        return dt_util.start_of_local_day().date()
+        # If today_only is True, return yesterdays date (mock the fetch for previous day), otherwise return today's date
+        return (
+            (dt_util.start_of_local_day() + timedelta(days=-1)).date()
+            if today_only
+            else dt_util.start_of_local_day().date()
+        )
 
     def _update_from_nordpool(self, requested_mtu: int = 60) -> tuple[list, list, int]:
         np = self.hass.states.get(self._nordpool_entity)
@@ -870,6 +875,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             raise SystemConfigurationError(
                 f"MTU value {self._mtu} does not match the actual data MTU {active_mtu} used by nord pool official integration. Please correct the configuration"
             )
+
         return (today, tomorrow, active_mtu)
 
     def _is_failsafe(self) -> bool:
