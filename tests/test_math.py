@@ -97,7 +97,7 @@ def tomorrow_valid() -> list:
 def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     """Test sequential."""
     # Start of tomorrow
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         3,
@@ -105,6 +105,7 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
         0,
         23,
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     assert np.size(lis) == 1
     assert lis[0]["start"] == datetime(
@@ -118,7 +119,7 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     assert result["extra"]["max_price"] == 2.967
 
     # Later tomorrow
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         3,
@@ -126,6 +127,7 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
         11,
         20,
     )
+    assert expires_today_only is False
     lis = result.get("list")
     assert np.size(lis) == 1
     assert lis[0]["start"] == datetime(
@@ -139,7 +141,7 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     assert result["extra"]["max_price"] == 4.774
 
     # Starting today
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         3,
@@ -147,6 +149,7 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
         21,
         18,
     )
+    assert expires_today_only is False
     lis = result.get("list")
     assert np.size(lis) == 1
     assert lis[0]["start"] == datetime(
@@ -164,9 +167,10 @@ def test_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
 def test_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     """Test sequential."""
     # Tomorrow expensive
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23, inversed=True
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     assert np.size(lis) == 1
     assert lis[0]["start"] == datetime(
@@ -180,9 +184,10 @@ def test_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     assert result["extra"]["max_price"] == 25.874
 
     # Starting today expensive
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, True, 21, 8, inversed=True
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     assert np.size(lis) == 1
     assert lis[0]["start"] == datetime(
@@ -200,9 +205,10 @@ def test_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
 def test_non_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
     """Test non-sequential."""
     last_hour = 18
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, last_hour
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     assert np.size(lis) == 2
     assert lis[0]["start"] == datetime(
@@ -227,9 +233,10 @@ def test_non_sequential_cheapest_hours(today_valid, tomorrow_valid) -> None:
 def test_non_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     """Test non-sequential."""
     # Tomorrow
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 18, inversed=True
     )
+    assert expires_today_only is False
 
     lis: list = result.get("list")
     assert np.size(lis) == 2
@@ -251,9 +258,10 @@ def test_non_sequential_expensive_hours(today_valid, tomorrow_valid) -> None:
     assert result["extra"]["max_price"] == 25.874
 
     # Also today
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, True, 18, 6, inversed=True
     )
+    assert expires_today_only is False
     lis = result.get("list")
     assert np.size(lis) == 3
     assert lis[0]["start"] == datetime(
@@ -313,9 +321,10 @@ def test_invalid_input(today_valid, tomorrow_valid) -> None:
 def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) -> None:
     """Test non-sequential with max price."""
     # Start of tomorrow
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
 
     # Should only find three items in two slots (10, 12, 13)
@@ -339,9 +348,10 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
     assert result["extra"]["max_price"] == 1.851
 
     # Test with zero values found as max_price set to very very low
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=0.1
     )
+    assert expires_today_only is False
     lis = result.get("list")
     assert np.size(lis) == 0
     assert result["extra"]["mean_price"] is None
@@ -353,9 +363,10 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
 def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) -> None:
     """Test non-sequential with max price."""
     # Start of tomorrow
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=4.75
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
 
     # Should only find two items (11, 14)
@@ -379,9 +390,10 @@ def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) ->
     assert result["extra"]["max_price"] == 25.874
 
     # Test with zero values found as min_price set to very very low
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=28
     )
+    assert expires_today_only is False
     lis = result.get("list")
     assert np.size(lis) == 0
     assert result["extra"]["mean_price"] is None
@@ -402,9 +414,10 @@ def test_sequential_cheapest_hours_price_limit(today_valid, tomorrow_valid) -> N
     assert result["extra"]["min_price"] is None
 
     # price_limit above mean → normal result
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=4.0
     )
+    assert expires_today_only is False
     assert len(result["list"]) == 1
     assert result["extra"]["mean_price"] is not None
 
@@ -420,7 +433,7 @@ def test_non_sequential_add_flexible_stops_at_limit(
     candidate (2.461) exceeds the limit so extension stops. The result is the
     same set of slots as requesting 3 fixed slots (10, 12, 13).
     """
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         2,
@@ -430,6 +443,7 @@ def test_non_sequential_add_flexible_stops_at_limit(
         max_number_of_slots=5,
         flexible_price_limit=1.9,
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     assert np.size(lis) == 2
     assert lis[0]["start"] == datetime(
@@ -454,7 +468,7 @@ def test_non_sequential_add_flexible_extends_by_max_extra_slots(
     today_valid, tomorrow_valid
 ) -> None:
     """max_number_of_slots counts extra slots added on top of the base slots."""
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         2,
@@ -464,6 +478,7 @@ def test_non_sequential_add_flexible_extends_by_max_extra_slots(
         max_number_of_slots=4,
         flexible_price_limit=3.0,
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     # Base 2 cheapest: 10 (1.547), 13 (1.71). Up to 4 extra slots are added while
     # each stays within 3.0: 12 (1.851), 1 (2.461), 3 (2.859), 2 (2.967). Total 6
@@ -485,7 +500,7 @@ def test_non_sequential_add_flexible_base_slots_ignore_flexible_limit(
     today_valid, tomorrow_valid
 ) -> None:
     """Base slots are always kept (subject only to price_limit), not the flexible limit."""
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         2,
@@ -496,6 +511,7 @@ def test_non_sequential_add_flexible_base_slots_ignore_flexible_limit(
         max_number_of_slots=5,
         flexible_price_limit=1.6,
     )
+    assert expires_today_only is False
     lis: list = result.get("list")
     # Base 10 (1.547) and 13 (1.71) are kept even though 13 exceeds the flexible
     # limit of 1.6; no extra slot is added since 12 (1.851) exceeds it too.
@@ -507,7 +523,7 @@ def test_non_sequential_add_flexible_base_slots_ignore_flexible_limit(
 @freeze_time("2024-07-22 14:25+03:00")
 def test_non_sequential_add_flexible_inversed(today_valid, tomorrow_valid) -> None:
     """Flexible extension works for inversed (expensive) calculation."""
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         2,
@@ -518,6 +534,7 @@ def test_non_sequential_add_flexible_inversed(today_valid, tomorrow_valid) -> No
         max_number_of_slots=5,
         flexible_price_limit=4.6,
     )
+    assert expires_today_only is False
     # Base 11 (25.874), 14 (4.774); extra 15 (4.706) is >= 4.6 so added; the
     # next candidate 16 (4.598) is below 4.6 so extension stops.
     assert result["extra"]["mean_price"] == 11.784666666666666
@@ -530,13 +547,13 @@ def test_non_sequential_add_flexible_noop_without_both_params(
     today_valid, tomorrow_valid
 ) -> None:
     """Without both max and flexible price limit the base slots are returned."""
-    base = calculate_non_sequential_cheapest_hours(
+    base, base_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 2, False, 0, 23
     )
-    only_max = calculate_non_sequential_cheapest_hours(
+    only_max, only_max_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 2, False, 0, 23, max_number_of_slots=5
     )
-    only_limit = calculate_non_sequential_cheapest_hours(
+    only_limit, only_limit_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         2,
@@ -545,6 +562,9 @@ def test_non_sequential_add_flexible_noop_without_both_params(
         23,
         flexible_price_limit=1.9,
     )
+    assert base_expires_today_only is False
+    assert only_max_expires_today_only is False
+    assert only_limit_expires_today_only is False
     assert only_max["list"] == base["list"]
     assert only_limit["list"] == base["list"]
 
@@ -554,10 +574,10 @@ def test_non_sequential_add_flexible_max_smaller_than_base(
     today_valid, tomorrow_valid
 ) -> None:
     """max_number_of_slots may be smaller than number_of_slots (it is a count of extra slots)."""
-    base = calculate_non_sequential_cheapest_hours(
+    base, base_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23
     )
-    result = calculate_non_sequential_cheapest_hours(
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
         3,
@@ -567,6 +587,8 @@ def test_non_sequential_add_flexible_max_smaller_than_base(
         max_number_of_slots=2,
         flexible_price_limit=10.0,
     )
+    assert base_expires_today_only is False
+    assert expires_today_only is False
     # Base 3 slots (10, 12, 13) get 2 extra slots (1, 3) appended.
     assert result["list"] != base["list"]
     assert result["extra"]["min_price"] == 1.547
@@ -601,9 +623,10 @@ def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> 
     assert result["extra"]["min_price"] is None
 
     # price_limit below mean → normal result
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=5.0
     )
+    assert expires_today_only is False
     assert len(result["list"]) == 1
     assert result["extra"]["mean_price"] is not None
 
@@ -648,7 +671,7 @@ def test_cheapest_hours_scenarios(
 
     # Scenarios with valid data
     else:
-        result = calculate_non_sequential_cheapest_hours(
+        result, expires_today_only = calculate_non_sequential_cheapest_hours(
             today=today_valid,
             tomorrow=tomorrow_data,
             number_of_slots=3,
@@ -657,6 +680,7 @@ def test_cheapest_hours_scenarios(
             last_hour=last_hour,
         )
 
+        assert expires_today_only is (not pass_tomorrow)
         assert isinstance(result, dict)
         assert "list" in result
         assert "extra" in result

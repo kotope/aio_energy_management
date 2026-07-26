@@ -316,11 +316,12 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             today = self._apply_price_modifications(today, price_modifications)
             tomorrow = self._apply_price_modifications(tomorrow, price_modifications)
 
+        today_only = False
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
         try:
             if self._sequential:
-                cheapest = calculate_sequential_cheapest_hours(
+                (cheapest, today_only) = calculate_sequential_cheapest_hours(
                     today,
                     tomorrow,
                     self._data["active_number_of_slots"],
@@ -332,7 +333,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._mtu,
                 )
             else:
-                cheapest = calculate_non_sequential_cheapest_hours(
+                (cheapest, today_only) = calculate_non_sequential_cheapest_hours(
                     today,
                     tomorrow,
                     self._data["active_number_of_slots"],
@@ -356,7 +357,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if self._is_expired():
             self._set_list(
                 cheapest.get("list"),
-                self._create_expiration(),
+                self._create_expiration(today_only=today_only),
                 cheapest.get("extra"),
             )
         elif self._data["list"] != cheapest.get(
@@ -364,7 +365,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         ):  # Not expired, but data is not the same. Set to list_next
             self._set_next(
                 cheapest.get("list") or [],
-                self._create_expiration(),
+                self._create_expiration(today_only=today_only),
                 cheapest.get("extra") or {},
             )
 
@@ -523,9 +524,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         return {"start": start.time(), "end": end.time()}
 
-    def _create_expiration(self) -> datetime:
+    def _create_expiration(self, today_only: bool = False) -> datetime:
         """Calculate value expiration."""
-        return dt_util.start_of_local_day() + timedelta(hours=24 + 1 + self._last_hour)
+        return dt_util.start_of_local_day() + timedelta(
+            hours=(0 if today_only else 24) + 1 + self._last_hour
+        )
 
     def _create_fetch_date(self) -> date:
         """Return fetch date."""
