@@ -324,6 +324,20 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             tomorrow = self._apply_price_modifications(tomorrow, price_modifications)
 
         today_only = False
+
+        # Skip calculations if prices are not known yet for tomorrow
+        if (
+            not tomorrow
+            and self._data.get("today_only")
+            and not self._is_expired()
+            and self._data.get("list")
+        ):
+            _LOGGER.debug(
+                "Skipping calculation for %s: tomorrow prices not available yet and today's calculation is still valid",
+                self._attr_unique_id,
+            )
+            return
+
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
         # Calculate cheapest hours
@@ -354,7 +368,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data.get("active_max_number_of_slots"),
                     self._data.get("active_flexible_price_limit"),
                 )
-        except (InvalidInput, ValueNotFound):
+        except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
@@ -380,6 +394,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 cheapest.get("extra") or {},
             )
 
+        self._data["today_only"] = today_only
         self._data["fetch_date"] = self._create_fetch_date(today_only=today_only)
 
         # Finally store the data
