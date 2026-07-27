@@ -218,15 +218,19 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             _LOGGER.error("Failed to get values from external entities!")
             return
 
+        # Check if update is allowed by local rules (trigger time)
         if self._is_allowed_to_update() is False:
             _LOGGER.debug("Update not allowed by set rules")
             return
 
+        # Create entity failsafe from configuration
         self._data["failsafe"] = self._create_failsafe()
 
         # Price array from integrations
         today: list = None
         tomorrow: list = None
+
+        # Update from nordpool official
         if self._nordpool_official_config_entry is not None:
             try:
                 (
@@ -250,6 +254,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data["list"] = []
                 return
 
+        # Update from nordpool custom component
         elif self._nordpool_entity is not None:
             # Update from nordpool
             try:
@@ -270,6 +275,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data["list"] = []
                 return
 
+        # Update from entsoe
         elif self._entsoe_entity is not None:
             # Update from entsoe
             try:
@@ -290,6 +296,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data["list"] = []
                 return
 
+        # Update from stromligning
         elif self._stromligning_entity is not None:
             # Update from Strømligning
             try:
@@ -319,6 +326,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         today_only = False
         # today and tomorrow are lists of HourPrice objects from now on
         # Use proper method if sequential or non-sequential
+        # Calculate cheapest hours
         try:
             if self._sequential:
                 (cheapest, today_only) = calculate_sequential_cheapest_hours(
@@ -360,6 +368,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 self._create_expiration(today_only=today_only),
                 cheapest.get("extra"),
             )
+        elif self._data["list"] == cheapest.get("list"):
+            # Data is the same. Do nothing
+            return
         elif self._data["list"] != cheapest.get(
             "list"
         ):  # Not expired, but data is not the same. Set to list_next
