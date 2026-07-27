@@ -2283,14 +2283,21 @@ async def test_skip_calculation_when_today_only(
     await sensor.async_update()
 
     # Check if first run has set 'today_only' to True and created a list.
-    assert sensor._data.get("today_only") is True
-    assert len(sensor._data.get("list", [])) > 0
+    assert sensor._data.get("today_only") is True, (
+        "today_only is False. Exptected True."
+    )
+    assert len(sensor._data.get("list", [])) > 0, (
+        "De list is empty after first run. Sensor should have shown prices of today."
+    )
 
     freezer.move_to("2025-03-14 10:15+03:00")
 
-    with patch.object(sensor, "_store_data", wraps=sensor._store_data) as mock_store:
+    with patch(
+        "custom_components.aio_energy_management.binary_sensor.calculate_non_sequential_cheapest_hours",
+        create=True,
+    ) as mock_calc:
         # Second run:
         await sensor.async_update()
 
-        # Verification: _store_data must not have been called.
-        mock_store.assert_not_called()
+        # Verification: mock_calc must not have been called.
+        mock_calc.assert_not_called()
