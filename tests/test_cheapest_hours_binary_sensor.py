@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import json
-from unittest.mock import AsyncMock, PropertyMock
+from unittest.mock import AsyncMock, PropertyMock, patch
 import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
@@ -26,6 +26,7 @@ from pytest_homeassistant_custom_component.common import load_fixture
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
 from homeassistant.helpers.template import Template
+from homeassistant.helpers.entity_component import async_update_entity
 from homeassistant.exceptions import ServiceValidationError
 import homeassistant.util.dt as dt_util
 
@@ -2251,3 +2252,55 @@ async def test_cheapest_hours_add_flexible_dynamic_entities(
     assert _covered_hours(attributes) == 6.0
     assert attributes["max_number_of_slots"] == "input_number.max_slots"
     assert attributes["flexible_price_limit"] == "input_number.flex_limit"
+
+
+async def test_skip_calculation_when_today_only(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """Test if calculations are being skipped if only prices of 'today' are available."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="test_skip_sensor",
+        name="Test Skip Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        coordinator=_setup_coordinator_mock(),
+    )
+
+    # Force first run to have no price data for tomorrow.
+    real_update = sensor._update_from_nordpool
+
+    def mock_nordpool_today_only(requested_mtu=None):
+        today, _, mtu = real_update(requested_mtu=requested_mtu)
+        return today, None, mtu  # tomorrow is None
+
+    with patch.object(
+        sensor, "_update_from_nordpool", side_effect=mock_nordpool_today_only
+    ):
+        # 2. First update: do regular calculation.
+        await sensor.async_update()
+
+    # Check if first run has set 'today_only' to True and created a list.
+    assert sensor._data.get("today_only") is True
+    assert len(sensor._data.get("list", [])) > 0
+
+    freezer.move_to("2024-07-13 14:40+03:00")
+
+    with (
+        patch.object(
+            sensor, "_update_from_nordpool", side_effect=mock_nordpool_today_only
+        ),
+        patch.object(sensor, "_store_data", wraps=sensor._store_data) as mock_store,
+    ):
+        # 4. Second run:
+        await sensor.async_update()
+
+        # 5. Verification: _store_data must not have been called.
+        mock_store.assert_not_called()
