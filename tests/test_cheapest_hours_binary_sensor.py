@@ -2258,12 +2258,17 @@ async def test_skip_calculation_when_today_only(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
 ) -> None:
     """Test if calculations are being skipped if only prices of 'today' are available."""
-    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
-    freezer.move_to("2024-07-13 14:25+03:00")
+    _setup_nordpool_official_mock(
+        hass,
+        "nordpool_official_service_15min_yesterday.json",
+        "nordpool_official_service_15min_today.json",
+        "nordpool_official_service_empty.json",
+    )
+    freezer.move_to("2025-03-14 10:00+03:00")
 
     sensor = CheapestHoursBinarySensor(
         hass=hass,
-        nordpool_entity="sensor.nordpool",
+        nordpool_official_config_entry="DUMMY",
         unique_id="test_skip_sensor",
         name="Test Skip Sensor",
         first_hour=18,
@@ -2275,32 +2280,17 @@ async def test_skip_calculation_when_today_only(
     )
 
     # Force first run to have no price data for tomorrow.
-    real_update = sensor._update_from_nordpool
-
-    def mock_nordpool_today_only(requested_mtu=None):
-        today, _, mtu = real_update(requested_mtu=requested_mtu)
-        return today, None, mtu  # tomorrow is None
-
-    with patch.object(
-        sensor, "_update_from_nordpool", side_effect=mock_nordpool_today_only
-    ):
-        # 2. First update: do regular calculation.
-        await sensor.async_update()
+    await sensor.async_update()
 
     # Check if first run has set 'today_only' to True and created a list.
     assert sensor._data.get("today_only") is True
     assert len(sensor._data.get("list", [])) > 0
 
-    freezer.move_to("2024-07-13 14:40+03:00")
+    freezer.move_to("2025-03-14 10:15+03:00")
 
-    with (
-        patch.object(
-            sensor, "_update_from_nordpool", side_effect=mock_nordpool_today_only
-        ),
-        patch.object(sensor, "_store_data", wraps=sensor._store_data) as mock_store,
-    ):
-        # 4. Second run:
+    with patch.object(sensor, "_store_data", wraps=sensor._store_data) as mock_store:
+        # Second run:
         await sensor.async_update()
 
-        # 5. Verification: _store_data must not have been called.
+        # Verification: _store_data must not have been called.
         mock_store.assert_not_called()
