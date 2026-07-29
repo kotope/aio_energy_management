@@ -685,3 +685,65 @@ def test_cheapest_hours_scenarios(
         assert "list" in result
         assert "extra" in result
         assert len(result["list"]) > 0
+
+
+@pytest.mark.parametrize(
+    "min_seq_slots, inversed, number_of_slots",
+    [
+        (1, False, 3),
+        (2, False, 3),
+        (3, False, 5),
+        (4, False, 10),
+    ],
+)
+def test_cheapest_hours_min_seq_slots_scenarios(
+    today_valid,
+    tomorrow_valid,
+    min_seq_slots,
+    inversed,
+    number_of_slots,
+) -> None:
+    """Test non-sequential cheapest/expensive hours respecting min_seq_slots."""
+
+    result, _ = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        min_seq_slots=min_seq_slots,
+        inversed=inversed,
+    )
+
+    # ------------------ PRINT STATEMENTS VOOR INZICHT ------------------
+    mode_str = "DUURSTE (inversed)" if inversed else "GOEDKOOPSTE"
+    print(f"\n\n================ SCENARIO TEST ================")
+    print(
+        f"Modus: {mode_str} | Min seq slots: {min_seq_slots} slots | Totaal slots: {number_of_slots}"
+    )
+    print(f"Aantal gevormde reeksen: {len(result['list'])}")
+    print(f"Gemiddelde prijs: {result['extra'].get('mean_price'):.4f}")
+    print("-" * 47)
+
+    for i, seq_slots in enumerate(result["list"], 1):
+        start_tijd = seq_slots["start"].strftime("%H:%M")
+        eind_tijd = seq_slots["end"].strftime("%H:%M")
+        duration_min = int((seq_slots["end"] - seq_slots["start"]).total_seconds() / 60)
+        slots = duration_min // 60
+
+        print(
+            f"  Reeks {i}: {start_tijd} -> {eind_tijd} ({slots} slots / {duration_min} min)"
+        )
+    print("===============================================")
+    # -------------------------------------------------------------------
+
+    assert isinstance(result, dict)
+    assert "list" in result
+    assert "extra" in result
+    assert len(result["list"]) > 0
+
+    for seq_slots in result["list"]:
+        duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
+        slots_count = int(duration_minutes / 60)
+        assert slots_count >= min_seq_slots
