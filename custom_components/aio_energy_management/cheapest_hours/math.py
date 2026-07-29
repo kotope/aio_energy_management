@@ -172,6 +172,7 @@ def calculate_non_sequential_cheapest_hours(
     mtu: int = 60,
     max_number_of_slots: int | None = None,
     flexible_price_limit: float | None = None,
+    min_block_size: int = 1,
 ) -> (dict, bool):
     """Calculate non-sequential cheapest hours.
 
@@ -269,7 +270,11 @@ def calculate_non_sequential_cheapest_hours(
             end = dt_util.start_of_local_day() + timedelta(hours=i + 1)
             data += [{"start": start, "end": end, "price": arr[i]["price"]}]
 
-    data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
+    # data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
+    # Kies de sloten op basis van de min_block_size (bijv. vast op 4 voor nu)
+    data = _select_slots_with_min_block_size(
+        data, number_of_slots, min_block_size=min_block_size, inversed=inversed
+    )
 
     data = _select_flexible_slots(
         data, number_of_slots, max_number_of_slots, flexible_price_limit, inversed
@@ -356,6 +361,80 @@ def _select_flexible_slots(
             break
         selected.append(slot)
     return selected
+
+
+def _select_slots_with_min_block_size(
+    data: list[dict],
+    number_of_slots: int,
+    min_block_size: int = 1,
+    inversed: bool = False,
+) -> list[dict]:
+    """Selecteert slots met behoud van min_block_size en inversed logica."""
+
+    # 1. ALS min_block_size == 1: behoud exact de originele werking
+    if min_block_size <= 1:
+        sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
+        return sorted_data[:number_of_slots]
+
+    # 2. ALS min_block_size > 1: gebruik de vermenigvuldigingsfactor voor inversed
+    mult = -1 if inversed else 1
+    total_available = len(data)
+    selected_indices: set[int] = set()
+    needed = number_of_slots
+
+    # Fase A: Kies volledige blokken van min_block_size
+    while needed >= min_block_size:
+        best_idx = -1
+        best_score = float("inf")
+
+        for i in range(total_available - min_block_size + 1):
+            window = set(range(i, i + min_block_size))
+            if window & selected_indices:
+                continue  # Sla over bij overlap
+
+            avg_price = sum(data[j]["price"] for j in window) / min_block_size
+            score = avg_price * mult
+
+            if score < best_score:
+                best_score = score
+                best_idx = i
+
+        if best_idx == -1:
+            break
+
+        selected_indices.update(range(best_idx, best_idx + min_block_size))
+        needed -= min_block_size
+
+    # Fase B: Vul restanten (< min_block_size) aan aan de randen van gekozen blokken
+    while needed > 0 and len(selected_indices) < total_available:
+        best_idx = -1
+        best_score = float("inf")
+
+        for i in range(total_available):
+            if i in selected_indices:
+                continue
+
+            # Check of het slot grenst aan een al gekozen slot
+            if (i - 1 in selected_indices) or (i + 1 in selected_indices):
+                score = data[i]["price"] * mult
+                if score < best_score:
+                    best_score = score
+                    best_idx = i
+
+        if best_idx != -1:
+            selected_indices.add(best_idx)
+            needed -= 1
+        else:
+            # Geen buren meer? Vul aan met de overgebleven beste losse slots
+            remaining = sorted(
+                [i for i in range(total_available) if i not in selected_indices],
+                key=lambda idx: data[idx]["price"] * mult,
+            )
+            selected_indices.update(remaining[:needed])
+            break
+
+    # Geef de geselecteerde items chronologisch terug
+    return [data[i] for i in sorted(selected_indices)]
 
 
 def _get_average(data: list) -> float | None:
