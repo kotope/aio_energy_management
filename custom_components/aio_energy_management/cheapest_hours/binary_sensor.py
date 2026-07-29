@@ -15,6 +15,7 @@ from ..const import (
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
+    INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS,
 )
 from ..coordinator import EnergyManagementCoordinator
 from ..enums import HourPriceType
@@ -327,7 +328,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Skip calculations if prices are not known yet for tomorrow
         if (
-            not tomorrow
+            (
+                not tomorrow
+                or len(tomorrow) < INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS
+            )
             and self._data.get("today_only")
             and not self._is_expired()
             and self._data.get("list")
@@ -643,7 +647,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             raise ValueNotFound
 
         raw_tomorrow = entsoe.attributes.get("prices_tomorrow")
-        if raw_tomorrow is None or len(raw_tomorrow) < 10:
+        if (
+            raw_tomorrow is None
+            or len(raw_tomorrow) < INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS
+        ):
             _LOGGER.debug(
                 "Not enough values for tomorrow in Entso-e entity %s (probably prices not yet published) ",
                 self._entsoe_entity,
