@@ -83,3 +83,6 @@ CONF_MINIMUM_OFF_TIME = "minimum_off_time"
 EXCESS_SOLAR_MANAGER = "excess_solar_manager"
 EXCESS_SOLAR_SWITCH = "excess_solar_switch"
 EXCESS_SOLAR_ENABLED_SWITCHES = "excess_solar_enabled_switches"
+
+# Internal consts
+INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS = 10
