@@ -172,7 +172,7 @@ def calculate_non_sequential_cheapest_hours(
     mtu: int = 60,
     max_number_of_slots: int | None = None,
     flexible_price_limit: float | None = None,
-    min_seq_slots: int = 1,
+    min_seq_slots: int = 1,  # defaults to 1 for backwards compatibility
 ) -> (dict, bool):
     """Calculate non-sequential cheapest hours.
 
@@ -270,20 +270,10 @@ def calculate_non_sequential_cheapest_hours(
             end = dt_util.start_of_local_day() + timedelta(hours=i + 1)
             data += [{"start": start, "end": end, "price": arr[i]["price"]}]
 
-    # data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
-
-    # data = _select_slots_with_min_seq_slot_size(
-    #     data, number_of_slots, min_seq_slots=min_seq_slots, inversed=inversed
-    # )
-
-    # data = _select_flexible_slots(
-    #     data, number_of_slots, max_number_of_slots, flexible_price_limit, inversed
-    # )
-
-    # Bewaar de volledige pool van beschikbare slots in de window
+    # Save all available slots unsorted --> replaced data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
     all_window_slots = list(data)
 
-    # 1. Selecteer basis slots volgens min_seq_slots logica
+    # Select base slots according to min_seq_slots info.
     base_slots = _select_slots_with_min_seq_slot_size(
         all_window_slots,
         number_of_slots,
@@ -291,7 +281,7 @@ def calculate_non_sequential_cheapest_hours(
         inversed=inversed,
     )
 
-    # 2. Vul eventueel aan met flexibele slots uit de overgebleven kandidaten
+    # 2. Extend base slots with possible flexible slots according to flexible_price_limit
     data = _select_flexible_slots(
         all_window_slots,
         base_slots,
@@ -311,7 +301,7 @@ def calculate_non_sequential_cheapest_hours(
     fd["extra"]["max_price"] = _get_max(data)
     fd["extra"]["min_price"] = _get_min(data)
 
-    # Combine sequantial slots
+    # Combine sequential slots
     iterate = True
     while iterate is True:
         matched = False
@@ -349,41 +339,6 @@ def calculate_non_sequential_cheapest_hours(
     return (fd, not has_tomorrow)
 
 
-# def _select_flexible_slots(
-#     data: list,
-#     number_of_slots: int,
-#     max_number_of_slots: int | None,
-#     flexible_price_limit: float | None,
-#     inversed: bool,
-# ) -> list:
-#     """Select base slots and optionally extend them with flexible slots.
-
-#     ``data`` must already be sorted from best to worst price. The base
-#     ``number_of_slots`` slots are always selected (the caller applies the
-#     regular ``price_limit`` to them afterwards). When both
-#     ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
-#     ``max_number_of_slots`` additional slots are appended while their price
-#     stays within ``flexible_price_limit``, for at most
-#     ``number_of_slots + max_number_of_slots`` slots in total.
-#     """
-#     if max_number_of_slots is None or flexible_price_limit is None:
-#         return data[:number_of_slots]
-
-#     selected = data[:number_of_slots]
-#     flexible_end = number_of_slots + max_number_of_slots
-#     for slot in data[number_of_slots:flexible_end]:
-#         within_limit = (
-#             slot["price"] >= flexible_price_limit
-#             if inversed
-#             else slot["price"] <= flexible_price_limit
-#         )
-#         if not within_limit:
-#             # Data is sorted, so no later slot can satisfy the limit either.
-#             break
-#         selected.append(slot)
-#     return selected
-
-
 def _select_flexible_slots(
     all_slots: list[dict],
     base_slots_or_count: list[dict] | int,
@@ -393,29 +348,29 @@ def _select_flexible_slots(
 ) -> list[dict]:
     """Select base slots and optionally extend them with flexible slots.
 
-    ``data`` must already be sorted from best to worst price. The base
-    ``number_of_slots`` slots are always selected (the caller applies the
+    The base ``number_of_slots`` slots are always selected (the caller applies the
     regular ``price_limit`` to them afterwards). When both
     ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
     ``max_number_of_slots`` additional slots are appended while their price
     stays within ``flexible_price_limit``, for at most
     ``number_of_slots + max_number_of_slots`` slots in total.
     """
-    if max_number_of_slots is None or flexible_price_limit is None:
-        if isinstance(base_slots_or_count, int):
-            return all_slots[:base_slots_or_count]
-        return base_slots_or_count
+    mult = -1 if inversed else 1
 
-    # Support both base_slots and int (for backwards compatibility)
+    # Support both base_slots (list) and int (for backwards compatibility)
     if isinstance(base_slots_or_count, int):
-        selected = list(all_slots[:base_slots_or_count])
-        base_starts = {s["start"] for s in selected}
+        selected = sorted(all_slots, key=lambda x: (x["price"] * mult, x["start"]))[
+            :base_slots_or_count
+        ]
     else:
         selected = list(base_slots_or_count)
-        base_starts = {s["start"] for s in selected}
 
-    # Which slots of the day are NOT part of a already chosen slot?
-    mult = -1 if inversed else 1
+    if max_number_of_slots is None or flexible_price_limit is None:
+        return selected
+
+    base_starts = {s["start"] for s in selected}
+
+    # Which slots of the day are NOT part of an already chosen slot?
     remaining_candidates = sorted(
         [s for s in all_slots if s["start"] not in base_starts],
         key=lambda x: (x["price"] * mult, x["start"]),
@@ -441,20 +396,20 @@ def _select_slots_with_min_seq_slot_size(
     min_seq_slots: int = 1,
     inversed: bool = False,
 ) -> list[dict]:
-    """Selecteert slots met behoud van min_seq_slots en inversed logica."""
+    """Select base slots with min_seq_slots and inversed logic."""
 
-    # 1. ALS min_seq_slots == 1: behoud exact de originele werking
+    # IF min_seq_slots == 1: keep original behavior
     if min_seq_slots <= 1:
         sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
         return sorted_data[:number_of_slots]
 
-    # 2. ALS min_seq_slots > 1: gebruik de vermenigvuldigingsfactor voor inversed
+    # IF min_seq_slots > 1: set inversed * -1 to keep inversed functionality
     mult = -1 if inversed else 1
     total_available = len(data)
     selected_indices: set[int] = set()
     needed = number_of_slots
 
-    # Fase A: Kies volledige blokken van min_seq_slots
+    # Phase A: Select blocks based on min_seq_slots
     while needed >= min_seq_slots:
         best_idx = -1
         best_score = float("inf")
@@ -462,7 +417,7 @@ def _select_slots_with_min_seq_slot_size(
         for i in range(total_available - min_seq_slots + 1):
             window = set(range(i, i + min_seq_slots))
             if window & selected_indices:
-                continue  # Sla over bij overlap
+                continue  # Continue on overlapping slots which are already part of the selected_indices
 
             avg_price = sum(data[j]["price"] for j in window) / min_seq_slots
             score = avg_price * mult
@@ -477,7 +432,7 @@ def _select_slots_with_min_seq_slot_size(
         selected_indices.update(range(best_idx, best_idx + min_seq_slots))
         needed -= min_seq_slots
 
-    # Fase B: Vul restanten (< min_seq_slots) aan aan de randen van gekozen blokken
+    # Phase B: Add remaining slots to the current borders of selected slots to keep the min_seq_slots rule.
     while needed > 0 and len(selected_indices) < total_available:
         best_idx = -1
         best_score = float("inf")
@@ -486,7 +441,7 @@ def _select_slots_with_min_seq_slot_size(
             if i in selected_indices:
                 continue
 
-            # Check of het slot grenst aan een al gekozen slot
+            # Check if selected slot is next to an already chosen slot
             if (i - 1 in selected_indices) or (i + 1 in selected_indices):
                 score = data[i]["price"] * mult
                 if score < best_score:
@@ -497,7 +452,7 @@ def _select_slots_with_min_seq_slot_size(
             selected_indices.add(best_idx)
             needed -= 1
         else:
-            # Geen buren meer? Vul aan met de overgebleven beste losse slots
+            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots. This could happen when min_seq_slots is higher than number_of_slots
             remaining = sorted(
                 [i for i in range(total_available) if i not in selected_indices],
                 key=lambda idx: data[idx]["price"] * mult,
@@ -505,7 +460,6 @@ def _select_slots_with_min_seq_slot_size(
             selected_indices.update(remaining[:needed])
             break
 
-    # Geef de geselecteerde items chronologisch terug
     return [data[i] for i in sorted(selected_indices)]
 
 
