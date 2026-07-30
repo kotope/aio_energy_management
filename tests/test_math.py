@@ -51,6 +51,49 @@ def today_valid() -> list:
 
 
 @pytest.fixture
+def today_valid2() -> list:
+    """Fixture of today prices."""
+    return [
+        HourPrice(3.809, datetime.strptime("2025-01-02 00:00", "%Y-%m-%d %H:%M")),  # 0
+        HourPrice(3.435, datetime.strptime("2025-01-02 01:00", "%Y-%m-%d %H:%M")),  # 1
+        HourPrice(3.295, datetime.strptime("2025-01-02 02:00", "%Y-%m-%d %H:%M")),  # 2
+        HourPrice(3.169, datetime.strptime("2025-01-02 03:00", "%Y-%m-%d %H:%M")),  # 3
+        HourPrice(3.08, datetime.strptime("2025-01-02 04:00", "%Y-%m-%d %H:%M")),  # 4
+        HourPrice(3.16, datetime.strptime("2025-01-02 05:00", "%Y-%m-%d %H:%M")),  # 5
+        HourPrice(3.355, datetime.strptime("2025-01-02 06:00", "%Y-%m-%d %H:%M")),  # 6
+        HourPrice(10.436, datetime.strptime("2025-01-02 07:00", "%Y-%m-%d %H:%M")),  # 7
+        HourPrice(10.752, datetime.strptime("2025-01-02 08:00", "%Y-%m-%d %H:%M")),  # 8
+        HourPrice(10.768, datetime.strptime("2025-01-02 09:00", "%Y-%m-%d %H:%M")),  # 9
+        HourPrice(3.577, datetime.strptime("2025-01-02 10:00", "%Y-%m-%d %H:%M")),  # 10
+        HourPrice(3.549, datetime.strptime("2025-01-02 11:00", "%Y-%m-%d %H:%M")),  # 11
+        HourPrice(3.463, datetime.strptime("2025-01-02 12:00", "%Y-%m-%d %H:%M")),  # 12
+        HourPrice(3.6, datetime.strptime("2025-01-02 13:00", "%Y-%m-%d %H:%M")),  # 13
+        HourPrice(3.585, datetime.strptime("2025-01-02 14:00", "%Y-%m-%d %H:%M")),  # 14
+        HourPrice(3.541, datetime.strptime("2025-01-02 15:00", "%Y-%m-%d %H:%M")),  # 15
+        HourPrice(
+            10.229, datetime.strptime("2025-01-02 16:00", "%Y-%m-%d %H:%M")
+        ),  # 16
+        HourPrice(
+            10.019, datetime.strptime("2025-01-02 17:00", "%Y-%m-%d %H:%M")
+        ),  # 17
+        HourPrice(
+            10.287, datetime.strptime("2025-01-02 18:00", "%Y-%m-%d %H:%M")
+        ),  # 18 Expensive
+        HourPrice(
+            10.369, datetime.strptime("2025-01-02 19:00", "%Y-%m-%d %H:%M")
+        ),  # 19
+        HourPrice(
+            10.435, datetime.strptime("2025-01-02 20:00", "%Y-%m-%d %H:%M")
+        ),  # 20
+        HourPrice(
+            0.434, datetime.strptime("2025-01-02 21:00", "%Y-%m-%d %H:%M")
+        ),  # 21, Cheap
+        HourPrice(1.391, datetime.strptime("2025-01-02 22:00", "%Y-%m-%d %H:%M")),  # 22
+        HourPrice(2.567, datetime.strptime("2025-01-02 23:00", "%Y-%m-%d %H:%M")),  # 23
+    ]
+
+
+@pytest.fixture
 def tomorrow_valid() -> list:
     """Fixture of tomorrow prices."""
     return [
@@ -688,25 +731,30 @@ def test_cheapest_hours_scenarios(
 
 
 @pytest.mark.parametrize(
-    "min_seq_slots, inversed, number_of_slots",
+    "min_seq_slots, inversed, number_of_slots, expected_ranges",
     [
-        (1, False, 3),
-        (2, False, 3),
-        (3, False, 5),
-        (4, False, 10),
+        # Scenario 1: Test default behavior
+        (1, False, 3, [("10:00", "11:00"), ("12:00", "14:00")]),
+        # Scenario 2: Test with non divisible min_seq_slots
+        (2, False, 3, [("12:00", "15:00")]),
+        # Scenario 3: Test with non divisible min_seq_slots 2
+        (3, False, 5, [("01:00", "06:00")]),
+        # Scenario 4: Slots expected during nighttime and during daytime
+        (4, False, 10, [("00:00", "06:00"), ("12:00", "16:00")]),
     ],
 )
 def test_cheapest_hours_min_seq_slots_scenarios(
-    today_valid,
+    today_valid2,
     tomorrow_valid,
     min_seq_slots,
     inversed,
     number_of_slots,
+    expected_ranges: list[tuple[str, str]],
 ) -> None:
     """Test non-sequential cheapest/expensive hours respecting min_seq_slots."""
 
     result, _ = calculate_non_sequential_cheapest_hours(
-        today=today_valid,
+        today=today_valid2,
         tomorrow=tomorrow_valid,
         number_of_slots=number_of_slots,
         starting_today=False,
@@ -716,27 +764,17 @@ def test_cheapest_hours_min_seq_slots_scenarios(
         inversed=inversed,
     )
 
-    # ------------------ PRINT STATEMENTS VOOR INZICHT ------------------
-    mode_str = "DUURSTE (inversed)" if inversed else "GOEDKOOPSTE"
-    print(f"\n\n================ SCENARIO TEST ================")
-    print(
-        f"Modus: {mode_str} | Min seq slots: {min_seq_slots} slots | Totaal slots: {number_of_slots}"
-    )
-    print(f"Aantal gevormde reeksen: {len(result['list'])}")
-    print(f"Gemiddelde prijs: {result['extra'].get('mean_price'):.4f}")
-    print("-" * 47)
-
-    for i, seq_slots in enumerate(result["list"], 1):
-        start_tijd = seq_slots["start"].strftime("%H:%M")
-        eind_tijd = seq_slots["end"].strftime("%H:%M")
-        duration_min = int((seq_slots["end"] - seq_slots["start"]).total_seconds() / 60)
-        slots = duration_min // 60
-
-        print(
-            f"  Reeks {i}: {start_tijd} -> {eind_tijd} ({slots} slots / {duration_min} min)"
+    # Format outcomes to readable time windows
+    actual_ranges = [
+        (
+            seq_slots["start"].strftime("%H:%M"),
+            seq_slots["end"].strftime("%H:%M"),
         )
-    print("===============================================")
-    # -------------------------------------------------------------------
+        for seq_slots in result["list"]
+    ]
+
+    # Check if outcomes meet expectations
+    assert actual_ranges == expected_ranges
 
     assert isinstance(result, dict)
     assert "list" in result
