@@ -93,6 +93,7 @@ Configuration parameters are shown below:
 | last_hour        | yes       | Last hour used by cheapest hours calculation |
 | starting_today   | no       | First_hour should be already on the same day. False if next day calculations only (**depreceted** determined automatically since 0.9.0) |
 | sequential       | yes       | True if trying to calculate sequential cheapest hours timeframe. False if multiple values are acceptable. |
+| min_seq_slots    | no        | Minimum number of continuous slots for non-sequential calculations. Ensures that selected hours are grouped in blocks of at least this size (e.g., minimum 2 hours per run). Defaults to 1. |
 | failsafe_starting_hour | no        | If for some reason Nord Pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
@@ -200,6 +201,11 @@ aio_energy_management:
           max_number_of_slots: 21
           price_limit: 0.05
 ```
+
+### Minimum Sequential Slots (min_seq_slots)
+When using a **non-sequential** sensor (`sequential: false`), you might still want your devices to run in chunks rather than bouncing on and off every 15 minutes or hour, depending on your MTU. By setting `min_seq_slots`, you force the algorithm to select continuous blocks of at least this size. If `number_of_slots` is not evenly divisible by `min_seq_slots`, any remaining slots will be attached to already existing blocks to strictly maintain the minimum block size rule.
+
+*Example for 15-min MTU: If you need 4 hours in total (`number_of_slots: 16`) but want them in blocks of at least 1 hour, set `min_seq_slots: 4`. The algorithm will find the cheapest combinations of 1-hour (or larger) blocks.*
 
 ### Price modifications
 Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.

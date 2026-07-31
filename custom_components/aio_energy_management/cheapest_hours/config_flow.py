@@ -35,6 +35,7 @@ from ..const import (
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MIN_SEQ_SLOTS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -383,8 +384,19 @@ def _get_cheapest_hours_advanced_schema(
             selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
         )
 
-    # Flexible slots only make sense for non-sequential sensors.
+    # Flexible and continuous slots only make sense for non-sequential sensors.
     if not sequential:
+        schema_dict[
+            vol.Optional(
+                CONF_MIN_SEQ_SLOTS,
+                description={
+                    "suggested_value": user_input.get(CONF_MIN_SEQ_SLOTS)
+                    if user_input
+                    else None
+                },
+            )
+        ] = int
+
         add_flexible = (user_input or {}).get(CONF_ADD_FLEXIBLE) or {}
 
         schema_dict[
@@ -879,6 +891,10 @@ def _validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, s
     if trigger_hour is not None and not (0 <= trigger_hour <= 23):
         errors[CONF_TRIGGER_HOUR] = "trigger_hour_out_of_range"
 
+    min_seq_slots = user_input.get(CONF_MIN_SEQ_SLOTS)
+    if min_seq_slots is not None and min_seq_slots < 1:
+        errors[CONF_MIN_SEQ_SLOTS] = "min_seq_slots_out_of_range"
+
     return errors
 
 
@@ -1055,7 +1071,7 @@ class CheapestHoursConfigFlowMixin:
             advanced_errors = _validate_and_clean_advanced_fields(user_input)
             errors.update(advanced_errors)
             if sequential:
-                # Flexible slots do not apply to sequential sensors; drop any
+                # Flexible and continuous slots do not apply to sequential sensors; drop any
                 # flexible fields (including a previously stored config).
                 user_input.pop(CONF_MAX_NUMBER_OF_SLOTS, None)
                 user_input.pop(CONF_MAX_NUMBER_OF_SLOTS_ENTITY, None)
@@ -1063,6 +1079,8 @@ class CheapestHoursConfigFlowMixin:
                 user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
                 user_input.pop(CONF_ADD_FLEXIBLE, None)
                 self._config_data.pop(CONF_ADD_FLEXIBLE, None)
+                user_input.pop(CONF_MIN_SEQ_SLOTS, None)
+                self._config_data.pop(CONF_MIN_SEQ_SLOTS, None)
             else:
                 flexible_errors = _validate_and_build_add_flexible(
                     user_input,

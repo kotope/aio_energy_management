@@ -373,7 +373,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._mtu,
                     self._data.get("active_max_number_of_slots"),
                     self._data.get("active_flexible_price_limit"),
-                    self._data.get("active_min_seq_slots"),
+                    self._data.get("active_min_seq_slots", 1),
                 )
         except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
@@ -978,6 +978,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 attrs["max_number_of_slots"] = max_slots
             if flexible_price_limit is not None:
                 attrs["flexible_price_limit"] = flexible_price_limit
+        if min_seq_slots := self._min_seq_slots:
+            attrs["min_seq_slots"] = min_seq_slots
 
         return attrs
 
@@ -1010,6 +1012,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["active_flexible_price_limit"] = self._float_from_entity(
                 flexible_price_limit
             )
+        if min_seq_slots := self._min_seq_slots:
+            self._data["active_min_seq_slots"] = self._int_from_entity(min_seq_slots)
 
     def _float_from_entity(self, entity_id) -> float | None:
         """Get float value from another entity."""
