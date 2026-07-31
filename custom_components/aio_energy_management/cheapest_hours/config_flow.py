@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers import selector
+from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 
 from ..const import (
@@ -150,7 +151,7 @@ def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema
 
 
 def _get_nordpool_official_schema(
-    hass,
+    hass: HomeAssistant,
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
     """Get Nord Pool official config entry ID schema."""
