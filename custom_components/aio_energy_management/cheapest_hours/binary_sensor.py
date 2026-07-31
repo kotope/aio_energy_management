@@ -373,7 +373,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._mtu,
                     self._data.get("active_max_number_of_slots"),
                     self._data.get("active_flexible_price_limit"),
-                    self._data.get("active_min_seq_slots", 1),
+                    self._data.get(
+                        "active_min_seq_slots", 1
+                    ),  # make sure it defaults to 1
                 )
         except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
