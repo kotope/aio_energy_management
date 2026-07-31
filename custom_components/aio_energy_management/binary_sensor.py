@@ -38,6 +38,7 @@ from .const import (
     CONF_NUMBER_OF_HOURS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MIN_SEQ_SLOTS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -74,6 +75,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Required(CONF_SEQUENTIAL): bool,
         vol.Optional(CONF_NUMBER_OF_HOURS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_NUMBER_OF_SLOTS): vol.Any(int, cv.entity_id),
+        vol.Optional(CONF_MIN_SEQ_SLOTS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_FAILSAFE_STARTING_HOUR): int,
         vol.Optional(CONF_INVERSED): bool,
         vol.Optional(CONF_TRIGGER_TIME): vol.All(vol.Coerce(str)),
@@ -122,7 +124,9 @@ async def async_setup_entry(
         return
 
     try:
-        entity = _create_cheapest_hours_entity(hass, entry.data)
+        # Merge data and options to make sure changes via UI are taking into account
+        config_data = {**entry.data, **entry.options}
+        entity = _create_cheapest_hours_entity(hass, config_data)
         async_add_entities([entity])
     except Exception as e:
         _LOGGER.error(
@@ -166,6 +170,7 @@ async def async_setup_platform(
 
     async_add_entities(entities)
 
+
 # Cheapest hours
 def _create_cheapest_hours_entity(
     hass: HomeAssistant, discovery_info: DiscoveryInfoType | None = None
@@ -187,6 +192,7 @@ def _create_cheapest_hours_entity(
     number_of_slots = discovery_info.get(
         CONF_NUMBER_OF_SLOTS_ENTITY
     ) or discovery_info.get(CONF_NUMBER_OF_SLOTS)
+    min_seq_slots = discovery_info.get(CONF_MIN_SEQ_SLOTS)
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
@@ -222,6 +228,7 @@ def _create_cheapest_hours_entity(
         starting_today=starting_today,
         number_of_hours=number_of_hours,
         number_of_slots=number_of_slots,
+        min_seq_slots=min_seq_slots,
         coordinator=hass.data[DOMAIN][COORDINATOR],
         sequential=sequential,
         failsafe_starting_hour=failsafe_starting_hour,

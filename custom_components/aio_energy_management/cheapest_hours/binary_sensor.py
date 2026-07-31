@@ -58,6 +58,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         coordinator: EnergyManagementCoordinator,
         number_of_hours=None,
         number_of_slots=None,
+        min_seq_slots=None,
         failsafe_starting_hour=None,
         inversed=False,
         entsoe_entity=None,
@@ -104,6 +105,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._failsafe_starting_hour = failsafe_starting_hour
         self._number_of_hours = number_of_hours
         self._number_of_slots = number_of_slots
+        self._min_seq_slots = min_seq_slots
         self._inversed = inversed
         self._trigger_time = None
         self._trigger_hour = trigger_hour
@@ -371,6 +373,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._mtu,
                     self._data.get("active_max_number_of_slots"),
                     self._data.get("active_flexible_price_limit"),
+                    self._data.get("active_min_seq_slots"),
                 )
         except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
