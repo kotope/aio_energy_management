@@ -27,7 +27,7 @@ def calculate_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
-) -> dict:
+) -> (dict, bool):
     """Calculate sequential cheapest hours."""
     if (
         _is_cheapest_hours_input_valid(
@@ -41,17 +41,30 @@ def calculate_sequential_cheapest_hours(
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
 
-    # Check daylight saivings
+    # Check daylight savings & TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
-    tm = _check_day_light_savings(tomorrow, mtu=mtu)
-
-    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
+    if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+            "Today's data provided for calculation has invalid amount of values"
         )
         raise ValueNotFound
 
-    # Function specific varialbes
+    # TOMORROW is optional
+    has_tomorrow = False
+    tm = []
+    if tomorrow:
+        try:
+            # Check daylight savings
+            tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
+            if _is_valid_data_length(tm_temp, mtu):
+                tm = tm_temp
+                has_tomorrow = True
+        except Exception:
+            _LOGGER.debug(
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only"
+            )
+
+    # Function specific variables
     prices = [item.value for item in td] + [item.value for item in tm]
     cheapest_price = MAX_PRICE_VALUE
     mean_price: float = 0.0
@@ -63,15 +76,42 @@ def calculate_sequential_cheapest_hours(
 
     cheapest_hour = dt_util.start_of_local_day()
     counter = 0.00
-    starting = first_hour
-    ending = last_hour + 1 + 24
 
-    if starting_today is False:
+    starting = first_hour
+    if not starting_today and has_tomorrow:
         starting = first_hour + 24
+
+    # Check if an overnight window has been configured, to prevent undesired calculations
+    if first_hour > last_hour and not has_tomorrow:
+        _LOGGER.debug(
+            "Overnight window first_hour=%s, last_hour=%s crosses midnight, but tomorrow's prices are not available yet. "
+            "Skipping calculation to preserve current calendar events",
+            first_hour,
+            last_hour,
+        )
+        raise ValueNotFound
+
+    if has_tomorrow:
+        ending = last_hour + 1 + 24
+    else:
+        ending = last_hour + 1
+
+    if starting >= ending:
+        _LOGGER.warning(
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)"
+        )
+        raise ValueNotFound
 
     if mtu == 15:
         starting = starting * 4
         ending = ending * 4
+
+    # Extra safety check if the number of slots fits within the amounts of slots we have.
+    if (starting + number_of_slots) > ending:
+        _LOGGER.warning(
+            "The search window is too small for the requested number of sequential slots (e.g. overnight window capped to today's end)"
+        )
+        raise ValueNotFound
 
     for i in range(starting + number_of_slots, ending + 1):
         counter = 0.0
@@ -117,7 +157,7 @@ def calculate_sequential_cheapest_hours(
     fd["extra"]["mean_price"] = mean_price
     fd["extra"]["max_price"] = max_price
     fd["extra"]["min_price"] = min_price
-    return fd
+    return (fd, not has_tomorrow)
 
 
 def calculate_non_sequential_cheapest_hours(
@@ -130,25 +170,53 @@ def calculate_non_sequential_cheapest_hours(
     inversed: bool = False,
     price_limit: float | None = None,
     mtu: int = 60,
-) -> dict:
-    """Calculate non-sequential cheapest hours."""
+    max_number_of_slots: int | None = None,
+    flexible_price_limit: float | None = None,
+) -> (dict, bool):
+    """Calculate non-sequential cheapest hours.
+
+    When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
+    the base ``number_of_slots`` cheapest slots are always selected (subject to
+    the regular ``price_limit``) and then extended with up to
+    ``max_number_of_slots`` additional next-cheapest slots while their individual
+    price stays below ``flexible_price_limit`` (above it when ``inversed``), for
+    at most ``number_of_slots + max_number_of_slots`` slots in total.
+    """
     if (
         _is_cheapest_hours_input_valid(
-            number_of_slots, starting_today, first_hour, last_hour, mtu
+            number_of_slots,
+            starting_today,
+            first_hour,
+            last_hour,
+            mtu,
+            max_number_of_slots,
         )
         is False
     ):
         _LOGGER.error("Invalid configuration for non-sequential cheapest hours sensor")
         raise InvalidInput
 
+    # TODAY is mandatory
     td = _check_day_light_savings(today, mtu=mtu)
-    tm = _check_day_light_savings(tomorrow, mtu=mtu)
-    # Ensure valid data length for items. mtu can be 15 or 60
-    if not _is_valid_data_length(td, mtu) or not _is_valid_data_length(tm, mtu):
+    if not _is_valid_data_length(td, mtu):
         _LOGGER.error(
-            "Data provided for calculation has invalid amount of values. This is most probably error in data provider"
+            "Today's data provided for calculation has invalid amount of values"
         )
         raise ValueNotFound
+
+    # TOMORROW is optional
+    has_tomorrow = False
+    tm = []
+    if tomorrow:
+        try:
+            tm_temp = _check_day_light_savings(tomorrow, mtu=mtu)
+            if _is_valid_data_length(tm_temp, mtu):
+                tm = tm_temp
+                has_tomorrow = True
+        except Exception:
+            _LOGGER.debug(
+                "Tomorrow's data is invalid or empty. Proceeding with today's data only"
+            )
 
     arr = [
         {
@@ -160,9 +228,30 @@ def calculate_non_sequential_cheapest_hours(
     ]  # combined array with tomorrow and today.
 
     starting = first_hour
-    if not starting_today:
+    if not starting_today and has_tomorrow:
         starting = first_hour + 24
-    ending = last_hour + 1 + 24
+
+    # Check if an overnight window has been configured, to prevent undesired calculations
+    if first_hour > last_hour and not has_tomorrow:
+        _LOGGER.debug(
+            "Overnight window (first_hour=%s to last_hour=%s) crosses midnight, but tomorrow's prices are not available yet. "
+            "Skipping calculation to preserve current calendar events",
+            first_hour,
+            last_hour,
+        )
+        raise ValueNotFound
+
+    if has_tomorrow:
+        ending = last_hour + 1 + 24
+    else:
+        ending = last_hour + 1
+
+    if starting >= ending:
+        _LOGGER.warning(
+            "No valid hours to check in the current window (possibly overnight window without tomorrow's prices yet)"
+        )
+        raise ValueNotFound
+
     data = []
     fd: dict = {}  # Final data dictionary
     fd["extra"] = {}
@@ -182,7 +271,9 @@ def calculate_non_sequential_cheapest_hours(
 
     data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
 
-    data = data[:number_of_slots]
+    data = _select_flexible_slots(
+        data, number_of_slots, max_number_of_slots, flexible_price_limit, inversed
+    )
     data.sort(key=lambda x: x["start"])
     if inversed:
         if mp := price_limit:
@@ -229,7 +320,42 @@ def calculate_non_sequential_cheapest_hours(
             iterate = False
 
     fd["list"] = data
-    return fd
+    return (fd, not has_tomorrow)
+
+
+def _select_flexible_slots(
+    data: list,
+    number_of_slots: int,
+    max_number_of_slots: int | None,
+    flexible_price_limit: float | None,
+    inversed: bool,
+) -> list:
+    """Select base slots and optionally extend them with flexible slots.
+
+    ``data`` must already be sorted from best to worst price. The base
+    ``number_of_slots`` slots are always selected (the caller applies the
+    regular ``price_limit`` to them afterwards). When both
+    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
+    ``max_number_of_slots`` additional slots are appended while their price
+    stays within ``flexible_price_limit``, for at most
+    ``number_of_slots + max_number_of_slots`` slots in total.
+    """
+    if max_number_of_slots is None or flexible_price_limit is None:
+        return data[:number_of_slots]
+
+    selected = data[:number_of_slots]
+    flexible_end = number_of_slots + max_number_of_slots
+    for slot in data[number_of_slots:flexible_end]:
+        within_limit = (
+            slot["price"] >= flexible_price_limit
+            if inversed
+            else slot["price"] <= flexible_price_limit
+        )
+        if not within_limit:
+            # Data is sorted, so no later slot can satisfy the limit either.
+            break
+        selected.append(slot)
+    return selected
 
 
 def _get_average(data: list) -> float | None:
@@ -257,6 +383,7 @@ def _is_cheapest_hours_input_valid(
     first_hour: int,
     last_hour: int,
     mtu: int,
+    max_number_of_slots: int | None = None,
 ) -> bool:
     if starting_today is False:
         if last_hour < first_hour:
@@ -265,12 +392,11 @@ def _is_cheapest_hours_input_valid(
         if first_hour < last_hour:
             return False
 
-    if mtu == 15:
-        if number_of_slots > 96:
-            return False
-    else:
-        if number_of_slots > 24:
-            return False
+    cap = 96 if mtu == 15 else 24
+    if number_of_slots > cap:
+        return False
+    if max_number_of_slots is not None and max_number_of_slots > cap:
+        return False
     return True
 
 
@@ -286,7 +412,11 @@ def _check_day_light_savings(
     if mtu == 15:
         if len(hours) == 92:
             result = _add_missing_hour(hours, inversed, mtu=mtu)
-            if len(result) == 92 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+            if (
+                len(result) == 92
+                and hours
+                and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL
+            ):
                 return _insert_at_local_dst_gap(result, count=4, inversed=inversed)
             return result
         if len(hours) == 100:
@@ -299,7 +429,11 @@ def _check_day_light_savings(
     #    23 consecutive items. Fall back to local wall-clock gap insertion.
     if len(hours) == 23:
         result = _add_missing_hour(hours, inversed, mtu=mtu)
-        if len(result) == 23 and hours and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL:
+        if (
+            len(result) == 23
+            and hours
+            and hours[0].type == HourPriceType.NORDPOOL_OFFICIAL
+        ):
             return _insert_at_local_dst_gap(result, count=1, inversed=inversed, mtu=mtu)
         return result
     if len(hours) == 25:
@@ -384,13 +518,17 @@ def _insert_at_local_dst_gap(
             for k in range(count):
                 hours.insert(
                     i + k,
-                    HourPrice(value=value, start=insert_start + timedelta(minutes=k * mtu)),
+                    HourPrice(
+                        value=value, start=insert_start + timedelta(minutes=k * mtu)
+                    ),
                 )
             return hours
         prev_local_minutes = local_minutes
     # Fallback: no gap found — pad at end.
     for _ in range(count):
-        hours.append(HourPrice(value=value, start=hours[-1].start + timedelta(minutes=mtu)))
+        hours.append(
+            HourPrice(value=value, start=hours[-1].start + timedelta(minutes=mtu))
+        )
     return hours
 
 
