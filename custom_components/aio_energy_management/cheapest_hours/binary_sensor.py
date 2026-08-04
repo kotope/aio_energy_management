@@ -738,7 +738,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             tomorrow_entity = self.hass.states.get(self._stromligning_tomorrow_entity)
             if tomorrow_entity is not None and tomorrow_entity.state == "on":
                 tomorrow_prices = tomorrow_entity.attributes.get("prices")
-                if tomorrow_prices is not None and len(tomorrow_prices) >= 10:
+                if (
+                    tomorrow_prices is not None
+                    and len(tomorrow_prices)
+                    >= INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS
+                ):
                     raw_tomorrow = tomorrow_prices
 
         if len(raw_tomorrow) == 0:
@@ -895,10 +899,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
             for item in tomorrow_prices
         ]
-        if len(today) < 10:
+        if len(today) < INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS:
             raise ValueNotFound
 
-        if len(tomorrow) < 10:
+        if len(tomorrow) < INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS:
             _LOGGER.debug(
                 "Tomorrow's prices are not yet available. "
                 "Calculations will proceed using today's data only."
