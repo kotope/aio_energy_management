@@ -16,14 +16,20 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import selector
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     SelectSelector,
     SelectSelectorConfig,
 )
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
-from .const import CONF_CALENDAR, CONF_ENTITY_EXCESS_SOLAR, CONF_UNIQUE_ID, DOMAIN
+from .const import (
+    CONF_CALENDAR,
+    CONF_ENABLE_CALENDAR,
+    CONF_ENTITY_EXCESS_SOLAR,
+    CONF_UNIQUE_ID,
+    DOMAIN,
+)
 from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
 
 _LOGGER = logging.getLogger(__name__)
@@ -120,7 +126,7 @@ class AIOEnergyManagementConfigFlow(
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title="AIO Global Settings",
+            title="Global Settings",
             data={
                 CONF_UNIQUE_ID: ENTRY_TYPE_GLOBAL_SETTINGS,
                 CONF_ENTRY_TYPE: ENTRY_TYPE_GLOBAL_SETTINGS,
@@ -188,22 +194,26 @@ class AIOEnergyManagementOptionsFlow(
     async def async_step_global_settings_options(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle form for global settings"""
+        """Manage global settings"""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        # Haal opgeslagen instellingen op (zoals de kalender boolean)
-        options = self._config_entry.options
+        current_options = {**self._config_entry.data, **self._config_entry.options}
+        current_enable_calendar = current_options.get(CONF_ENABLE_CALENDAR, False)
+        current_name = current_options.get(CONF_NAME, "Energy Management")
 
         return self.async_show_form(
             step_id="global_settings_options",
             data_schema=vol.Schema(
                 {
-                    # Hier bouw je in de toekomst ook de prijzen/btw velden in
+                    vol.Required(
+                        CONF_ENABLE_CALENDAR,
+                        default=current_enable_calendar,
+                    ): selector.BooleanSelector(),
                     vol.Optional(
-                        CONF_CALENDAR,
-                        default=options.get(CONF_CALENDAR, True),
-                    ): BooleanSelector(),
+                        CONF_NAME,
+                        default=current_name,
+                    ): selector.TextSelector(),
                 }
             ),
         )
