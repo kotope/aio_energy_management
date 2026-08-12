@@ -38,12 +38,17 @@ async def async_setup_entry(
     _LOGGER.debug("Create energy management calendar entity from config entry")
 
     try:
+        # Receive name and unique ID
+        name = entry.options.get(
+            CONF_NAME, entry.data.get(CONF_NAME, "Energy Management Calendar")
+        )
+        unique_id = entry.data.get(CONF_UNIQUE_ID, entry.entry_id)
         async_add_entities(
             [
                 EnergyManagementCalendar(
                     hass=hass,
-                    unique_id=entry.data[CONF_UNIQUE_ID],
-                    name=entry.data[CONF_NAME],
+                    unique_id=unique_id,
+                    name=name,
                     coordinator=hass.data[DOMAIN][COORDINATOR],
                 )
             ]
