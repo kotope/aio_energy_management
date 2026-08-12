@@ -23,6 +23,7 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_BUFFER,
+    CONF_CALENDAR,
     CONF_CONSUMPTION,
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
@@ -139,6 +140,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Services
         await async_setup_services(hass)
 
+    # Create Global settings automaticly on background
+    has_global_settings = any(
+        e.data.get("entry_type") == "global_settings"
+        for e in hass.config_entries.async_entries(DOMAIN)
+    )
+    if not has_global_settings:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "user"},
+                data={"entry_type": "global_settings"},
+            )
+        )
+
     # Determine which platform to set up based on entry type
     entry_type = entry.data.get("entry_type")
 
@@ -146,8 +161,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(
             entry, [Platform.BINARY_SENSOR]
         )
-    elif entry_type == CONF_ENTITY_CALENDAR:
-        await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
+    elif entry_type in (CONF_ENTITY_CALENDAR, "global_settings"):
+        if entry.options.get(CONF_CALENDAR, entry.data.get(CONF_CALENDAR, True)):
+            await hass.config_entries.async_forward_entry_setups(
+                entry, [Platform.CALENDAR]
+            )
+    # elif entry_type == CONF_ENTITY_CALENDAR:
+    #     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
     elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         await _async_setup_excess_solar_entry(hass, entry)
     else:
@@ -222,10 +242,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.BINARY_SENSOR]
         )
-    elif entry_type == CONF_ENTITY_CALENDAR:
+    elif entry_type in (CONF_ENTITY_CALENDAR, "global_settings"):
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.CALENDAR]
         )
+    # elif entry_type == CONF_ENTITY_CALENDAR:
+    #     unload_ok = await hass.config_entries.async_unload_platforms(
+    #         entry, [Platform.CALENDAR]
+    #     )
     elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
         manager = entry_data.get(EXCESS_SOLAR_MANAGER)

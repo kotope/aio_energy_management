@@ -16,7 +16,11 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
+from homeassistant.helpers.selector import (
+    BooleanSelector,
+    SelectSelector,
+    SelectSelectorConfig,
+)
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import CONF_CALENDAR, CONF_ENTITY_EXCESS_SOLAR, CONF_UNIQUE_ID, DOMAIN
@@ -25,7 +29,7 @@ from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
 _LOGGER = logging.getLogger(__name__)
 
 CONF_ENTRY_TYPE = "entry_type"
-ENTRY_TYPE_CALENDAR = "calendar"
+ENTRY_TYPE_GLOBAL_SETTINGS = "global_settings"
 
 
 def _get_calendar_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
@@ -72,13 +76,21 @@ class AIOEnergyManagementConfigFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle the initial step - select entry type."""
+        # Check if Global Settings already exists
+        has_global_settings = any(
+            entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_GLOBAL_SETTINGS
+            for entry in self._async_current_entries()
+        )
+
+        # Create Global Settings for new installations
+        if not has_global_settings:
+            return await self.async_step_global_settings()
+
         if user_input is not None:
             self._entry_type = user_input[CONF_ENTRY_TYPE]
 
             if self._entry_type == ENTRY_TYPE_CHEAPEST_HOURS:
                 return await self.async_step_cheapest_hours_data_provider()
-            if self._entry_type == ENTRY_TYPE_CALENDAR:
-                return await self.async_step_calendar()
             if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
                 return await self.async_step_excess_solar_global()
 
@@ -90,8 +102,8 @@ class AIOEnergyManagementConfigFlow(
                         SelectSelectorConfig(
                             options=[
                                 ENTRY_TYPE_CHEAPEST_HOURS,
-                                ENTRY_TYPE_CALENDAR,
                                 CONF_ENTITY_EXCESS_SOLAR,
+                                ENTRY_TYPE_GLOBAL_SETTINGS,
                             ],
                             translation_key="entry_type",
                         )
@@ -100,30 +112,45 @@ class AIOEnergyManagementConfigFlow(
             ),
         )
 
-    async def async_step_calendar(
+    async def async_step_global_settings(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure calendar. Only one calendar entry is allowed."""
-        # Use a fixed unique ID so only a single calendar entry can ever be created.
-        await self.async_set_unique_id(ENTRY_TYPE_CALENDAR)
+        """Create global settings entry."""
+        await self.async_set_unique_id(ENTRY_TYPE_GLOBAL_SETTINGS)
         self._abort_if_unique_id_configured()
 
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            user_input[CONF_UNIQUE_ID] = ENTRY_TYPE_CALENDAR
-            user_input[CONF_ENTRY_TYPE] = ENTRY_TYPE_CALENDAR
-
-            return self.async_create_entry(
-                title=user_input[CONF_NAME],
-                data=user_input,
-            )
-
-        return self.async_show_form(
-            step_id="calendar",
-            data_schema=_get_calendar_schema(user_input),
-            errors=errors,
+        return self.async_create_entry(
+            title="AIO Global Settings",
+            data={
+                CONF_UNIQUE_ID: ENTRY_TYPE_GLOBAL_SETTINGS,
+                CONF_ENTRY_TYPE: ENTRY_TYPE_GLOBAL_SETTINGS,
+            },
         )
+
+    # async def async_step_calendar(
+    #     self, user_input: dict[str, Any] | None = None
+    # ) -> ConfigFlowResult:
+    #     """Configure calendar. Only one calendar entry is allowed."""
+    #     # Use a fixed unique ID so only a single calendar entry can ever be created.
+    #     await self.async_set_unique_id(ENTRY_TYPE_CALENDAR)
+    #     self._abort_if_unique_id_configured()
+
+    #     errors: dict[str, str] = {}
+
+    #     if user_input is not None:
+    #         user_input[CONF_UNIQUE_ID] = ENTRY_TYPE_CALENDAR
+    #         user_input[CONF_ENTRY_TYPE] = ENTRY_TYPE_CALENDAR
+
+    #         return self.async_create_entry(
+    #             title=user_input[CONF_NAME],
+    #             data=user_input,
+    #         )
+
+    #     return self.async_show_form(
+    #         step_id="calendar",
+    #         data_schema=_get_calendar_schema(user_input),
+    #         errors=errors,
+    #     )
 
 
 # Options flow (modify existing configuration)
@@ -151,24 +178,47 @@ class AIOEnergyManagementOptionsFlow(
                 CONF_CALENDAR, True
             )
             return await self.async_step_cheapest_hours_data_provider()
-        if self._entry_type == ENTRY_TYPE_CALENDAR:
-            return await self.async_step_calendar_options()
         if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
             return await self.async_step_excess_solar_menu()
+        if self._entry_type == ENTRY_TYPE_GLOBAL_SETTINGS:
+            return await self.async_step_global_settings_options()
 
         return self.async_abort(reason="unknown_entry_type")
 
-    async def async_step_calendar_options(
+    async def async_step_global_settings_options(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Handle calendar options."""
+        """Handle form for global settings"""
         if user_input is not None:
-            return self.async_create_entry(title="", data={})
+            return self.async_create_entry(title="", data=user_input)
+
+        # Haal opgeslagen instellingen op (zoals de kalender boolean)
+        options = self._config_entry.options
 
         return self.async_show_form(
-            step_id="calendar_options",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "info": "Calendar configuration has no additional options.",
-            },
+            step_id="global_settings_options",
+            data_schema=vol.Schema(
+                {
+                    # Hier bouw je in de toekomst ook de prijzen/btw velden in
+                    vol.Optional(
+                        CONF_CALENDAR,
+                        default=options.get(CONF_CALENDAR, True),
+                    ): BooleanSelector(),
+                }
+            ),
         )
+
+    # async def async_step_calendar_options(
+    #     self, user_input: dict[str, Any] | None = None
+    # ) -> ConfigFlowResult:
+    #     """Handle calendar options."""
+    #     if user_input is not None:
+    #         return self.async_create_entry(title="", data={})
+
+    #     return self.async_show_form(
+    #         step_id="calendar_options",
+    #         data_schema=vol.Schema({}),
+    #         description_placeholders={
+    #             "info": "Calendar configuration has no additional options.",
+    #         },
+    #     )
