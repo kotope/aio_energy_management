@@ -15,7 +15,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 import homeassistant.util.dt as dt_util
 
-from .const import CONF_ENTITY_CALENDAR, CONF_NAME, CONF_UNIQUE_ID, COORDINATOR, DOMAIN
+from .const import (
+    CONF_ENTITY_CALENDAR,
+    CONF_ENABLE_CALENDAR,
+    CONF_NAME,
+    CONF_UNIQUE_ID,
+    COORDINATOR,
+    DOMAIN,
+)
 from .coordinator import EnergyManagementCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +42,16 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up calendar from a config entry."""
+
+    # Check if calendar is activated
+    enable_calendar = entry.options.get(
+        CONF_ENABLE_CALENDAR, entry.data.get(CONF_ENABLE_CALENDAR, False)
+    )
+    if not enable_calendar:
+        _LOGGER.debug(
+            "Calendar is disabled in global settings, skipping calendar creation"
+        )
+        return
     _LOGGER.debug("Create energy management calendar entity from config entry")
 
     try:

@@ -109,7 +109,6 @@ class AIOEnergyManagementConfigFlow(
                             options=[
                                 ENTRY_TYPE_CHEAPEST_HOURS,
                                 CONF_ENTITY_EXCESS_SOLAR,
-                                ENTRY_TYPE_GLOBAL_SETTINGS,
                             ],
                             translation_key="entry_type",
                         )
