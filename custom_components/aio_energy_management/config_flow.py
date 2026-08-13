@@ -125,7 +125,7 @@ class AIOEnergyManagementConfigFlow(
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title="Global Settings",
+            title="⚙️ Global Settings",
             data={
                 CONF_UNIQUE_ID: ENTRY_TYPE_GLOBAL_SETTINGS,
                 CONF_ENTRY_TYPE: ENTRY_TYPE_GLOBAL_SETTINGS,

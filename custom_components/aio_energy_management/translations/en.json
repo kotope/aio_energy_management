@@ -286,7 +286,7 @@
       "init": {
         "title": "Options",
         "menu_options": {
-          "global_settings_options": "Global settings"
+          "global_settings_options": "⚙️ Global settings"
         }
       },
       "global_settings_options": {

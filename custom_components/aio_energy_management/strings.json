@@ -8,7 +8,7 @@
           "entry_type": "Entity type"
         },
         "data_description": {
-          "entry_type": "Choose between cheapest hours sensor or calendar entity"
+          "entry_type": "Choose between cheapest hours sensor or Excess solar"
         }
       },
       "cheapest_hours_data_provider": {
@@ -277,7 +277,6 @@
     "entry_type": {
       "options": {
         "cheapest_hours": "Cheapest hours sensor",
-        "calendar": "Calendar",
         "excess_solar": "Excess solar"
       }
     }
@@ -287,12 +286,11 @@
       "init": {
         "title": "Options",
         "menu_options": {
-          "global_settings_options": "Global settings"
+          "global_settings_options": "⚙️ Global settings"
         }
       },
       "global_settings_options": {
         "title": "Global Settings",
-        "description": "Configure global settings",
         "data": {
           "enable_calendar": "Enable Calendar",
           "name": "Calendar Name"

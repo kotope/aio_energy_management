@@ -166,6 +166,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hass.config_entries.async_forward_entry_setups(
                 entry, [Platform.CALENDAR]
             )
+    elif entry_type == "global_settings":
+        await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
     # elif entry_type == CONF_ENTITY_CALENDAR:
     #     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
     elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
@@ -242,14 +244,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.BINARY_SENSOR]
         )
-    elif entry_type in (CONF_ENTITY_CALENDAR, "global_settings"):
+    elif entry_type == "global_settings":
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.CALENDAR]
         )
-    # elif entry_type == CONF_ENTITY_CALENDAR:
-    #     unload_ok = await hass.config_entries.async_unload_platforms(
-    #         entry, [Platform.CALENDAR]
-    #     )
     elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
         manager = entry_data.get(EXCESS_SOLAR_MANAGER)
