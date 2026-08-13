@@ -290,10 +290,10 @@
         }
       },
       "global_settings_options": {
-        "title": "Global Settings",
+        "title": "Global settings",
         "data": {
-          "enable_calendar": "Enable Calendar",
-          "name": "Calendar Name"
+          "enable_calendar": "Enable calendar",
+          "name": "Calendar name"
         },
         "data_description": {
           "enable_calendar": "Create a calendar entity for planned energy slots",

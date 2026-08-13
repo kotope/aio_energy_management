@@ -132,31 +132,6 @@ class AIOEnergyManagementConfigFlow(
             },
         )
 
-    # async def async_step_calendar(
-    #     self, user_input: dict[str, Any] | None = None
-    # ) -> ConfigFlowResult:
-    #     """Configure calendar. Only one calendar entry is allowed."""
-    #     # Use a fixed unique ID so only a single calendar entry can ever be created.
-    #     await self.async_set_unique_id(ENTRY_TYPE_CALENDAR)
-    #     self._abort_if_unique_id_configured()
-
-    #     errors: dict[str, str] = {}
-
-    #     if user_input is not None:
-    #         user_input[CONF_UNIQUE_ID] = ENTRY_TYPE_CALENDAR
-    #         user_input[CONF_ENTRY_TYPE] = ENTRY_TYPE_CALENDAR
-
-    #         return self.async_create_entry(
-    #             title=user_input[CONF_NAME],
-    #             data=user_input,
-    #         )
-
-    #     return self.async_show_form(
-    #         step_id="calendar",
-    #         data_schema=_get_calendar_schema(user_input),
-    #         errors=errors,
-    #     )
-
 
 # Options flow (modify existing configuration)
 class AIOEnergyManagementOptionsFlow(
@@ -216,18 +191,3 @@ class AIOEnergyManagementOptionsFlow(
                 }
             ),
         )
-
-    # async def async_step_calendar_options(
-    #     self, user_input: dict[str, Any] | None = None
-    # ) -> ConfigFlowResult:
-    #     """Handle calendar options."""
-    #     if user_input is not None:
-    #         return self.async_create_entry(title="", data={})
-
-    #     return self.async_show_form(
-    #         step_id="calendar_options",
-    #         data_schema=vol.Schema({}),
-    #         description_placeholders={
-    #             "info": "Calendar configuration has no additional options.",
-    #         },
-    #     )

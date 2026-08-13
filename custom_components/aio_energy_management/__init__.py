@@ -140,7 +140,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Services
         await async_setup_services(hass)
 
-    # Create Global settings automaticly on background
+    # Create Global settings automatically on background
     has_global_settings = any(
         e.data.get("entry_type") == "global_settings"
         for e in hass.config_entries.async_entries(DOMAIN)
