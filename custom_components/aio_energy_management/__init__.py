@@ -158,6 +158,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # === Calendar migration logic start ===
         migrated_enable_calendar = False
         migrated_calendar_name = "Energy Management"
+        migrated_unique_id = None
         entries_to_remove = []
 
         for existing_entry in entries:
@@ -180,6 +181,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     or "Energy Management"
                 )
 
+                migrated_unique_id = old_data.get(CONF_UNIQUE_ID)
+
             # Remove old calendar entity if calendar has been migrated
         for entry_id in entries_to_remove:
             _LOGGER.info("Removing old calendar entities: %s", entry_id)
@@ -189,10 +192,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         result = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": "user"},
-            data={"entry_type": "global_settings"},
+            data={
+                "entry_type": "global_settings",
+                CONF_UNIQUE_ID: migrated_unique_id,
+            },
         )
 
-        # After creation of new calendar entry, adds to global settings
+        # After creation of new calendar entry, add calendar to global settings
         if result.get("type") == "create_entry":
             new_global_entry = result["result"]
             hass.config_entries.async_update_entry(
