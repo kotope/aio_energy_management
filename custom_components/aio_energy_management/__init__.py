@@ -143,41 +143,73 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # retreive all current entries
     entries = hass.config_entries.async_entries(DOMAIN)
 
+    # Prevent migration execution before Global Settings exists
+    migration_done = hass.data[DOMAIN].get("global_migration_done", False)
+
     # Create Global settings automatically on background
     has_global_settings = any(
         e.data.get("entry_type") == "global_settings" for e in entries
     )
 
-    if not has_global_settings:
-        # Migration logic
+    if not has_global_settings and not migration_done:
+        hass.data[DOMAIN]["global_migration_done"] = True
+
+        # === Calendar migration logic start ===
         migrated_enable_calendar = False
         migrated_calendar_name = "Energy Management"
+        entries_to_remove = []
 
         for existing_entry in entries:
             old_options = existing_entry.options
             old_data = existing_entry.data
+            old_entry_type = old_data.get("entry_type")
 
             # Check if calendar was activated via old configuration
             if old_options.get(CONF_CALENDAR) or old_data.get(CONF_CALENDAR):
                 migrated_enable_calendar = True
                 migrated_calendar_name = (
-                    old_options.get("name")
+                    old_options.get(CONF_NAME)
+                    or old_data.get(CONF_NAME)
+                    or old_options.get("name")
                     or old_data.get("name")
                     or migrated_calendar_name
                 )
-                break
 
-        hass.async_create_task(
-            hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={"source": "user"},
-                data={
-                    "entry_type": "global_settings",
+            # Add old calendar to remove list
+            if old_entry_type == CONF_ENTITY_CALENDAR:
+                entries_to_remove.append(existing_entry.entry_id)
+
+            # Remove old calendar entity if calendar has been migrated
+        for entry_id in entries_to_remove:
+            _LOGGER.info("Removing old calendar entities: %s", entry_id)
+            hass.async_create_task(hass.config_entries.async_remove(entry_id))
+
+        # Create global settings entry
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "user"},
+            data={"entry_type": "global_settings"},
+        )
+
+        # After creation of new calendar entry, adds to global settings
+        if result.get("type") == "create_entry":
+            new_global_entry = result["result"]
+            hass.config_entries.async_update_entry(
+                new_global_entry,
+                options={
                     CONF_CALENDAR: migrated_enable_calendar,
-                    "name": migrated_calendar_name,
+                    CONF_NAME: migrated_calendar_name,
                 },
             )
-        )
+        else:
+            _LOGGER.error(
+                "Fout bij aanmaken global settings tijdens migratie: %s", result
+            )
+        # === Calendar migration logic ends ===
+
+        # Return if migration has been executed
+        if entry.entry_id in entries_to_remove:
+            return True
 
     # Determine which platform to set up based on entry type
     entry_type = entry.data.get("entry_type")
