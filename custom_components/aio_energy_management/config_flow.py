@@ -124,10 +124,12 @@ class AIOEnergyManagementConfigFlow(
         await self.async_set_unique_id(ENTRY_TYPE_GLOBAL_SETTINGS)
         self._abort_if_unique_id_configured()
 
+        migrated_unique_id = (user_input or {}).get(CONF_UNIQUE_ID)
+
         return self.async_create_entry(
             title="⚙️ Global Settings",
             data={
-                CONF_UNIQUE_ID: ENTRY_TYPE_GLOBAL_SETTINGS,
+                CONF_UNIQUE_ID: migrated_unique_id or ENTRY_TYPE_GLOBAL_SETTINGS,
                 CONF_ENTRY_TYPE: ENTRY_TYPE_GLOBAL_SETTINGS,
             },
         )
