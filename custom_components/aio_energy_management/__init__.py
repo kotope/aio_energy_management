@@ -140,17 +140,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Services
         await async_setup_services(hass)
 
+    # retreive all current entries
+    entries = hass.config_entries.async_entries(DOMAIN)
+
     # Create Global settings automatically on background
     has_global_settings = any(
-        e.data.get("entry_type") == "global_settings"
-        for e in hass.config_entries.async_entries(DOMAIN)
+        e.data.get("entry_type") == "global_settings" for e in entries
     )
+
     if not has_global_settings:
+        # Migration logic
+        migrated_enable_calendar = False
+        migrated_calendar_name = "Energy Management"
+
+        for existing_entry in entries:
+            old_options = existing_entry.options
+            old_data = existing_entry.data
+
+            # Check if calendar was activated via old configuration
+            if old_options.get(CONF_CALENDAR) or old_data.get(CONF_CALENDAR):
+                migrated_enable_calendar = True
+                migrated_calendar_name = (
+                    old_options.get("name")
+                    or old_data.get("name")
+                    or migrated_calendar_name
+                )
+                break
+
         hass.async_create_task(
             hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": "user"},
-                data={"entry_type": "global_settings"},
+                data={
+                    "entry_type": "global_settings",
+                    CONF_CALENDAR: migrated_enable_calendar,
+                    "name": migrated_calendar_name,
+                },
             )
         )
 
@@ -166,10 +191,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hass.config_entries.async_forward_entry_setups(
                 entry, [Platform.CALENDAR]
             )
-    elif entry_type == "global_settings":
-        await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
-    # elif entry_type == CONF_ENTITY_CALENDAR:
-    #     await hass.config_entries.async_forward_entry_setups(entry, [Platform.CALENDAR])
     elif entry_type == CONF_ENTITY_EXCESS_SOLAR:
         await _async_setup_excess_solar_entry(hass, entry)
     else:
