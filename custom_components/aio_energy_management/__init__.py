@@ -24,6 +24,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     CONF_BUFFER,
     CONF_CALENDAR,
+    CONF_ENABLE_CALENDAR,
     CONF_CONSUMPTION,
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
@@ -164,20 +165,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             old_data = existing_entry.data
             old_entry_type = old_data.get("entry_type")
 
-            # Check if calendar was activated via old configuration
-            if old_options.get(CONF_CALENDAR) or old_data.get(CONF_CALENDAR):
-                migrated_enable_calendar = True
+            if old_entry_type == CONF_ENTITY_CALENDAR:
+                entries_to_remove.append(existing_entry.entry_id)
+
+                migrated_enable_calendar = old_options.get(
+                    CONF_CALENDAR, old_data.get(CONF_CALENDAR, True)
+                )
+
                 migrated_calendar_name = (
                     old_options.get(CONF_NAME)
                     or old_data.get(CONF_NAME)
                     or old_options.get("name")
                     or old_data.get("name")
-                    or migrated_calendar_name
+                    or "Energy Management"
                 )
-
-            # Add old calendar to remove list
-            if old_entry_type == CONF_ENTITY_CALENDAR:
-                entries_to_remove.append(existing_entry.entry_id)
 
             # Remove old calendar entity if calendar has been migrated
         for entry_id in entries_to_remove:
@@ -197,13 +198,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.config_entries.async_update_entry(
                 new_global_entry,
                 options={
-                    CONF_CALENDAR: migrated_enable_calendar,
+                    CONF_ENABLE_CALENDAR: migrated_enable_calendar,
                     CONF_NAME: migrated_calendar_name,
                 },
             )
         else:
             _LOGGER.error(
-                "Fout bij aanmaken global settings tijdens migratie: %s", result
+                "Error during creating Global Settings while migrating: %s", result
             )
         # === Calendar migration logic ends ===
 
