@@ -133,6 +133,16 @@ async def async_setup(hass: core.HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up AIO Energy Management from a config entry."""
+    # Legacy standalone calendar entries are superseded by Global Settings.
+    # Never let this entry set up its own platform; it will be removed by
+    # the migration logic below (possibly from a different entry's call).
+    if entry.data.get("entry_type") == CONF_ENTITY_CALENDAR:
+        _LOGGER.debug(
+            "Skipping setup of legacy calendar entry %s; superseded by Global Settings",
+            entry.entry_id,
+        )
+        return True
+
     # Initialize coordinator if not already present
     if DOMAIN not in hass.data:
         coordinator = EnergyManagementCoordinator(hass)
@@ -186,7 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # Remove old calendar entity if calendar has been migrated
         for entry_id in entries_to_remove:
             _LOGGER.info("Removing old calendar entities: %s", entry_id)
-            hass.async_create_task(hass.config_entries.async_remove(entry_id))
+            await hass.config_entries.async_remove(entry_id)
 
         # Create global settings entry
         result = await hass.config_entries.flow.async_init(
