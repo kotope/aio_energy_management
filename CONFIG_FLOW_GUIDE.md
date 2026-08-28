@@ -17,8 +17,15 @@ AIO Energy Management supports both:
 3. Search for **AIO Energy Management**
 4. Select the type of entity:
    - **Cheapest hours sensor** - Binary sensor that tracks cheapest/expensive hours
-   - **Calendar** - Calendar entity to display energy management events. Only one supported.
    - **Excess solar** - Manages loads when grid power shows solar export (surplus). You can add multiple excess solar entries if you want separate setups.
+
+---
+
+### Configuring Global Settings
+
+Every installation will have **one** `⚙️ Global Settings` identity for overarching configurations. This identity **cannot** be removed.
+- **Enable calendar** - Enable or disable the calendar feature. Disabling this will remove the calendar identity and it's functionality.
+- **Calendar name** - Provide a user-friendly name for the calendar. Defaults to `Energy Management`.
 
 ---
 
@@ -105,13 +112,6 @@ All offset fields are optional. Each can use a static integer **or** an entity (
 | End hours entity *(dynamic only)* | Entity providing end hours offset | — |
 | End minutes | Minutes to offset the end time | 0–59 |
 | End minutes entity *(dynamic only)* | Entity providing end minutes offset | — |
-
----
-
-### Configuring Calendar
-
-Simple single-step configuration:
-- **Name** (required) — Friendly name for the calendar (e.g. "Energy Management")
 
 ---
 
