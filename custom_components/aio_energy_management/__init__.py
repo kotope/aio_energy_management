@@ -133,6 +133,32 @@ async def async_setup(hass: core.HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up AIO Energy Management from a config entry."""
+    # Initialize coordinator if not already present
+    if DOMAIN not in hass.data:
+        coordinator = EnergyManagementCoordinator(hass)
+        await coordinator.async_load_data()
+        hass.data[DOMAIN] = {COORDINATOR: coordinator}
+        # Services
+        await async_setup_services(hass)
+
+    # Creates Global Settings and runs the one-time calendar migration if needed.
+    entries = hass.config_entries.async_entries(DOMAIN)
+    migration_done = hass.data[DOMAIN].get("global_migration_done", False)
+    has_global_settings = any(
+        e.data.get("entry_type") == "global_settings" for e in entries
+    )
+
+    if not has_global_settings and not migration_done:
+        hass.data[DOMAIN]["global_migration_done"] = True
+
+        removed_entry_ids, migrated_data = await _async_migrate_legacy_calendar_entry(
+            hass, entries
+        )
+        await _async_ensure_global_settings(hass, migrated_data)
+
+        if entry.entry_id in removed_entry_ids:
+            return True
+
     # Legacy standalone calendar entries are superseded by Global Settings.
     # Never let this entry set up its own platform; it will be removed by
     # the migration logic below (possibly from a different entry's call).
@@ -142,91 +168,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.entry_id,
         )
         return True
-
-    # Initialize coordinator if not already present
-    if DOMAIN not in hass.data:
-        coordinator = EnergyManagementCoordinator(hass)
-        await coordinator.async_load_data()
-        hass.data[DOMAIN] = {COORDINATOR: coordinator}
-        # Services
-        await async_setup_services(hass)
-
-    # retreive all current entries
-    entries = hass.config_entries.async_entries(DOMAIN)
-
-    # Prevent migration execution before Global Settings exists
-    migration_done = hass.data[DOMAIN].get("global_migration_done", False)
-
-    # Create Global settings automatically on background
-    has_global_settings = any(
-        e.data.get("entry_type") == "global_settings" for e in entries
-    )
-
-    if not has_global_settings and not migration_done:
-        hass.data[DOMAIN]["global_migration_done"] = True
-
-        # === Calendar migration logic start ===
-        migrated_enable_calendar = False
-        migrated_calendar_name = "Energy Management"
-        migrated_unique_id = None
-        entries_to_remove = []
-
-        for existing_entry in entries:
-            old_options = existing_entry.options
-            old_data = existing_entry.data
-            old_entry_type = old_data.get("entry_type")
-
-            if old_entry_type == CONF_ENTITY_CALENDAR:
-                entries_to_remove.append(existing_entry.entry_id)
-
-                migrated_enable_calendar = old_options.get(
-                    CONF_CALENDAR, old_data.get(CONF_CALENDAR, True)
-                )
-
-                migrated_calendar_name = (
-                    old_options.get(CONF_NAME)
-                    or old_data.get(CONF_NAME)
-                    or old_options.get("name")
-                    or old_data.get("name")
-                    or "Energy Management"
-                )
-
-                migrated_unique_id = old_data.get(CONF_UNIQUE_ID)
-
-            # Remove old calendar entity if calendar has been migrated
-        for entry_id in entries_to_remove:
-            _LOGGER.info("Removing old calendar entities: %s", entry_id)
-            await hass.config_entries.async_remove(entry_id)
-
-        # Create global settings entry
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": "user"},
-            data={
-                "entry_type": "global_settings",
-                CONF_UNIQUE_ID: migrated_unique_id,
-            },
-        )
-
-        # After creation of new calendar entry, add calendar to global settings
-        if result.get("type") == "create_entry":
-            new_global_entry = result["result"]
-            hass.config_entries.async_update_entry(
-                new_global_entry,
-                options={
-                    CONF_ENABLE_CALENDAR: migrated_enable_calendar,
-                    CONF_NAME: migrated_calendar_name,
-                },
-            )
-        else:
-            _LOGGER.error(
-                "Error during creating Global Settings while migrating: %s", result
-            )
-        # === Calendar migration logic ends ===
-
-        # Return if migration has been executed
-        if entry.entry_id in entries_to_remove:
-            return True
 
     # Determine which platform to set up based on entry type
     entry_type = entry.data.get("entry_type")
@@ -250,6 +191,85 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     return True
+
+
+async def _async_ensure_global_settings(
+    hass: HomeAssistant, migrated_data: dict[str, Any] | None = None
+) -> None:
+    """Create the Global Settings entry if it doesn't exist yet.
+
+    Runs for every installation (new or upgraded) since exactly one Global
+    Settings entry must always exist. When ``migrated_data`` is provided
+    (carried over from a legacy calendar entry), the new entry is seeded
+    with those values; otherwise defaults are used.
+    """
+    unique_id = (migrated_data or {}).get(CONF_UNIQUE_ID)
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": "user"},
+        data={
+            "entry_type": "global_settings",
+            CONF_UNIQUE_ID: unique_id,
+        },
+    )
+
+    if result.get("type") != "create_entry":
+        _LOGGER.error("Error creating Global Settings entry: %s", result)
+        return
+
+    if migrated_data:
+        hass.config_entries.async_update_entry(
+            result["result"],
+            options={
+                CONF_ENABLE_CALENDAR: migrated_data[CONF_ENABLE_CALENDAR],
+                CONF_NAME: migrated_data[CONF_NAME],
+            },
+        )
+
+
+async def _async_migrate_legacy_calendar_entry(
+    hass: HomeAssistant, entries: list[ConfigEntry]
+) -> tuple[list[str], dict[str, Any] | None]:
+    """Find and remove a legacy standalone calendar entry, if any.
+
+    Returns:
+        A tuple of (removed_entry_ids, migrated_data). migrated_data is
+        None if no legacy calendar entry was found; otherwise a dict with
+        the enable-state, name and unique_id to seed Global Settings with.
+
+    TODO: Remove this migration (and the CONF_ENTITY_CALENDAR handling it
+    depends on, including the guard at the top of async_setup_entry) once
+    users have had time to upgrade.
+    """
+    entries_to_remove: list[str] = []
+    migrated_data: dict[str, Any] | None = None
+
+    for existing_entry in entries:
+        old_options = existing_entry.options
+        old_data = existing_entry.data
+
+        if old_data.get("entry_type") == CONF_ENTITY_CALENDAR:
+            entries_to_remove.append(existing_entry.entry_id)
+            migrated_data = {
+                CONF_ENABLE_CALENDAR: old_options.get(
+                    CONF_CALENDAR, old_data.get(CONF_CALENDAR, True)
+                ),
+                CONF_NAME: (
+                    old_options.get(CONF_NAME)
+                    or old_data.get(CONF_NAME)
+                    or old_options.get("name")
+                    or old_data.get("name")
+                    or "Energy Management"
+                ),
+                CONF_UNIQUE_ID: old_data.get(CONF_UNIQUE_ID),
+            }
+
+    for entry_id in entries_to_remove:
+        _LOGGER.info("Removing old calendar entities: %s", entry_id)
+        await hass.config_entries.async_remove(entry_id)
+
+    return entries_to_remove, migrated_data
 
 
 async def _async_setup_excess_solar_from_entry_data(
