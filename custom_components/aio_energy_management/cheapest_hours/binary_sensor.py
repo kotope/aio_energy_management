@@ -59,6 +59,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         number_of_hours=None,
         number_of_slots=None,
         min_seq_slots=None,
+        number_of_blocks=None,
         failsafe_starting_hour=None,
         inversed=False,
         entsoe_entity=None,
@@ -106,6 +107,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._number_of_hours = number_of_hours
         self._number_of_slots = number_of_slots
         self._min_seq_slots = min_seq_slots
+        self._number_of_blocks = number_of_blocks
         self._inversed = inversed
         self._trigger_time = None
         self._trigger_hour = trigger_hour
@@ -376,8 +378,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._data.get(
                         "active_min_seq_slots", 1
                     ),  # make sure it defaults to 1
+                    self._data.get("active_number_of_blocks"),
                 )
-        except (InvalidInput, ValueNotFound):
+        except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
@@ -982,6 +985,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 attrs["flexible_price_limit"] = flexible_price_limit
         if min_seq_slots := self._min_seq_slots:
             attrs["min_seq_slots"] = min_seq_slots
+        if number_of_blocks := self._number_of_blocks:
+            attrs["number_of_blocks"] = number_of_blocks
 
         return attrs
 
@@ -1016,6 +1021,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
         if min_seq_slots := self._min_seq_slots:
             self._data["active_min_seq_slots"] = self._int_from_entity(min_seq_slots)
+
+        if number_of_blocks := self._number_of_blocks:
+            self._data["active_number_of_blocks"] = self._int_from_entity(
+                number_of_blocks
+            )
 
     def _float_from_entity(self, entity_id) -> float | None:
         """Get float value from another entity."""
