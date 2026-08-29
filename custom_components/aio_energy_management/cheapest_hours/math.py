@@ -4,6 +4,7 @@ from datetime import timedelta
 import logging
 
 import numpy as np
+import math
 
 import homeassistant.util.dt as dt_util
 
@@ -173,6 +174,7 @@ def calculate_non_sequential_cheapest_hours(
     max_number_of_slots: int | None = None,
     flexible_price_limit: float | None = None,
     min_seq_slots: int = 1,  # defaults to 1 for backwards compatibility
+    number_of_blocks: int | None = None,
 ) -> (dict, bool):
     """Calculate non-sequential cheapest hours.
 
@@ -273,11 +275,26 @@ def calculate_non_sequential_cheapest_hours(
     # Save all available slots unsorted --> replaced data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
     all_window_slots = list(data)
 
+    # Initialize max_seq_slots to None by default
+    max_seq_slots: int | None = None
+
+    # Translate number_of_blocks to min_seq_slots and max_seq_slots if provided
+    if number_of_blocks and number_of_blocks > 0:
+        if min_seq_slots > 1:
+            _LOGGER.debug(
+                "Both number_of_blocks and min_seq_slots were provided. "
+                "number_of_blocks will take precedence."
+            )
+        effective_blocks = min(number_of_blocks, number_of_slots)
+        min_seq_slots = number_of_slots // effective_blocks
+        max_seq_slots = math.ceil(number_of_slots / effective_blocks)
+
     # Select base slots according to min_seq_slots info.
     base_slots = _select_slots_with_min_seq_slot_size(
         all_window_slots,
         number_of_slots,
         min_seq_slots=min_seq_slots,
+        max_seq_slots=max_seq_slots,
         inversed=inversed,
     )
 
@@ -390,16 +407,38 @@ def _select_flexible_slots(
     return selected
 
 
+def _would_exceed_max_seq(
+    selected: set[int], new_indices: set[int], max_seq: int | None
+) -> bool:
+    """Check if adding new_indices to selected creates a contiguous block larger than max_seq."""
+    if max_seq is None:
+        return False
+
+    combined = selected | new_indices
+    for idx in new_indices:
+        left = idx
+        while (left - 1) in combined:
+            left -= 1
+        right = idx
+        while (right + 1) in combined:
+            right += 1
+
+        if (right - left + 1) > max_seq:
+            return True
+    return False
+
+
 def _select_slots_with_min_seq_slot_size(
     data: list[dict],
     number_of_slots: int,
     min_seq_slots: int = 1,
+    max_seq_slots: int | None = None,
     inversed: bool = False,
 ) -> list[dict]:
-    """Select base slots with min_seq_slots and inversed logic."""
+    """Select base slots with min_seq_slots, max_seq_slots, and inversed logic."""
 
     # IF min_seq_slots == 1: keep original behavior
-    if min_seq_slots <= 1:
+    if min_seq_slots <= 1 and max_seq_slots is None:
         sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
         return sorted_data[:number_of_slots]
 
@@ -409,7 +448,7 @@ def _select_slots_with_min_seq_slot_size(
     selected_indices: set[int] = set()
     needed = number_of_slots
 
-    # Phase A: Select blocks based on min_seq_slots
+    # Phase A: Select blocks based on min_seq_slots (respecting max_seq_slots)
     while needed >= min_seq_slots:
         best_idx = -1
         best_score = float("inf")
@@ -418,6 +457,10 @@ def _select_slots_with_min_seq_slot_size(
             window = set(range(i, i + min_seq_slots))
             if window & selected_indices:
                 continue  # Continue on overlapping slots which are already part of the selected_indices
+
+            # Check if adding this window would merge with an adjacent block and exceed max_seq_slots
+            if _would_exceed_max_seq(selected_indices, window, max_seq_slots):
+                continue
 
             avg_price = sum(data[j]["price"] for j in window) / min_seq_slots
             score = avg_price * mult
@@ -432,7 +475,7 @@ def _select_slots_with_min_seq_slot_size(
         selected_indices.update(range(best_idx, best_idx + min_seq_slots))
         needed -= min_seq_slots
 
-    # Phase B: Add remaining slots to the current borders of selected slots to keep the min_seq_slots rule.
+    # Phase B: Add remaining slots to the current borders of selected slots to keep the min_seq_slots rule (respecting max_seq_slots).
     while needed > 0 and len(selected_indices) < total_available:
         best_idx = -1
         best_score = float("inf")
@@ -443,6 +486,10 @@ def _select_slots_with_min_seq_slot_size(
 
             # Check if selected slot is next to an already chosen slot
             if (i - 1 in selected_indices) or (i + 1 in selected_indices):
+                # Check max_seq_slots limit before attaching to border
+                if _would_exceed_max_seq(selected_indices, {i}, max_seq_slots):
+                    continue
+
                 score = data[i]["price"] * mult
                 if score < best_score:
                     best_score = score
@@ -452,12 +499,20 @@ def _select_slots_with_min_seq_slot_size(
             selected_indices.add(best_idx)
             needed -= 1
         else:
-            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots. This could happen when min_seq_slots is higher than number_of_slots
-            remaining = sorted(
-                [i for i in range(total_available) if i not in selected_indices],
-                key=lambda idx: data[idx]["price"] * mult,
-            )
-            selected_indices.update(remaining[:needed])
+            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots. This could happen when min_seq_slots is higher than number_of_slots while don't violating max_seq_slots
+            remaining = [
+                i
+                for i in range(total_available)
+                if i not in selected_indices
+                and not _would_exceed_max_seq(selected_indices, {i}, max_seq_slots)
+            ]
+            remaining.sort(key=lambda idx: data[idx]["price"] * mult)
+            for idx in remaining:
+                if needed == 0:
+                    break
+                if not _would_exceed_max_seq(selected_indices, {idx}, max_seq_slots):
+                    selected_indices.add(idx)
+                    needed -= 1
             break
 
     return [data[i] for i in sorted(selected_indices)]
