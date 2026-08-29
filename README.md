@@ -93,7 +93,8 @@ Configuration parameters are shown below:
 | last_hour        | yes       | Last hour used by cheapest hours calculation |
 | starting_today   | no       | First_hour should be already on the same day. False if next day calculations only (**depreceted** determined automatically since 0.9.0) |
 | sequential       | yes       | True if trying to calculate sequential cheapest hours timeframe. False if multiple values are acceptable. |
-| min_seq_slots    | no        | Minimum number of continuous slots for non-sequential calculations. Ensures that selected hours are grouped in blocks of at least this size (e.g., minimum 2 hours per run). Defaults to 1. |
+| min_seq_slots    | no        | Minimum number of continuous slots for non-sequential calculations. Ensures that selected hours are grouped in blocks of at least this size (e.g., minimum 2 slots per run). Defaults to 1. Will be ignored when `number_of_blocks` is being used. |
+| number_of_blocks    | no        | Allows the creation of multiple blocks for non-sequential calculations. Divides the total number of slots into a specified number of separate continuous blocks. |
 | failsafe_starting_hour | no        | If for some reason Nord Pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
