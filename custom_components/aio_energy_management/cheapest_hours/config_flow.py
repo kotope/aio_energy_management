@@ -923,6 +923,19 @@ def _validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str
 class CheapestHoursConfigFlowMixin:
     """Mixin for cheapest hours config flow steps."""
 
+    def _save_options_entry(self, user_input: dict[str, Any]) -> ConfigFlowResult:
+        """Helper to save updated data directly during Options Flow."""
+        new_data = {
+            **self._config_entry.data,
+            **user_input,
+        }
+        self.hass.config_entries.async_update_entry(
+            self._config_entry,
+            title=new_data.get(CONF_NAME, self._config_entry.title),
+            data=new_data,
+        )
+        return self.async_create_entry(title="", data={})
+
     async def async_step_cheapest_hours_data_provider(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -973,6 +986,12 @@ class CheapestHoursConfigFlowMixin:
         """Configure Nord Pool official config entry for cheapest hours."""
         if user_input is not None:
             _coerce_mtu(user_input)
+
+            # In Options Flow: close and save entry
+            if hasattr(self, "_config_entry"):
+                return self._save_options_entry(user_input)
+
+            # In Config Flow: go to advanced
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -1037,6 +1056,11 @@ class CheapestHoursConfigFlowMixin:
             slot_errors = _validate_and_clean_number_of_slots(user_input)
             errors.update(slot_errors)
             if not errors:
+                # In Options Flow: close and save entry
+                if hasattr(self, "_config_entry"):
+                    return self._save_options_entry(user_input)
+
+                # In Config Flow: go to advanced
                 self._config_data.update(user_input)
                 return await self.async_step_cheapest_hours_advanced()
 
@@ -1095,20 +1119,9 @@ class CheapestHoursConfigFlowMixin:
                 if use_offset:
                     return await self.async_step_cheapest_hours_offset()
 
+                # In Options Flow: close and save entry
                 if hasattr(self, "_config_entry"):
-                    new_data = {
-                        **self._config_data,
-                        CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS,
-                        CONF_UNIQUE_ID: self._config_entry.data.get(CONF_UNIQUE_ID),
-                        CONF_DATA_PROVIDER_TYPE: self._data_provider_type,
-                    }
-
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        title=new_data[CONF_NAME],
-                        data=new_data,
-                    )
-                    return self.async_create_entry(title="", data={})
+                    return self._save_options_entry(self._config_data)
 
                 unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
                 self._config_data[CONF_UNIQUE_ID] = unique_id

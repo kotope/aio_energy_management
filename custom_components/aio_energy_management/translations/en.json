@@ -283,23 +283,45 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Options",
-        "menu_options": {
-          "global_settings_options": "⚙️ Global settings"
-        }
-      },
       "global_settings_options": {
-        "title": "Global settings",
+        "title": "Global Settings",
         "data": {
-          "enable_calendar": "Enable calendar",
-          "name": "Calendar name"
+          "enable_calendar": "Enable Calendar",
+          "name": "Calendar Name"
         },
         "data_description": {
           "enable_calendar": "Create a calendar entity for planned energy slots",
           "name": "Friendly name for the energy management calendar"
         }
       },
+      "cheapest_hours_menu": {
+        "title": "Cheapest Hours settings",
+        "description": "Select the category of settings you want to modify:",
+        "menu_options": {
+          "cheapest_hours_data_provider": "Price source provider",
+          "cheapest_hours_basic": "Basic settings",
+          "cheapest_hours_advanced": "Advanced settings",
+          "cheapest_hours_offset": "Time offset"
+        }
+      },
+      "cheapest_hours_data_provider": {
+        "title": "Price source",
+        "description": "Select one price source for cheapest hours calculation."
+      },
+      "cheapest_hours_basic": {
+        "title": "Basic settings",
+        "description": "Configure basic cheapest hours settings"
+      },
+      "cheapest_hours_advanced": {
+        "title": "Advanced settings",
+        "description": "Configure advanced options"
+      },
+      "cheapest_hours_offset": {
+        "title": "Time offset",
+        "description": "Configure optional start and end time offsets"
+      },
+
+
       "cheapest_hours_data_provider": {
         "title": "Price source",
         "description": "Select one price source for cheapest hours calculation. Choose Nord Pool (custom integration), Nord Pool official, Entso-E, or Strømligning (Danish total price).",
