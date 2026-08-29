@@ -49,7 +49,6 @@ from ..const import (
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_HOUR_ENTITY,
     CONF_UNIQUE_ID,
-    CONF_USE_OFFSET,
     DATA_PROVIDER_ENTSOE,
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
@@ -140,12 +139,6 @@ def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema
                 CONF_MTU,
                 default=_mtu_default(user_input),
             ): _mtu_selector(),
-            vol.Required(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
         }
     )
 
@@ -176,12 +169,6 @@ def _get_nordpool_official_schema(
                 CONF_MTU,
                 default=_mtu_default(user_input),
             ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
         }
     )
 
@@ -206,12 +193,6 @@ def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_MTU,
                 default=_mtu_default(user_input),
             ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
         }
     )
 
@@ -248,12 +229,6 @@ def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Sc
                 CONF_MTU,
                 default=_mtu_default(user_input),
             ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
         }
     )
 
@@ -306,6 +281,14 @@ def _get_cheapest_hours_basic_schema(
                 CONF_SEQUENTIAL,
                 default=user_input.get(CONF_SEQUENTIAL) if user_input else False,
             ): cv.boolean,
+            vol.Optional(
+                CONF_CALENDAR,
+                default=user_input.get(CONF_CALENDAR) if user_input else True,
+            ): cv.boolean,
+            vol.Optional(
+                CONF_INVERSED,
+                default=user_input.get(CONF_INVERSED) if user_input else False,
+            ): cv.boolean,
         }
     )
 
@@ -324,6 +307,12 @@ def _get_cheapest_hours_advanced_schema(
     omitted when ``sequential`` is set.
     """
     schema_dict = {
+        vol.Required(
+            CONF_ALLOW_DYNAMIC_ENTITIES,
+            default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
+            if user_input
+            else False,
+        ): cv.boolean,
         vol.Optional(
             CONF_FAILSAFE_STARTING_HOUR,
             description={
@@ -332,10 +321,6 @@ def _get_cheapest_hours_advanced_schema(
                 else None
             },
         ): int,
-        vol.Optional(
-            CONF_INVERSED,
-            default=user_input.get(CONF_INVERSED) if user_input else False,
-        ): cv.boolean,
         vol.Optional(
             CONF_TRIGGER_HOUR,
             description={
@@ -445,10 +430,6 @@ def _get_cheapest_hours_advanced_schema(
     schema_dict.update(
         {
             vol.Optional(
-                CONF_CALENDAR,
-                default=user_input.get(CONF_CALENDAR) if user_input else True,
-            ): cv.boolean,
-            vol.Optional(
                 CONF_RETENTION_DAYS,
                 default=user_input.get(CONF_RETENTION_DAYS) if user_input else 1,
             ): selector.NumberSelector(
@@ -466,10 +447,6 @@ def _get_cheapest_hours_advanced_schema(
                     else None
                 },
             ): selector.TemplateSelector(),
-            vol.Required(
-                CONF_USE_OFFSET,
-                default=user_input.get(CONF_USE_OFFSET) if user_input else False,
-            ): cv.boolean,
         }
     )
 
@@ -1113,11 +1090,7 @@ class CheapestHoursConfigFlowMixin:
                 )
                 errors.update(flexible_errors)
             if not errors:
-                use_offset = user_input.get(CONF_USE_OFFSET, False)
                 self._config_data.update(user_input)
-
-                if use_offset:
-                    return await self.async_step_cheapest_hours_offset()
 
                 # In Options Flow: close and save entry
                 if hasattr(self, "_config_entry"):
@@ -1138,7 +1111,6 @@ class CheapestHoursConfigFlowMixin:
         existing_data = None
         if hasattr(self, "_config_entry"):
             existing_data = {**self._config_entry.data}
-            existing_data[CONF_CALENDAR] = self._config_data.get(CONF_CALENDAR, True)
 
         allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
         return self.async_show_form(
