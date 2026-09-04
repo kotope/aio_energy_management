@@ -374,17 +374,6 @@ def _get_cheapest_hours_advanced_schema(
             )
         ] = int
 
-        schema_dict[
-            vol.Optional(
-                CONF_NUMBER_OF_BLOCKS,
-                description={
-                    "suggested_value": user_input.get(CONF_NUMBER_OF_BLOCKS)
-                    if user_input
-                    else None
-                },
-            )
-        ] = int
-
     schema_dict.update(
         {
             vol.Optional(
