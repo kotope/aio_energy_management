@@ -25,6 +25,7 @@ from homeassistant.helpers.selector import (
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import (
     CONF_CALENDAR,
+    CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
     CONF_UNIQUE_ID,
@@ -148,20 +149,15 @@ class AIOEnergyManagementOptionsFlow(
         super().__init__()
         self._config_entry = config_entry
         self._entry_type = config_entry.data.get(CONF_ENTRY_TYPE)
-        self._data_provider_type: str | None = None
-        self._config_data: dict[str, Any] = {}
+        self._data_provider_type = config_entry.data.get(CONF_DATA_PROVIDER_TYPE)
+        self._config_data = dict(config_entry.data)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage the options."""
+        """Manage the options flow based on entry type."""
         if self._entry_type == ENTRY_TYPE_CHEAPEST_HOURS:
-            self._config_data[CONF_CALENDAR] = self._config_entry.data.get(
-                CONF_CALENDAR, True
-            )
-            return await self.async_step_cheapest_hours_data_provider()
-        if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
-            return await self.async_step_excess_solar_menu()
+            return await self.async_step_cheapest_hours_menu()
         if self._entry_type == ENTRY_TYPE_GLOBAL_SETTINGS:
             return await self.async_step_global_settings_options()
 
@@ -192,4 +188,18 @@ class AIOEnergyManagementOptionsFlow(
                     ): selector.TextSelector(),
                 }
             ),
+        )
+
+    async def async_step_cheapest_hours_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the cheapest hours settings menu."""
+        return self.async_show_menu(
+            step_id="cheapest_hours_menu",
+            menu_options=[
+                "cheapest_hours_data_provider",
+                "cheapest_hours_basic",
+                "cheapest_hours_advanced",
+                "cheapest_hours_offset",
+            ],
         )

@@ -101,20 +101,32 @@
         "data": {
           "name": "Name",
           "number_of_slots": "Number of slots (static value)",
-          "number_of_slots_entity": "Number of slots (dynamic entity)",
           "first_hour": "First hour",
           "last_hour": "Last hour",
-          "starting_today": "Starting today",
-          "sequential": "Sequential"
+          "sequential": "Sequential",
+          "calendar": "Add to calendar",
+          "inversed": "Inversed (find expensive hours)"
         },
         "data_description": {
           "name": "Friendly name for the entity",
           "number_of_slots": "Static number of time slots to find (matches selected MTU). Leave at 0 to use entity instead",
-          "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number). Overrides static value if set",
           "first_hour": "Starting hour for calculation (0-23)",
           "last_hour": "Last hour for calculation (0-23)",
-          "starting_today": "Include hours from today in calculation",
-          "sequential": "Find sequential hours only"
+          "sequential": "Find sequential hours only",
+          "calendar": "Show this entity in the calendar",
+          "inversed": "Find most expensive hours instead of cheapest"
+        },
+        "sections": {
+          "dynamic_section": {
+            "name": "Dynamic entities (Optional)",
+            "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
+            "data": {
+              "number_of_slots_entity": "Number of slots"
+            },
+            "data_description": {
+              "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number)."
+            }
+          }
         }
       },
       "cheapest_hours_advanced": {
@@ -122,43 +134,43 @@
         "description": "Configure advanced options (all optional)",
         "data": {
           "failsafe_starting_hour": "Failsafe starting hour",
-          "inversed": "Inversed (find expensive hours)",
           "trigger_hour": "Trigger hour (static value)",
-          "trigger_hour_entity": "Trigger hour (dynamic entity)",
           "price_limit": "Price limit (static value)",
-          "price_limit_entity": "Price limit (dynamic entity)",
           "max_number_of_slots": "Flexible: max number of slots (static value)",
-          "max_number_of_slots_entity": "Flexible: max number of slots (dynamic entity)",
           "flexible_price_limit": "Flexible: price limit (static value)",
-          "flexible_price_limit_entity": "Flexible: price limit (dynamic entity)",
-          "min_seq_slots": "Minimum sequential slots",
+          "min_seq_slots": "Minimum continuous slots",
           "number_of_blocks": "Number of time blocks",
-          "calendar": "Add to calendar",
-          "mtu": "MTU (minutes)",
           "retention_days": "Retention days",
-          "area": "Area",
-          "price_modifications": "Price modifications",
-          "use_offset": "Configure time offset"
+          "price_modifications": "Price modifications"
         },
         "data_description": {
           "failsafe_starting_hour": "Fallback hour if price data unavailable",
-          "inversed": "Find most expensive hours instead of cheapest",
           "trigger_hour": "Static: Earliest hour to create next cheapest hours",
-          "trigger_hour_entity": "Optional: Entity to dynamically set trigger hour (sensor or input_number). Overrides static value if set",
           "price_limit": "Static: Only accept prices below this value (or above if inversed)",
-          "price_limit_entity": "Optional: Entity to dynamically set price limit (sensor or input_number). Overrides static value if set",
           "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit (non-sequential only). Requires the flexible price limit",
-          "max_number_of_slots_entity": "Optional: Entity to dynamically set the max number of flexible slots (sensor or input_number). Overrides static value if set",
           "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Requires the max number of slots",
-          "flexible_price_limit_entity": "Optional: Entity to dynamically set the flexible price limit (sensor or input_number). Overrides static value if set",
           "min_seq_slots": "Enforce a number of continuous slots",
           "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
-          "calendar": "Show this entity in the calendar",
-          "mtu": "Market time unit in minutes (15 or 60)",
           "retention_days": "Number of days to keep calendar history",
-          "area": "Market area for Nord Pool official integration",
-          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)",
-          "use_offset": "Enable time offset configuration for start and end times"
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)"
+        },
+        "sections": {
+          "dynamic_section": {
+            "name": "Dynamic entities (Optional)",
+            "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
+            "data": {
+              "trigger_hour_entity": "Trigger hour",
+              "price_limit_entity": "Price limit",
+              "max_number_of_slots_entity": "Flexible: max number of slots",
+              "flexible_price_limit_entity": "Flexible: price limit"
+            },
+            "data_description": {
+              "trigger_hour_entity": "Dynamic sensor/input_number for trigger hour",
+              "price_limit_entity": "Dynamic sensor/input_number for price limit",
+              "max_number_of_slots_entity": "Dynamic sensor/input_number for max slots",
+              "flexible_price_limit_entity": "Dynamic sensor/input_number for flexible price limit"
+            }
+          }
         }
       },
       "cheapest_hours_offset": {
@@ -267,7 +279,7 @@
       "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
       "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
       "device_name_required": "Device name is required",
-      "number_of_blocks_out_of_range": "Nuimber of blocks must be at least 1",
+      "number_of_blocks_out_of_range": "Number of blocks must be at least 1",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
@@ -286,12 +298,6 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "Options",
-        "menu_options": {
-          "global_settings_options": "⚙️ Global settings"
-        }
-      },
       "global_settings_options": {
         "title": "Global Settings",
         "data": {
@@ -303,6 +309,34 @@
           "name": "Friendly name for the energy management calendar"
         }
       },
+      "cheapest_hours_menu": {
+        "title": "Cheapest Hours settings",
+        "description": "Select the category of settings you want to modify:",
+        "menu_options": {
+          "cheapest_hours_data_provider": "Price source provider",
+          "cheapest_hours_basic": "Basic settings",
+          "cheapest_hours_advanced": "Advanced settings",
+          "cheapest_hours_offset": "Time offset"
+        }
+      },
+      "cheapest_hours_data_provider": {
+        "title": "Price source",
+        "description": "Select one price source for cheapest hours calculation."
+      },
+      "cheapest_hours_basic": {
+        "title": "Basic settings",
+        "description": "Configure basic cheapest hours settings"
+      },
+      "cheapest_hours_advanced": {
+        "title": "Advanced settings",
+        "description": "Configure advanced options"
+      },
+      "cheapest_hours_offset": {
+        "title": "Time offset",
+        "description": "Configure optional start and end time offsets"
+      },
+
+
       "cheapest_hours_data_provider": {
         "title": "Price source",
         "description": "Select one price source for cheapest hours calculation. Choose Nord Pool (custom integration), Nord Pool official, Entso-E, or Strømligning (Danish total price).",
@@ -379,18 +413,32 @@
         "data": {
           "name": "Name",
           "number_of_slots": "Number of slots (static value)",
-          "number_of_slots_entity": "Number of slots (dynamic entity)",
           "first_hour": "First hour",
           "last_hour": "Last hour",
-          "sequential": "Sequential"
+          "sequential": "Sequential",
+          "calendar": "Add to calendar",
+          "inversed": "Inversed (find expensive hours)"
         },
         "data_description": {
           "name": "Friendly name for the entity",
           "number_of_slots": "Static number of time slots to find (matches selected MTU). Leave at 0 to use entity instead",
-          "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number). Overrides static value if set",
           "first_hour": "Starting hour for calculation (0-23)",
           "last_hour": "Last hour for calculation (0-23)",
-          "sequential": "Find sequential hours only"
+          "sequential": "Find sequential hours only",
+          "calendar": "Show this entity in the calendar",
+          "inversed": "Find most expensive hours instead of cheapest"
+        },
+        "sections": {
+          "dynamic_section": {
+            "name": "Dynamic entities (Optional)",
+            "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
+            "data": {
+              "number_of_slots_entity": "Number of slots"
+            },
+            "data_description": {
+              "number_of_slots_entity": "Optional: Entity to dynamically set number of slots (sensor or input_number)."
+            }
+          }
         }
       },
       "cheapest_hours_advanced": {
@@ -398,35 +446,43 @@
         "description": "Configure advanced options (all optional)",
         "data": {
           "failsafe_starting_hour": "Failsafe starting hour",
-          "inversed": "Inversed (find expensive hours)",
           "trigger_hour": "Trigger hour (static value)",
-          "trigger_hour_entity": "Trigger hour (dynamic entity)",
           "price_limit": "Price limit (static value)",
-          "price_limit_entity": "Price limit (dynamic entity)",
           "max_number_of_slots": "Flexible: max number of slots (static value)",
-          "max_number_of_slots_entity": "Flexible: max number of slots (dynamic entity)",
           "flexible_price_limit": "Flexible: price limit (static value)",
-          "flexible_price_limit_entity": "Flexible: price limit (dynamic entity)",
-          "calendar": "Add to calendar",
+          "min_seq_slots": "Minimum continuous slots",
+          "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
-          "price_modifications": "Price modifications",
-          "use_offset": "Configure time offset"
+          "price_modifications": "Price modifications"
         },
         "data_description": {
           "failsafe_starting_hour": "Fallback hour if price data unavailable",
-          "inversed": "Find most expensive hours instead of cheapest",
           "trigger_hour": "Static: Earliest hour to create next cheapest hours",
-          "trigger_hour_entity": "Optional: Entity to dynamically set trigger hour (sensor or input_number). Overrides static value if set",
           "price_limit": "Static: Only accept prices below this value (or above if inversed)",
-          "price_limit_entity": "Optional: Entity to dynamically set price limit (sensor or input_number). Overrides static value if set",
           "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit (non-sequential only). Requires the flexible price limit",
-          "max_number_of_slots_entity": "Optional: Entity to dynamically set the max number of flexible slots (sensor or input_number). Overrides static value if set",
           "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Requires the max number of slots",
-          "flexible_price_limit_entity": "Optional: Entity to dynamically set the flexible price limit (sensor or input_number). Overrides static value if set",
-          "calendar": "Show this entity in the calendar",
+          "min_seq_slots": "Enforce a number of continuous slots",
+          "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
           "retention_days": "Number of days to keep calendar history",
-          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)",
-          "use_offset": "Enable time offset configuration for start and end times"
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)"
+        },
+        "sections": {
+          "dynamic_section": {
+            "name": "Dynamic entities (Optional)",
+            "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
+            "data": {
+              "trigger_hour_entity": "Trigger hour",
+              "price_limit_entity": "Price limit",
+              "max_number_of_slots_entity": "Flexible: max number of slots",
+              "flexible_price_limit_entity": "Flexible: price limit"
+            },
+            "data_description": {
+              "trigger_hour_entity": "Dynamic sensor/input_number for trigger hour",
+              "price_limit_entity": "Dynamic sensor/input_number for price limit",
+              "max_number_of_slots_entity": "Dynamic sensor/input_number for max slots",
+              "flexible_price_limit_entity": "Dynamic sensor/input_number for flexible price limit"
+            }
+          }
         }
       },
       "cheapest_hours_offset": {
