@@ -38,6 +38,7 @@ from ..const import (
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
     CONF_MIN_SEQ_SLOTS,
+    CONF_NUMBER_OF_BLOCKS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -356,6 +357,28 @@ def _get_cheapest_hours_advanced_schema(
                 CONF_MIN_SEQ_SLOTS,
                 description={
                     "suggested_value": user_input.get(CONF_MIN_SEQ_SLOTS)
+                    if user_input
+                    else None
+                },
+            )
+        ] = int
+
+        schema_dict[
+            vol.Optional(
+                CONF_NUMBER_OF_BLOCKS,
+                description={
+                    "suggested_value": user_input.get(CONF_NUMBER_OF_BLOCKS)
+                    if user_input
+                    else None
+                },
+            )
+        ] = int
+
+        schema_dict[
+            vol.Optional(
+                CONF_NUMBER_OF_BLOCKS,
+                description={
+                    "suggested_value": user_input.get(CONF_NUMBER_OF_BLOCKS)
                     if user_input
                     else None
                 },
@@ -882,6 +905,10 @@ def _validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, s
     if min_seq_slots is not None and min_seq_slots < 1:
         errors[CONF_MIN_SEQ_SLOTS] = "min_seq_slots_out_of_range"
 
+    number_of_blocks = user_input.get(CONF_NUMBER_OF_BLOCKS)
+    if number_of_blocks is not None and number_of_blocks < 1:
+        errors[CONF_NUMBER_OF_BLOCKS] = "number_of_blocks_out_of_range"
+
     return errors
 
 
@@ -1092,6 +1119,9 @@ class CheapestHoursConfigFlowMixin:
                 self._config_data.pop(CONF_ADD_FLEXIBLE, None)
                 user_input.pop(CONF_MIN_SEQ_SLOTS, None)
                 self._config_data.pop(CONF_MIN_SEQ_SLOTS, None)
+                user_input.pop(CONF_NUMBER_OF_BLOCKS, None)
+                self._config_data.pop(CONF_NUMBER_OF_BLOCKS, None)
+
             else:
                 flexible_errors = _validate_and_build_add_flexible(
                     user_input,

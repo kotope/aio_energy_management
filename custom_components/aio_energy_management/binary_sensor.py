@@ -39,6 +39,7 @@ from .const import (
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
     CONF_MIN_SEQ_SLOTS,
+    CONF_NUMBER_OF_BLOCKS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -77,6 +78,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         vol.Optional(CONF_NUMBER_OF_HOURS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_NUMBER_OF_SLOTS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_MIN_SEQ_SLOTS): vol.Any(int, cv.entity_id),
+        vol.Optional(CONF_NUMBER_OF_BLOCKS): vol.Any(int, cv.entity_id),
         vol.Optional(CONF_FAILSAFE_STARTING_HOUR): int,
         vol.Optional(CONF_INVERSED): bool,
         vol.Optional(CONF_TRIGGER_TIME): vol.All(vol.Coerce(str)),
@@ -194,15 +196,16 @@ def _create_cheapest_hours_entity(
         CONF_NUMBER_OF_SLOTS_ENTITY
     ) or discovery_info.get(CONF_NUMBER_OF_SLOTS)
     min_seq_slots = discovery_info.get(CONF_MIN_SEQ_SLOTS)
+    number_of_blocks = discovery_info.get(CONF_NUMBER_OF_BLOCKS)
     failsafe_starting_hour = discovery_info.get(CONF_FAILSAFE_STARTING_HOUR)
     inversed = discovery_info.get(CONF_INVERSED) or False
     trigger_time = discovery_info.get(CONF_TRIGGER_TIME)
     price_limit = discovery_info.get(
         CONF_MAX_PRICE
     )  # DEPRECATED: replaced by price_limit. Keep here for few releases.
-    trigger_hour = discovery_info.get(
-        CONF_TRIGGER_HOUR_ENTITY
-    ) or discovery_info.get(CONF_TRIGGER_HOUR)
+    trigger_hour = discovery_info.get(CONF_TRIGGER_HOUR_ENTITY) or discovery_info.get(
+        CONF_TRIGGER_HOUR
+    )
     add_flexible = discovery_info.get(CONF_ADD_FLEXIBLE)
     calendar = discovery_info.get(CONF_CALENDAR)
     retention_days = discovery_info.get(CONF_RETENTION_DAYS) or 1
@@ -212,7 +215,9 @@ def _create_cheapest_hours_entity(
     price_modifications = None
     if calendar is None:
         calendar = True
-    if pl := discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(CONF_PRICE_LIMIT):
+    if pl := discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(
+        CONF_PRICE_LIMIT
+    ):
         price_limit = pl
     if pm := discovery_info.get(CONF_PRICE_MODIFICATIONS):
         price_modifications = cv.template(pm)
@@ -232,6 +237,7 @@ def _create_cheapest_hours_entity(
         number_of_hours=number_of_hours,
         number_of_slots=number_of_slots,
         min_seq_slots=min_seq_slots,
+        number_of_blocks=number_of_blocks,
         coordinator=hass.data[DOMAIN][COORDINATOR],
         sequential=sequential,
         failsafe_starting_hour=failsafe_starting_hour,

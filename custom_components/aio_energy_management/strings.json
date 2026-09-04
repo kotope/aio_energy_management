@@ -139,6 +139,7 @@
           "max_number_of_slots": "Flexible: max number of slots (static value)",
           "flexible_price_limit": "Flexible: price limit (static value)",
           "min_seq_slots": "Minimum continuous slots",
+          "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
           "price_modifications": "Price modifications"
         },
@@ -149,6 +150,7 @@
           "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit (non-sequential only). Requires the flexible price limit",
           "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Requires the max number of slots",
           "min_seq_slots": "Enforce a number of continuous slots",
+          "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
           "retention_days": "Number of days to keep calendar history",
           "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)"
         },
@@ -277,6 +279,7 @@
       "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
       "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
       "device_name_required": "Device name is required",
+      "number_of_blocks_out_of_range": "Nuimber of blocks must be at least 1",
       "unknown": "Unexpected error occurred"
     },
     "abort": {

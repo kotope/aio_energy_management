@@ -13,6 +13,7 @@ from custom_components.aio_energy_management.models.hour_price import HourPrice
 from freezegun import freeze_time
 import numpy as np
 import pytest
+import math
 
 
 @pytest.fixture
@@ -785,3 +786,78 @@ def test_cheapest_hours_min_seq_slots_scenarios(
         duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
         slots_count = int(duration_minutes / 60)
         assert slots_count >= min_seq_slots
+
+
+@pytest.mark.parametrize(
+    "number_of_slots, number_of_blocks, inversed, expected_ranges",
+    [
+        # Example 1: 6 slots divided by 2 blocks
+        (6, 2, False, [("01:00", "04:00"), ("12:00", "15:00")]),
+        # Example 2: 7 slots divided by 2 blocks
+        (7, 2, False, [("01:00", "05:00"), ("12:00", "15:00")]),
+        # Example 3: 9 slots divided by 3 blocks
+        (9, 3, False, [("01:00", "04:00"), ("08:00", "11:00"), ("12:00", "15:00")]),
+        # Example 4: 10 slots divided by 3 blocks
+        (10, 3, False, [("01:00", "05:00"), ("08:00", "11:00"), ("12:00", "15:00")]),
+        # Example 4: Inversed, 4 slots divided by 2 blocks
+        (4, 2, True, [("11:00", "13:00"), ("14:00", "16:00")]),
+    ],
+)
+def test_cheapest_hours_number_of_blocks_scenarios(
+    today_valid2,
+    tomorrow_valid,
+    number_of_slots: int,
+    number_of_blocks: int,
+    inversed: bool,
+    expected_ranges: list[tuple[str, str]],
+) -> None:
+    """Test non-sequential cheapest/expensive hours respecting number_of_blocks."""
+
+    result, _ = calculate_non_sequential_cheapest_hours(
+        today=today_valid2,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        number_of_blocks=number_of_blocks,
+        inversed=inversed,
+    )
+
+    # Format outcomes to readable time windows
+    actual_ranges = [
+        (
+            seq_slots["start"].strftime("%H:%M"),
+            seq_slots["end"].strftime("%H:%M"),
+        )
+        for seq_slots in result["list"]
+    ]
+
+    # 1. Check if the generated ranges match the exact expectations
+    assert actual_ranges == expected_ranges
+
+    # 2. Basic payload checks
+    assert isinstance(result, dict)
+    assert "list" in result
+    assert "extra" in result
+    assert len(result["list"]) > 0
+
+    # 3. Calculate expected boundaries for block sizes
+    effective_blocks = min(number_of_blocks, number_of_slots)
+    expected_min_seq = number_of_slots // effective_blocks
+    expected_max_seq = math.ceil(number_of_slots / effective_blocks)
+
+    # 4. Check if the number of returned blocks matches expected number of blocks
+    assert len(result["list"]) == effective_blocks
+
+    # 5. Check if each block respects the calculated min and max bounds
+    total_slots_selected = 0
+    for seq_slots in result["list"]:
+        duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
+        slots_count = int(duration_minutes / 60)
+
+        assert expected_min_seq <= slots_count <= expected_max_seq
+        total_slots_selected += slots_count
+
+    # 6. Check if the total selected slots equal requested number_of_slots
+    assert total_slots_selected == number_of_slots
