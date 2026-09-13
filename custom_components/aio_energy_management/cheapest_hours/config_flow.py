@@ -478,12 +478,17 @@ def _get_cheapest_hours_advanced_schema(
                     else None
                 },
             ): selector.TemplateSelector(),
+        }
+    )
+
+    # Offset is only supported for sequential sensors
+    if sequential:
+        schema_dict[
             vol.Required(
                 CONF_USE_OFFSET,
                 default=user_input.get(CONF_USE_OFFSET) if user_input else False,
-            ): cv.boolean,
-        }
-    )
+            )
+        ] = cv.boolean
 
     return vol.Schema(schema_dict)
 
@@ -1102,6 +1107,17 @@ class CheapestHoursConfigFlowMixin:
                 self._config_data.pop(CONF_NUMBER_OF_BLOCKS, None)
 
             else:
+                # Offset does not apply to non-sequential sensors; clear any offset
+                # fields (including a previously stored config).
+                user_input.pop(CONF_USE_OFFSET, None)
+                user_input[CONF_USE_OFFSET] = False
+                self._config_data.pop(CONF_USE_OFFSET, None)
+                self._config_data.pop(CONF_OFFSET, None)
+                self._config_data.pop(CONF_START_HOURS_ENTITY, None)
+                self._config_data.pop(CONF_START_MINUTES_ENTITY, None)
+                self._config_data.pop(CONF_END_HOURS_ENTITY, None)
+                self._config_data.pop(CONF_END_MINUTES_ENTITY, None)
+
                 flexible_errors = _validate_and_build_add_flexible(
                     user_input,
                     self._config_data.get(CONF_MTU) or 60,

@@ -476,6 +476,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _add_offset(self, list: list, expiration: datetime) -> tuple[list, datetime]:
         new_expiration = expiration
+        # Offset is only supported for sequential sensors
+        if not self._sequential:
+            if self._offset:
+                _LOGGER.error(
+                    "Offset is configured for %s but offsets are only supported for "
+                    "sequential sensors. The offset will be ignored",
+                    self._attr_unique_id,
+                )
+            return (list, new_expiration)
         if first := get_first(list):
             if start := first.get("start"):
                 if offset := self._offset.get("start"):

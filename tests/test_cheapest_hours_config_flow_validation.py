@@ -32,6 +32,7 @@ from aio_energy_management.const import (  # noqa: E402
     CONF_PRICE_LIMIT_ENTITY,
     CONF_START,
     CONF_TRIGGER_HOUR,
+    CONF_USE_OFFSET,
 )
 
 
@@ -430,3 +431,15 @@ class TestAdvancedSchemaSequential:
         assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY not in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT not in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY not in fields
+
+    def test_use_offset_present_when_sequential(self):
+        fields = _schema_field_names(
+            _get_cheapest_hours_advanced_schema(sequential=True)
+        )
+        assert CONF_USE_OFFSET in fields
+
+    def test_use_offset_absent_when_not_sequential(self):
+        fields = _schema_field_names(
+            _get_cheapest_hours_advanced_schema(sequential=False)
+        )
+        assert CONF_USE_OFFSET not in fields
