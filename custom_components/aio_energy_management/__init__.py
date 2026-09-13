@@ -266,8 +266,11 @@ async def _async_migrate_legacy_calendar_entry(
             }
 
     for entry_id in entries_to_remove:
-        _LOGGER.info("Removing old calendar entities: %s", entry_id)
-        await hass.config_entries.async_remove(entry_id)
+        _LOGGER.info("Scheduling removal of old calendar entry: %s", entry_id)
+        hass.async_create_task(
+            hass.config_entries.async_remove(entry_id),
+            eager_start=True,
+        )
 
     return entries_to_remove, migrated_data
 
