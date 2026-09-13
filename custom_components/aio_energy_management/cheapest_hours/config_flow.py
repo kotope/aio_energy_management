@@ -1,62 +1,67 @@
-"""Cheapest hours config flow handlers and helpers."""
+"""Cheapest hours config flow handlers."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-import voluptuous as vol
+from homeassistant.config_entries import ConfigFlowResult
 
-from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
-from homeassistant.const import CONF_NAME
-from homeassistant.helpers import selector
-from homeassistant.core import HomeAssistant
-import homeassistant.helpers.config_validation as cv
-
-from ..const import (
+from custom_components.aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
-    CONF_ALLOW_DYNAMIC_ENTITIES,
     CONF_AREA,
-    CONF_CALENDAR,
     CONF_DATA_PROVIDER_TYPE,
-    CONF_END,
     CONF_END_HOURS_ENTITY,
     CONF_END_MINUTES_ENTITY,
-    CONF_ENTSOE_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
-    CONF_FIRST_HOUR,
-    CONF_HOURS,
-    CONF_INVERSED,
-    CONF_LAST_HOUR,
+    CONF_FLEXIBLE_PRICE_LIMIT,
+    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
-    CONF_MINUTES,
+    CONF_MIN_SEQ_SLOTS,
     CONF_MTU,
-    CONF_NORDPOOL_ENTITY,
-    CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
+    CONF_NAME,
+    CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
-    CONF_MIN_SEQ_SLOTS,
-    CONF_NUMBER_OF_BLOCKS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
-    CONF_START,
     CONF_START_HOURS_ENTITY,
     CONF_START_MINUTES_ENTITY,
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_HOUR_ENTITY,
     CONF_UNIQUE_ID,
-    CONF_USE_OFFSET,
     DATA_PROVIDER_ENTSOE,
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
-    CONF_STROMLIGNING_ENTITY,
-    CONF_STROMLIGNING_TOMORROW_ENTITY,
+)
+from .helpers import (
+    _coerce_mtu,
+    _normalize_optional_keys,
+    _process_offset_input,
+    sanitize_cheapest_hours_input,
+    _validate_advanced_integer_fields,
+    _validate_and_build_add_flexible,
+    _validate_and_clean_advanced_fields,
+    _validate_and_clean_number_of_slots,
+    _validate_and_clean_offset_fields,
+    _validate_basic_integer_fields,
+    _validate_offset_integer_fields,
+)
+from .schemas import (
+    _get_cheapest_hours_advanced_schema,
+    _get_cheapest_hours_basic_schema,
+    _get_data_provider_type_schema,
+    _get_entsoe_schema,
+    _get_nordpool_official_schema,
+    _get_nordpool_schema,
+    _get_offset_schema,
+    _get_stromligning_schema,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,880 +69,24 @@ _LOGGER = logging.getLogger(__name__)
 CONF_ENTRY_TYPE = "entry_type"
 ENTRY_TYPE_CHEAPEST_HOURS = "cheapest_hours"
 
-# Flat UI field names for the flexible price limit. They are assembled into the
-# nested ``add_flexible`` dict (using CONF_PRICE_LIMIT / CONF_PRICE_LIMIT_ENTITY)
-# before the config entry is stored, so they cannot reuse the top-level
-# price_limit field names.
-CONF_FLEXIBLE_PRICE_LIMIT = "flexible_price_limit"
-CONF_FLEXIBLE_PRICE_LIMIT_ENTITY = "flexible_price_limit_entity"
-
-
-def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
-    """Get data provider type selection schema."""
-    if default:
-        field = vol.Required(CONF_DATA_PROVIDER_TYPE, default=default)
-    else:
-        field = vol.Required(CONF_DATA_PROVIDER_TYPE)
-
-    return vol.Schema(
-        {
-            field: vol.In(
-                {
-                    DATA_PROVIDER_NORDPOOL: "Nord Pool",
-                    DATA_PROVIDER_NORDPOOL_OFFICIAL: "Nord Pool official",
-                    DATA_PROVIDER_ENTSOE: "Entso-E",
-                    DATA_PROVIDER_STROMLIGNING: "Strømligning",
-                }
-            ),
-        }
-    )
-
-
-def _mtu_selector() -> selector.SelectSelector:
-    """Return the MTU dropdown selector.
-
-    String option values are used (instead of ``vol.In([15, 60])``) because the
-    frontend only reliably pre-selects string-valued select options. The value
-    is coerced back to an int via ``_coerce_mtu`` in the step handler.
-    """
-    return selector.SelectSelector(
-        selector.SelectSelectorConfig(
-            options=["15", "60"],
-            mode=selector.SelectSelectorMode.DROPDOWN,
-        )
-    )
-
-
-def _mtu_default(user_input: dict[str, Any] | None) -> str:
-    """Return the MTU dropdown default as a string."""
-    if user_input and user_input.get(CONF_MTU) is not None:
-        return str(user_input[CONF_MTU])
-    return "60"
-
-
-def _coerce_mtu(user_input: dict[str, Any]) -> None:
-    """Coerce the MTU dropdown value (a string) back to an int in place."""
-    if user_input.get(CONF_MTU) is not None:
-        user_input[CONF_MTU] = int(user_input[CONF_MTU])
-
-
-def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
-    """Get Nord Pool entity selection schema."""
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_NORDPOOL_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_NORDPOOL_ENTITY)
-                    if user_input
-                    else None
-                },
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="sensor",
-                )
-            ),
-            vol.Optional(
-                CONF_MTU,
-                default=_mtu_default(user_input),
-            ): _mtu_selector(),
-            vol.Required(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
-        }
-    )
-
-
-def _get_nordpool_official_schema(
-    hass: HomeAssistant,
-    user_input: dict[str, Any] | None = None,
-) -> vol.Schema:
-    """Get Nord Pool official config entry ID schema."""
-    existing_entries = hass.config_entries.async_entries("nordpool")
-
-    options = {entry.entry_id: entry.title for entry in existing_entries}
-    return vol.Schema(
-        {
-            vol.Required(CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[{"value": k, "label": v} for k, v in options.items()],
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
-            ),
-            vol.Optional(
-                CONF_AREA,
-                description={
-                    "suggested_value": user_input.get(CONF_AREA) if user_input else None
-                },
-            ): cv.string,
-            vol.Optional(
-                CONF_MTU,
-                default=_mtu_default(user_input),
-            ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
-        }
-    )
-
-
-def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
-    """Get Entso-E entity selection schema."""
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_ENTSOE_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_ENTSOE_ENTITY)
-                    if user_input
-                    else None
-                },
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="sensor",
-                )
-            ),
-            vol.Optional(
-                CONF_MTU,
-                default=_mtu_default(user_input),
-            ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
-        }
-    )
-
-
-def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
-    """Get Strømligning entity selection schema."""
-    return vol.Schema(
-        {
-            vol.Required(
-                CONF_STROMLIGNING_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_STROMLIGNING_ENTITY)
-                    if user_input
-                    else None
-                },
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="sensor",
-                )
-            ),
-            vol.Required(
-                CONF_STROMLIGNING_TOMORROW_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_STROMLIGNING_TOMORROW_ENTITY)
-                    if user_input
-                    else None
-                },
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="binary_sensor",
-                )
-            ),
-            vol.Optional(
-                CONF_MTU,
-                default=_mtu_default(user_input),
-            ): _mtu_selector(),
-            vol.Optional(
-                CONF_ALLOW_DYNAMIC_ENTITIES,
-                default=user_input.get(CONF_ALLOW_DYNAMIC_ENTITIES)
-                if user_input
-                else False,
-            ): cv.boolean,
-        }
-    )
-
-
-def _get_cheapest_hours_basic_schema(
-    user_input: dict[str, Any] | None = None,
-    allow_dynamic_entities: bool = True,
-) -> vol.Schema:
-    """Get basic cheapest hours configuration schema."""
-    schema_dict = {
-        vol.Required(
-            CONF_NAME,
-            default=user_input.get(CONF_NAME) if user_input else "Cheapest Hours",
-        ): cv.string,
-        vol.Optional(
-            CONF_NUMBER_OF_SLOTS,
-            description={
-                "suggested_value": user_input.get(CONF_NUMBER_OF_SLOTS)
-                if user_input
-                else 0
-            },
-        ): int,
-    }
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_NUMBER_OF_SLOTS_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_NUMBER_OF_SLOTS_ENTITY)
-                    if user_input
-                    else None
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    schema_dict.update(
-        {
-            vol.Required(
-                CONF_FIRST_HOUR,
-                default=user_input.get(CONF_FIRST_HOUR) if user_input else 0,
-            ): int,
-            vol.Required(
-                CONF_LAST_HOUR,
-                default=user_input.get(CONF_LAST_HOUR) if user_input else 23,
-            ): int,
-            vol.Required(
-                CONF_SEQUENTIAL,
-                default=user_input.get(CONF_SEQUENTIAL) if user_input else False,
-            ): cv.boolean,
-        }
-    )
-
-    return vol.Schema(schema_dict)
-
-
-def _get_cheapest_hours_advanced_schema(
-    user_input: dict[str, Any] | None = None,
-    allow_dynamic_entities: bool = True,
-    sequential: bool = False,
-) -> vol.Schema:
-    """Get advanced cheapest hours configuration schema.
-
-    The flexible slot fields (``max_number_of_slots`` and
-    ``flexible_price_limit``) only apply to non-sequential sensors, so they are
-    omitted when ``sequential`` is set.
-    """
-    schema_dict = {
-        vol.Optional(
-            CONF_FAILSAFE_STARTING_HOUR,
-            description={
-                "suggested_value": user_input.get(CONF_FAILSAFE_STARTING_HOUR)
-                if user_input
-                else None
-            },
-        ): int,
-        vol.Optional(
-            CONF_INVERSED,
-            default=user_input.get(CONF_INVERSED) if user_input else False,
-        ): cv.boolean,
-        vol.Optional(
-            CONF_TRIGGER_HOUR,
-            description={
-                "suggested_value": user_input.get(CONF_TRIGGER_HOUR)
-                if user_input
-                else None
-            },
-        ): int,
-    }
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_TRIGGER_HOUR_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_TRIGGER_HOUR_ENTITY)
-                    if user_input
-                    else None
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    schema_dict[
-        vol.Optional(
-            CONF_PRICE_LIMIT,
-            description={
-                "suggested_value": user_input.get(CONF_PRICE_LIMIT)
-                if user_input
-                else None
-            },
-        )
-    ] = vol.Coerce(float)
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_PRICE_LIMIT_ENTITY,
-                description={
-                    "suggested_value": user_input.get(CONF_PRICE_LIMIT_ENTITY)
-                    if user_input
-                    else None
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    # Flexible and continuous slots only make sense for non-sequential sensors.
-    if not sequential:
-        schema_dict[
-            vol.Optional(
-                CONF_MIN_SEQ_SLOTS,
-                description={
-                    "suggested_value": user_input.get(CONF_MIN_SEQ_SLOTS)
-                    if user_input
-                    else None
-                },
-            )
-        ] = int
-
-        schema_dict[
-            vol.Optional(
-                CONF_NUMBER_OF_BLOCKS,
-                description={
-                    "suggested_value": user_input.get(CONF_NUMBER_OF_BLOCKS)
-                    if user_input
-                    else None
-                },
-            )
-        ] = int
-
-        add_flexible = (user_input or {}).get(CONF_ADD_FLEXIBLE) or {}
-
-        schema_dict[
-            vol.Optional(
-                CONF_MAX_NUMBER_OF_SLOTS,
-                description={
-                    "suggested_value": add_flexible.get(CONF_MAX_NUMBER_OF_SLOTS)
-                },
-            )
-        ] = int
-
-        if allow_dynamic_entities:
-            schema_dict[
-                vol.Optional(
-                    CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
-                    description={
-                        "suggested_value": add_flexible.get(
-                            CONF_MAX_NUMBER_OF_SLOTS_ENTITY
-                        )
-                    },
-                )
-            ] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-            )
-
-        schema_dict[
-            vol.Optional(
-                CONF_FLEXIBLE_PRICE_LIMIT,
-                description={"suggested_value": add_flexible.get(CONF_PRICE_LIMIT)},
-            )
-        ] = vol.Coerce(float)
-
-        if allow_dynamic_entities:
-            schema_dict[
-                vol.Optional(
-                    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
-                    description={
-                        "suggested_value": add_flexible.get(CONF_PRICE_LIMIT_ENTITY)
-                    },
-                )
-            ] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-            )
-
-    schema_dict.update(
-        {
-            vol.Optional(
-                CONF_CALENDAR,
-                default=user_input.get(CONF_CALENDAR) if user_input else True,
-            ): cv.boolean,
-            vol.Optional(
-                CONF_RETENTION_DAYS,
-                default=user_input.get(CONF_RETENTION_DAYS) if user_input else 1,
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=1,
-                    max=365,
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            ),
-            vol.Optional(
-                CONF_PRICE_MODIFICATIONS,
-                description={
-                    "suggested_value": user_input.get(CONF_PRICE_MODIFICATIONS)
-                    if user_input
-                    else None
-                },
-            ): selector.TemplateSelector(),
-            vol.Required(
-                CONF_USE_OFFSET,
-                default=user_input.get(CONF_USE_OFFSET) if user_input else False,
-            ): cv.boolean,
-        }
-    )
-
-    return vol.Schema(schema_dict)
-
-
-def _process_offset_input(
-    user_input: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Process offset input and build offset structure.
-
-    Returns:
-        Tuple of (offset_dict, entity_dict) where offset_dict contains static values
-        and entity_dict contains entity references to be stored at root level.
-    """
-    offset = {}
-    entities = {}
-
-    if any(
-        user_input.get(f"{CONF_START}_{key}") is not None
-        for key in [CONF_HOURS, CONF_MINUTES]
-    ):
-        start_offset = {}
-        if user_input.get(f"{CONF_START}_{CONF_HOURS}") is not None:
-            start_offset[CONF_HOURS] = user_input[f"{CONF_START}_{CONF_HOURS}"]
-        if user_input.get(f"{CONF_START}_{CONF_MINUTES}") is not None:
-            start_offset[CONF_MINUTES] = user_input[f"{CONF_START}_{CONF_MINUTES}"]
-        if start_offset:
-            offset[CONF_START] = start_offset
-
-    if user_input.get(CONF_START_HOURS_ENTITY):
-        entities[CONF_START_HOURS_ENTITY] = user_input[CONF_START_HOURS_ENTITY]
-    if user_input.get(CONF_START_MINUTES_ENTITY):
-        entities[CONF_START_MINUTES_ENTITY] = user_input[CONF_START_MINUTES_ENTITY]
-
-    if any(
-        user_input.get(f"{CONF_END}_{key}") is not None
-        for key in [CONF_HOURS, CONF_MINUTES]
-    ):
-        end_offset = {}
-        if user_input.get(f"{CONF_END}_{CONF_HOURS}") is not None:
-            end_offset[CONF_HOURS] = user_input[f"{CONF_END}_{CONF_HOURS}"]
-        if user_input.get(f"{CONF_END}_{CONF_MINUTES}") is not None:
-            end_offset[CONF_MINUTES] = user_input[f"{CONF_END}_{CONF_MINUTES}"]
-        if end_offset:
-            offset[CONF_END] = end_offset
-
-    if user_input.get(CONF_END_HOURS_ENTITY):
-        entities[CONF_END_HOURS_ENTITY] = user_input[CONF_END_HOURS_ENTITY]
-    if user_input.get(CONF_END_MINUTES_ENTITY):
-        entities[CONF_END_MINUTES_ENTITY] = user_input[CONF_END_MINUTES_ENTITY]
-
-    return offset, entities
-
-
-def _get_offset_schema(
-    offset_data: dict[str, Any], allow_dynamic_entities: bool = True
-) -> vol.Schema:
-    """Get offset configuration schema."""
-    start_offset = offset_data.get(CONF_START, {})
-    end_offset = offset_data.get(CONF_END, {})
-
-    schema_dict = {
-        vol.Optional(
-            f"{CONF_START}_{CONF_HOURS}",
-            description={"suggested_value": start_offset.get(CONF_HOURS)},
-        ): int,
-    }
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_START_HOURS_ENTITY,
-                description={
-                    "suggested_value": offset_data.get(CONF_START_HOURS_ENTITY)
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    schema_dict[
-        vol.Optional(
-            f"{CONF_START}_{CONF_MINUTES}",
-            description={"suggested_value": start_offset.get(CONF_MINUTES)},
-        )
-    ] = int
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_START_MINUTES_ENTITY,
-                description={
-                    "suggested_value": offset_data.get(CONF_START_MINUTES_ENTITY)
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    schema_dict[
-        vol.Optional(
-            f"{CONF_END}_{CONF_HOURS}",
-            description={"suggested_value": end_offset.get(CONF_HOURS)},
-        )
-    ] = int
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_END_HOURS_ENTITY,
-                description={"suggested_value": offset_data.get(CONF_END_HOURS_ENTITY)},
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    schema_dict[
-        vol.Optional(
-            f"{CONF_END}_{CONF_MINUTES}",
-            description={"suggested_value": end_offset.get(CONF_MINUTES)},
-        )
-    ] = int
-
-    if allow_dynamic_entities:
-        schema_dict[
-            vol.Optional(
-                CONF_END_MINUTES_ENTITY,
-                description={
-                    "suggested_value": offset_data.get(CONF_END_MINUTES_ENTITY)
-                },
-            )
-        ] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=["sensor", "input_number"]),
-        )
-
-    return vol.Schema(schema_dict)
-
-
-def _validate_and_clean_static_or_entity(
-    user_input: dict[str, Any],
-    static_key: str,
-    entity_key: str,
-    field_name: str,
-    allow_both_empty: bool = False,
-) -> dict[str, str]:
-    """Validate and clean configuration where either static value or entity can be used.
-
-    Args:
-        user_input: The user input dictionary (will be modified to remove unused fields)
-        static_key: Key for the static value field
-        entity_key: Key for the entity field
-        field_name: Human-readable field name for error messages
-        allow_both_empty: If True, allows both fields to be empty
-
-    Returns:
-        Dict of errors (empty if validation passes).
-    """
-    errors: dict[str, str] = {}
-
-    static_value = user_input.get(static_key)
-    has_static = static_value is not None and (
-        (isinstance(static_value, (int, float)) and static_value != 0)
-        or (isinstance(static_value, str) and static_value.strip())
-    )
-
-    has_entity = bool(user_input.get(entity_key))
-
-    if has_static and has_entity:
-        errors["base"] = f"both_{field_name}_configured"
-    elif not has_static and not has_entity and not allow_both_empty:
-        errors["base"] = f"no_{field_name}_configured"
-    else:
-        if has_entity and static_key in user_input:
-            user_input.pop(static_key, None)
-        elif has_static and entity_key in user_input:
-            user_input.pop(entity_key, None)
-        elif not has_static and not has_entity and allow_both_empty:
-            user_input.pop(static_key, None)
-            user_input.pop(entity_key, None)
-
-    return errors
-
-
-def _validate_and_clean_number_of_slots(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate and clean number of slots configuration.
-
-    Removes unused fields and returns a dict of errors (empty if validation passes).
-    """
-    return _validate_and_clean_static_or_entity(
-        user_input,
-        CONF_NUMBER_OF_SLOTS,
-        CONF_NUMBER_OF_SLOTS_ENTITY,
-        "slots",
-        allow_both_empty=False,
-    )
-
-
-def _validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate and clean advanced configuration fields.
-
-    Validates trigger_hour and price_limit (both optional, can use static or entity).
-    """
-    errors: dict[str, str] = {}
-
-    trigger_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        CONF_TRIGGER_HOUR,
-        CONF_TRIGGER_HOUR_ENTITY,
-        "trigger_hour",
-        allow_both_empty=True,
-    )
-    if trigger_errors:
-        errors.update(trigger_errors)
-
-    price_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        CONF_PRICE_LIMIT,
-        CONF_PRICE_LIMIT_ENTITY,
-        "price_limit",
-        allow_both_empty=True,
-    )
-    if price_errors:
-        errors.update(price_errors)
-
-    return errors
-
-
-def _validate_and_build_add_flexible(
-    user_input: dict[str, Any],
-    mtu: int,
-) -> dict[str, str]:
-    """Validate flexible slot fields and assemble them into a nested dict.
-
-    The flat ``max_number_of_slots`` / ``flexible_price_limit`` UI fields (and
-    their entity variants) are validated and, on success, collapsed into a
-    nested ``add_flexible`` dict stored on ``user_input``. Both the max slots
-    and the price limit must be provided together, since one without the other
-    has no effect.
-    """
-    errors: dict[str, str] = {}
-
-    max_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        CONF_MAX_NUMBER_OF_SLOTS,
-        CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
-        "max_number_of_slots",
-        allow_both_empty=True,
-    )
-    errors.update(max_errors)
-
-    price_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        CONF_FLEXIBLE_PRICE_LIMIT,
-        CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
-        "flexible_price_limit",
-        allow_both_empty=True,
-    )
-    errors.update(price_errors)
-
-    if errors:
-        return errors
-
-    has_max = (
-        CONF_MAX_NUMBER_OF_SLOTS in user_input
-        or CONF_MAX_NUMBER_OF_SLOTS_ENTITY in user_input
-    )
-    has_price = (
-        CONF_FLEXIBLE_PRICE_LIMIT in user_input
-        or CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in user_input
-    )
-
-    if has_max != has_price:
-        errors["base"] = "add_flexible_incomplete"
-        return errors
-
-    max_slots = user_input.get(CONF_MAX_NUMBER_OF_SLOTS)
-    if max_slots is not None:
-        cap = 96 if mtu == 15 else 24
-        if max_slots < 1 or max_slots > cap:
-            errors[CONF_MAX_NUMBER_OF_SLOTS] = "max_number_of_slots_out_of_range"
-            return errors
-
-    # The flexible price limit only extends the base slots with cheaper ones, so
-    # a static flexible limit must stay below the regular (static) price limit.
-    flexible_price_limit = user_input.get(CONF_FLEXIBLE_PRICE_LIMIT)
-    price_limit = user_input.get(CONF_PRICE_LIMIT)
-    if (
-        flexible_price_limit is not None
-        and price_limit is not None
-        and flexible_price_limit >= price_limit
-    ):
-        errors[CONF_FLEXIBLE_PRICE_LIMIT] = "flexible_price_limit_not_below_price_limit"
-        return errors
-
-    add_flexible: dict[str, Any] = {}
-    if CONF_MAX_NUMBER_OF_SLOTS in user_input:
-        add_flexible[CONF_MAX_NUMBER_OF_SLOTS] = user_input.pop(
-            CONF_MAX_NUMBER_OF_SLOTS
-        )
-    if CONF_MAX_NUMBER_OF_SLOTS_ENTITY in user_input:
-        add_flexible[CONF_MAX_NUMBER_OF_SLOTS_ENTITY] = user_input.pop(
-            CONF_MAX_NUMBER_OF_SLOTS_ENTITY
-        )
-    if CONF_FLEXIBLE_PRICE_LIMIT in user_input:
-        add_flexible[CONF_PRICE_LIMIT] = user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT)
-    if CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in user_input:
-        add_flexible[CONF_PRICE_LIMIT_ENTITY] = user_input.pop(
-            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY
-        )
-
-    if add_flexible:
-        user_input[CONF_ADD_FLEXIBLE] = add_flexible
-    else:
-        user_input.pop(CONF_ADD_FLEXIBLE, None)
-
-    return errors
-
-
-def _validate_and_clean_offset_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate and clean offset configuration fields.
-
-    Validates start/end hours and minutes (all optional, can use static or entity).
-    """
-    errors: dict[str, str] = {}
-
-    start_hours_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        f"{CONF_START}_{CONF_HOURS}",
-        CONF_START_HOURS_ENTITY,
-        "start_hours",
-        allow_both_empty=True,
-    )
-    if start_hours_errors:
-        errors.update(start_hours_errors)
-
-    start_minutes_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        f"{CONF_START}_{CONF_MINUTES}",
-        CONF_START_MINUTES_ENTITY,
-        "start_minutes",
-        allow_both_empty=True,
-    )
-    if start_minutes_errors:
-        errors.update(start_minutes_errors)
-
-    end_hours_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        f"{CONF_END}_{CONF_HOURS}",
-        CONF_END_HOURS_ENTITY,
-        "end_hours",
-        allow_both_empty=True,
-    )
-    if end_hours_errors:
-        errors.update(end_hours_errors)
-
-    end_minutes_errors = _validate_and_clean_static_or_entity(
-        user_input,
-        f"{CONF_END}_{CONF_MINUTES}",
-        CONF_END_MINUTES_ENTITY,
-        "end_minutes",
-        allow_both_empty=True,
-    )
-    if end_minutes_errors:
-        errors.update(end_minutes_errors)
-
-    return errors
-
-
-# ---------------------------------------------------------------------------
-# Integer validation helpers
-# These perform custom validation instead of using vol.Range so that integer
-# fields keep their text-box appearance (vol.Range would turn them into sliders).
-# ---------------------------------------------------------------------------
-
-
-def _validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate integer fields on the basic cheapest hours step.
-
-    Checks:
-    - first_hour: 0-23
-    - last_hour: 0-23
-    - number_of_slots: >= 0
-
-    Note: last_hour may be less than first_hour to support overnight windows
-    (e.g. first_hour=22, last_hour=6).
-    """
-    errors: dict[str, str] = {}
-
-    first_hour = user_input.get(CONF_FIRST_HOUR)
-    last_hour = user_input.get(CONF_LAST_HOUR)
-    number_of_slots = user_input.get(CONF_NUMBER_OF_SLOTS)
-
-    if first_hour is not None and not (0 <= first_hour <= 23):
-        errors[CONF_FIRST_HOUR] = "first_hour_out_of_range"
-
-    if last_hour is not None and not (0 <= last_hour <= 23):
-        errors[CONF_LAST_HOUR] = "last_hour_out_of_range"
-
-    if number_of_slots is not None and number_of_slots < 0:
-        errors[CONF_NUMBER_OF_SLOTS] = "number_of_slots_negative"
-
-    return errors
-
-
-def _validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate optional integer fields on the advanced cheapest hours step.
-
-    Checks:
-    - failsafe_starting_hour: 0-23 (optional)
-    - trigger_hour: 0-23 (optional)
-    """
-    errors: dict[str, str] = {}
-
-    failsafe = user_input.get(CONF_FAILSAFE_STARTING_HOUR)
-    if failsafe is not None and not (0 <= failsafe <= 23):
-        errors[CONF_FAILSAFE_STARTING_HOUR] = "failsafe_starting_hour_out_of_range"
-
-    trigger_hour = user_input.get(CONF_TRIGGER_HOUR)
-    if trigger_hour is not None and not (0 <= trigger_hour <= 23):
-        errors[CONF_TRIGGER_HOUR] = "trigger_hour_out_of_range"
-
-    min_seq_slots = user_input.get(CONF_MIN_SEQ_SLOTS)
-    if min_seq_slots is not None and min_seq_slots < 1:
-        errors[CONF_MIN_SEQ_SLOTS] = "min_seq_slots_out_of_range"
-
-    number_of_blocks = user_input.get(CONF_NUMBER_OF_BLOCKS)
-    if number_of_blocks is not None and number_of_blocks < 1:
-        errors[CONF_NUMBER_OF_BLOCKS] = "number_of_blocks_out_of_range"
-
-    return errors
-
-
-def _validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate optional integer fields on the offset step.
-
-    Checks:
-    - start_minutes: 0-59 (optional)
-    - end_minutes: 0-59 (optional)
-    Hours fields are unrestricted integers (they can exceed 23 for multi-hour offsets).
-    """
-    errors: dict[str, str] = {}
-
-    start_minutes = user_input.get(f"{CONF_START}_{CONF_MINUTES}")
-    if start_minutes is not None and not (-59 <= start_minutes <= 59):
-        errors[f"{CONF_START}_{CONF_MINUTES}"] = "start_minutes_out_of_range"
-
-    end_minutes = user_input.get(f"{CONF_END}_{CONF_MINUTES}")
-    if end_minutes is not None and not (-59 <= end_minutes <= 59):
-        errors[f"{CONF_END}_{CONF_MINUTES}"] = "end_minutes_out_of_range"
-
-    return errors
-
 
 class CheapestHoursConfigFlowMixin:
     """Mixin for cheapest hours config flow steps."""
+
+    def _save_options_entry(self, user_input: dict[str, Any]) -> ConfigFlowResult:
+        """Helper to save updated data directly during Options Flow."""
+        cleaned_input = sanitize_cheapest_hours_input(user_input)
+
+        new_data = {
+            **self._config_entry.data,
+            **cleaned_input,
+        }
+        self.hass.config_entries.async_update_entry(
+            self._config_entry,
+            title=new_data.get(CONF_NAME, self._config_entry.title),
+            data=new_data,
+        )
+        return self.async_create_entry(title="", data={})
 
     async def async_step_cheapest_hours_data_provider(
         self, user_input: dict[str, Any] | None = None
@@ -989,6 +138,11 @@ class CheapestHoursConfigFlowMixin:
         """Configure Nord Pool official config entry for cheapest hours."""
         if user_input is not None:
             _coerce_mtu(user_input)
+
+            if hasattr(self, "_config_entry"):
+                _normalize_optional_keys(user_input, [CONF_AREA])
+                return self._save_options_entry(user_input)
+
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -1046,179 +200,149 @@ class CheapestHoursConfigFlowMixin:
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
-            if not allow_dynamic:
-                user_input.pop(CONF_NUMBER_OF_SLOTS_ENTITY, None)
+            if "dynamic_section" in user_input and isinstance(
+                user_input["dynamic_section"], dict
+            ):
+                user_input.update(user_input.pop("dynamic_section"))
             errors = _validate_basic_integer_fields(user_input)
             slot_errors = _validate_and_clean_number_of_slots(user_input)
             errors.update(slot_errors)
+
             if not errors:
+                if hasattr(self, "_config_entry"):
+                    _normalize_optional_keys(
+                        user_input,
+                        [CONF_NUMBER_OF_SLOTS, CONF_NUMBER_OF_SLOTS_ENTITY],
+                    )
+                    if user_input.get(CONF_SEQUENTIAL) is True:
+                        user_input[CONF_MIN_SEQ_SLOTS] = None
+                        user_input[CONF_NUMBER_OF_BLOCKS] = None
+                        user_input[CONF_ADD_FLEXIBLE] = None
+                        user_input[CONF_MAX_NUMBER_OF_SLOTS] = None
+                        user_input[CONF_MAX_NUMBER_OF_SLOTS_ENTITY] = None
+                        user_input[CONF_FLEXIBLE_PRICE_LIMIT] = None
+                        user_input[CONF_FLEXIBLE_PRICE_LIMIT_ENTITY] = None
+                    return self._save_options_entry(user_input)
+
                 self._config_data.update(user_input)
-                return await self.async_step_cheapest_hours_advanced()
+
+                unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
+                self._config_data[CONF_UNIQUE_ID] = unique_id
+                self._config_data[CONF_ENTRY_TYPE] = ENTRY_TYPE_CHEAPEST_HOURS
+                cleaned_data = sanitize_cheapest_hours_input(self._config_data)
+
+                await self.async_set_unique_id(unique_id)
+                self._abort_if_unique_id_configured()
+
+                return self.async_create_entry(
+                    title=cleaned_data[CONF_NAME],
+                    data=cleaned_data,
+                )
 
         existing_data = None
         if hasattr(self, "_config_entry"):
             existing_data = dict(self._config_entry.data)
 
-        allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
+        merged_input = {**(existing_data or {}), **(user_input or {})}
+
         return self.async_show_form(
             step_id="cheapest_hours_basic",
-            data_schema=_get_cheapest_hours_basic_schema(
-                existing_data or user_input, allow_dynamic
-            ),
+            data_schema=_get_cheapest_hours_basic_schema(merged_input),
             errors=errors,
         )
 
     async def async_step_cheapest_hours_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure advanced cheapest hours settings."""
+        """Configure advanced cheapest hours settings (Options Flow only)."""
         errors: dict[str, str] = {}
-
-        sequential = self._config_data.get(CONF_SEQUENTIAL, False)
+        entry_data = dict(self._config_entry.data)
+        sequential = entry_data.get(CONF_SEQUENTIAL, False)
 
         if user_input is not None:
-            allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
-            if not allow_dynamic:
-                user_input.pop(CONF_TRIGGER_HOUR_ENTITY, None)
-                user_input.pop(CONF_PRICE_LIMIT_ENTITY, None)
-                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS_ENTITY, None)
-                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
+            if "dynamic_section" in user_input and isinstance(
+                user_input["dynamic_section"], dict
+            ):
+                user_input.update(user_input.pop("dynamic_section"))
+
             errors = _validate_advanced_integer_fields(user_input)
             advanced_errors = _validate_and_clean_advanced_fields(user_input)
             errors.update(advanced_errors)
+
             if sequential:
-                # Flexible and continuous slots do not apply to sequential sensors; drop any
-                # flexible fields (including a previously stored config).
-                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS, None)
-                user_input.pop(CONF_MAX_NUMBER_OF_SLOTS_ENTITY, None)
                 user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
                 user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
-                user_input.pop(CONF_ADD_FLEXIBLE, None)
-                self._config_data.pop(CONF_ADD_FLEXIBLE, None)
-                user_input.pop(CONF_MIN_SEQ_SLOTS, None)
-                self._config_data.pop(CONF_MIN_SEQ_SLOTS, None)
-                user_input.pop(CONF_NUMBER_OF_BLOCKS, None)
-                self._config_data.pop(CONF_NUMBER_OF_BLOCKS, None)
-
             else:
                 flexible_errors = _validate_and_build_add_flexible(
                     user_input,
-                    self._config_data.get(CONF_MTU) or 60,
+                    entry_data.get(CONF_MTU) or 60,
                 )
                 errors.update(flexible_errors)
+
             if not errors:
-                use_offset = user_input.get(CONF_USE_OFFSET, False)
-                self._config_data.update(user_input)
-
-                if use_offset:
-                    return await self.async_step_cheapest_hours_offset()
-
-                if hasattr(self, "_config_entry"):
-                    new_data = {
-                        **self._config_data,
-                        CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS,
-                        CONF_UNIQUE_ID: self._config_entry.data.get(CONF_UNIQUE_ID),
-                        CONF_DATA_PROVIDER_TYPE: self._data_provider_type,
-                    }
-
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        title=new_data[CONF_NAME],
-                        data=new_data,
-                    )
-                    return self.async_create_entry(title="", data={})
-
-                unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
-                self._config_data[CONF_UNIQUE_ID] = unique_id
-                self._config_data[CONF_ENTRY_TYPE] = ENTRY_TYPE_CHEAPEST_HOURS
-
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-
-                return self.async_create_entry(
-                    title=self._config_data[CONF_NAME],
-                    data=self._config_data,
+                _normalize_optional_keys(
+                    user_input,
+                    [
+                        CONF_FAILSAFE_STARTING_HOUR,
+                        CONF_TRIGGER_HOUR,
+                        CONF_TRIGGER_HOUR_ENTITY,
+                        CONF_PRICE_LIMIT,
+                        CONF_PRICE_LIMIT_ENTITY,
+                        CONF_MIN_SEQ_SLOTS,
+                        CONF_NUMBER_OF_BLOCKS,
+                        CONF_PRICE_MODIFICATIONS,
+                        CONF_MAX_NUMBER_OF_SLOTS,
+                        CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+                        CONF_ADD_FLEXIBLE,
+                        CONF_RETENTION_DAYS,
+                    ],
                 )
+                return self._save_options_entry(user_input)
 
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = {**self._config_entry.data}
-            existing_data[CONF_CALENDAR] = self._config_data.get(CONF_CALENDAR, True)
+        merged_input = {**entry_data, **(user_input or {})}
 
-        allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
         return self.async_show_form(
             step_id="cheapest_hours_advanced",
-            data_schema=_get_cheapest_hours_advanced_schema(
-                existing_data or user_input, allow_dynamic, sequential
-            ),
+            data_schema=_get_cheapest_hours_advanced_schema(merged_input, sequential),
             errors=errors,
         )
 
     async def async_step_cheapest_hours_offset(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure offset settings for cheapest hours."""
+        """Configure offset settings for cheapest hours (Options Flow only)."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
-            if not allow_dynamic:
-                user_input.pop(CONF_START_HOURS_ENTITY, None)
-                user_input.pop(CONF_START_MINUTES_ENTITY, None)
-                user_input.pop(CONF_END_HOURS_ENTITY, None)
-                user_input.pop(CONF_END_MINUTES_ENTITY, None)
+            if "dynamic_section" in user_input and isinstance(
+                user_input["dynamic_section"], dict
+            ):
+                user_input.update(user_input.pop("dynamic_section"))
+
             errors = _validate_offset_integer_fields(user_input)
             offset_errors = _validate_and_clean_offset_fields(user_input)
             errors.update(offset_errors)
+
             if not errors:
                 offset, entities = _process_offset_input(user_input)
-                if offset:
-                    self._config_data[CONF_OFFSET] = offset
-                self._config_data.update(entities)
 
-                if hasattr(self, "_config_entry"):
-                    new_data = {
-                        **self._config_data,
-                        CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS,
-                        CONF_UNIQUE_ID: self._config_entry.data.get(CONF_UNIQUE_ID),
-                        CONF_DATA_PROVIDER_TYPE: self._data_provider_type,
-                    }
+                save_data = {
+                    CONF_OFFSET: offset if offset else None,
+                    CONF_START_HOURS_ENTITY: entities.get(CONF_START_HOURS_ENTITY),
+                    CONF_START_MINUTES_ENTITY: entities.get(CONF_START_MINUTES_ENTITY),
+                    CONF_END_HOURS_ENTITY: entities.get(CONF_END_HOURS_ENTITY),
+                    CONF_END_MINUTES_ENTITY: entities.get(CONF_END_MINUTES_ENTITY),
+                }
+                return self._save_options_entry(save_data)
 
-                    self.hass.config_entries.async_update_entry(
-                        self._config_entry,
-                        title=new_data[CONF_NAME],
-                        data=new_data,
-                    )
-                    return self.async_create_entry(title="", data={})
+        offset_data = {
+            **(self._config_entry.data.get(CONF_OFFSET) or {}),
+            **self._config_entry.data,
+        }
+        merged_input = {**offset_data, **(user_input or {})}
 
-                unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
-                self._config_data[CONF_UNIQUE_ID] = unique_id
-                self._config_data[CONF_ENTRY_TYPE] = ENTRY_TYPE_CHEAPEST_HOURS
-
-                await self.async_set_unique_id(unique_id)
-                self._abort_if_unique_id_configured()
-
-                return self.async_create_entry(
-                    title=self._config_data[CONF_NAME],
-                    data=self._config_data,
-                )
-
-        offset_data = {}
-        if hasattr(self, "_config_entry"):
-            offset_data = {
-                **self._config_entry.data.get(CONF_OFFSET, {}),
-                **self._config_entry.data,
-            }
-        else:
-            offset_data = {
-                **self._config_data.get(CONF_OFFSET, {}),
-                **self._config_data,
-            }
-
-        allow_dynamic = self._config_data.get(CONF_ALLOW_DYNAMIC_ENTITIES, True)
         return self.async_show_form(
             step_id="cheapest_hours_offset",
-            data_schema=_get_offset_schema(offset_data, allow_dynamic),
+            data_schema=_get_offset_schema(merged_input),
             errors=errors,
         )

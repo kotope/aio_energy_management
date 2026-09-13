@@ -160,15 +160,11 @@ class TestValidateAdvancedIntegerFields:
         assert not errors
 
     def test_valid_failsafe_low_boundary(self):
-        errors = _validate_advanced_integer_fields(
-            {CONF_FAILSAFE_STARTING_HOUR: 0}
-        )
+        errors = _validate_advanced_integer_fields({CONF_FAILSAFE_STARTING_HOUR: 0})
         assert not errors
 
     def test_valid_failsafe_high_boundary(self):
-        errors = _validate_advanced_integer_fields(
-            {CONF_FAILSAFE_STARTING_HOUR: 23}
-        )
+        errors = _validate_advanced_integer_fields({CONF_FAILSAFE_STARTING_HOUR: 23})
         assert not errors
 
     def test_valid_trigger_hour(self):
@@ -184,19 +180,14 @@ class TestValidateAdvancedIntegerFields:
     # --- failsafe_starting_hour ---
 
     def test_invalid_failsafe_too_high(self):
-        errors = _validate_advanced_integer_fields(
-            {CONF_FAILSAFE_STARTING_HOUR: 24}
-        )
+        errors = _validate_advanced_integer_fields({CONF_FAILSAFE_STARTING_HOUR: 24})
         assert CONF_FAILSAFE_STARTING_HOUR in errors
         assert (
-            errors[CONF_FAILSAFE_STARTING_HOUR]
-            == "failsafe_starting_hour_out_of_range"
+            errors[CONF_FAILSAFE_STARTING_HOUR] == "failsafe_starting_hour_out_of_range"
         )
 
     def test_invalid_failsafe_negative(self):
-        errors = _validate_advanced_integer_fields(
-            {CONF_FAILSAFE_STARTING_HOUR: -1}
-        )
+        errors = _validate_advanced_integer_fields({CONF_FAILSAFE_STARTING_HOUR: -1})
         assert CONF_FAILSAFE_STARTING_HOUR in errors
 
     # --- trigger_hour ---
@@ -407,7 +398,18 @@ class TestValidateAndBuildAddFlexible:
 
 
 def _schema_field_names(schema) -> set:
-    return {getattr(key, "schema", key) for key in schema.schema}
+    fields = set()
+    for key, value in schema.schema.items():
+        field_name = getattr(key, "schema", key)
+        fields.add(field_name)
+
+        if field_name == "dynamic_section":
+            inner_schema = getattr(value, "schema", None)
+            if inner_schema and hasattr(inner_schema, "schema"):
+                for inner_key in inner_schema.schema:
+                    fields.add(getattr(inner_key, "schema", inner_key))
+
+    return fields
 
 
 class TestAdvancedSchemaSequential:
