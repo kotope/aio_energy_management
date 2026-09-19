@@ -469,6 +469,23 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     ) -> None:
         nxt = {}
         lst, exp = self._add_offset(list_data, expiration)
+
+        # Check for overlap with current slot
+        if self._data.get("list") and lst:
+            current_end = self._data["list"][-1].get("end")
+            next_start = lst[0].get("start")
+            if current_end and next_start and next_start < current_end:
+                _LOGGER.warning(
+                    "Offset overlap detected for %s: next slot starts at %s but "
+                    "current slot (with offset) ends at %s. The sensor will remain "
+                    "in current state until %s, potentially missing 'on' time for "
+                    "the next slot",
+                    self._attr_unique_id,
+                    next_start,
+                    current_end,
+                    self._data.get("expiration"),
+                )
+
         nxt["list"] = lst
         nxt["expiration"] = exp
         nxt["extra"] = attributes
