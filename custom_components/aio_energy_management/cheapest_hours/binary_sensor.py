@@ -496,13 +496,21 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         # Offset is only supported for sequential sensors
         if not self._sequential:
             if self._offset:
-                _LOGGER.error(
+                _LOGGER.warning(
                     "Offset is configured for %s but offsets are only supported for "
                     "sequential sensors. The offset will be ignored",
                     self._attr_unique_id,
                 )
             return (list, new_expiration)
-        if first := get_first(list):
+
+        # Prevent a crash if the list is empty for whatever reason.
+        if not list:
+            return (list, new_expiration)
+
+        # Make a copy to make dure original input is unchanged.
+        modified_list = [dict(item) for item in list]
+
+        if first := get_first(modified_list):
             if start := first.get("start"):
                 if offset := self._offset.get("start"):
                     hours = self._int_from_entity(offset.get("hours"))
@@ -512,9 +520,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                         hours=hours if hours is not None else 0,
                         minutes=minutes if minutes is not None else 0,
                     )
-                    new_first = {"start": new_start, "end": first["end"]}
-                    list[0] = new_first
-        if last := get_last(list):
+                    modified_list[0]["start"] = new_start
+
+        if last := get_last(modified_list):
             if end := last.get("end"):
                 if offset := self._offset.get("end"):
                     hours = self._int_from_entity(offset.get("hours"))
@@ -524,15 +532,28 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                         minutes=minutes if minutes is not None else 0,
                     )
                     new_end = end + end_offset
-                    new_last = {"start": last["start"], "end": new_end}
+                    modified_list[-1]["end"] = new_end
 
                     # if added end is greater than expiration, extend the expiration as well
                     if new_end > expiration:
                         new_expiration = expiration + end_offset
 
-                    list[-1] = new_last
+        # Validation: Check whether all time blocks have a valid duration (start < end).
+        for item in modified_list:
+            item_start = item.get("start")
+            item_end = item.get("end")
+            if item_start and item_end and item_end <= item_start:
+                _LOGGER.warning(
+                    "Applying offset for %s resulted in an invalid duration "
+                    "(start: %s, end: %s). The offset will be ignored.",
+                    self._attr_unique_id,
+                    item_start,
+                    item_end,
+                )
+                # Ignore the offset and return the original, unmodified list.
+                return (list, expiration)
 
-        return (list, new_expiration)
+        return (modified_list, new_expiration)
 
     def _is_expired(self) -> bool:
         """Check if data is expired."""
