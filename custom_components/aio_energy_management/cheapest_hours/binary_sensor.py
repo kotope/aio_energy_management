@@ -496,7 +496,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         # Offset is only supported for sequential sensors
         if not self._sequential:
             if self._offset:
-                _LOGGER.warning(
+                _LOGGER.error(
                     "Offset is configured for %s but offsets are only supported for "
                     "sequential sensors. The offset will be ignored",
                     self._attr_unique_id,
@@ -543,7 +543,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             item_start = item.get("start")
             item_end = item.get("end")
             if item_start and item_end and item_end <= item_start:
-                _LOGGER.warning(
+                _LOGGER.error(
                     "Applying offset for %s resulted in an invalid duration "
                     "(start: %s, end: %s). The offset will be ignored.",
                     self._attr_unique_id,
