@@ -267,7 +267,8 @@
       "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
       "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
       "device_name_required": "Device name is required",
-      "number_of_blocks_out_of_range": "Nuimber of blocks must be at least 1",
+      "min_seq_slots_out_of_range": "Minimum sequential slots must be at least 1",
+      "number_of_blocks_out_of_range": "Number of blocks must be at least 1",
       "unknown": "Unexpected error occurred"
     },
     "abort": {

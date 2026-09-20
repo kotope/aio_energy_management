@@ -9,8 +9,8 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlowResult
 from homeassistant.const import CONF_NAME
-from homeassistant.helpers import selector
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import selector
 import homeassistant.helpers.config_validation as cv
 
 from ..const import (
@@ -30,14 +30,14 @@ from ..const import (
     CONF_LAST_HOUR,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MIN_SEQ_SLOTS,
     CONF_MINUTES,
     CONF_MTU,
     CONF_NORDPOOL_ENTITY,
     CONF_NORDPOOL_OFFICIAL_CONFIG_ENTRY,
+    CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
-    CONF_MIN_SEQ_SLOTS,
-    CONF_NUMBER_OF_BLOCKS,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -47,6 +47,8 @@ from ..const import (
     CONF_START,
     CONF_START_HOURS_ENTITY,
     CONF_START_MINUTES_ENTITY,
+    CONF_STROMLIGNING_ENTITY,
+    CONF_STROMLIGNING_TOMORROW_ENTITY,
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_HOUR_ENTITY,
     CONF_UNIQUE_ID,
@@ -55,8 +57,6 @@ from ..const import (
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
-    CONF_STROMLIGNING_ENTITY,
-    CONF_STROMLIGNING_TOMORROW_ENTITY,
 )
 
 _LOGGER = logging.getLogger(__name__)

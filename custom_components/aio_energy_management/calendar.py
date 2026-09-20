@@ -16,8 +16,8 @@ from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 import homeassistant.util.dt as dt_util
 
 from .const import (
-    CONF_ENTITY_CALENDAR,
     CONF_ENABLE_CALENDAR,
+    CONF_ENTITY_CALENDAR,
     CONF_NAME,
     CONF_UNIQUE_ID,
     COORDINATOR,

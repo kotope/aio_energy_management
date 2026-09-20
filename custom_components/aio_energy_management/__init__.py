@@ -24,8 +24,8 @@ from homeassistant.helpers.typing import ConfigType
 from .const import (
     CONF_BUFFER,
     CONF_CALENDAR,
-    CONF_ENABLE_CALENDAR,
     CONF_CONSUMPTION,
+    CONF_ENABLE_CALENDAR,
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTITY_EXCESS_SOLAR,
