@@ -102,7 +102,7 @@ Configuration parameters are shown below:
 | add_flexible     | no        | Extend `number_of_slots` with additional cheap (or expensive if inversed) slots when prices are favorable. Only applies to **non-sequential** sensors. See its own section below. |
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
-| offset    | no      | Possible start and end offset. On non-sequential the start offset is only added to first item and end offset to last item. Avg/min/max prices does not take the offset into account. See example below. |
+| offset    | no      | Possible start and end offset. Only applies to **sequential** sensors (`sequential: true`). Avg/min/max prices does not take the offset into account. See its own section below. **! Breaking change since 1.2.0: offset is no longer supported on non-sequential sensors !** |
 | mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
 | price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
 | retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
@@ -207,6 +207,17 @@ aio_energy_management:
 When using a **non-sequential** sensor (`sequential: false`), you might still want your devices to run in chunks rather than bouncing on and off every 15 minutes or hour, depending on your MTU. By setting `min_seq_slots`, you force the algorithm to select continuous blocks of at least this size. If `number_of_slots` is not evenly divisible by `min_seq_slots`, any remaining slots will be attached to already existing blocks to strictly maintain the minimum block size rule.
 
 *Example for 15-min MTU: If you need 4 hours in total (`number_of_slots: 16`) but want them in blocks of at least 1 hour, set `min_seq_slots: 4`. The algorithm will find the cheapest combinations of 1-hour (or larger) blocks.*
+
+### Offset (sequential only)
+`offset` shifts the start and/or the end of the calculated timeframe, for example to let a heater start half an hour later than the cheapest hours actually begin. See the *My Cheapest Hours With Offset* entry in the [example configuration](#example-configuration) above.
+
+**Offset only applies to sequential sensors (`sequential: true`).** Support for non-sequential sensors was removed in 1.2.0, because a non-sequential selection can consist of several separate blocks: the start offset was applied only to the very first slot and the end offset only to the very last one, which silently produced timeframes that did not match the selected slots and could overlap the following slot.
+
+If you have an offset configured on a non-sequential sensor:
+* In the UI, the offset step is no longer shown for non-sequential sensors, and reconfiguring such a sensor clears any previously stored offset (including dynamic hour/minute entities).
+* In YAML, the offset is ignored and an error is logged. Remove the `offset` block, or switch the sensor to `sequential: true` if you need the offset.
+
+Note that even on sequential sensors an offset can push the end of the current timeframe past the start of the next one. When that happens the sensor stays in its current state until the current timeframe expires, potentially missing *on* time for the next one, and a warning is logged.
 
 ### Price modifications
 Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.
