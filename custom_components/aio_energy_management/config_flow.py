@@ -15,12 +15,8 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import selector
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-)
+from homeassistant.helpers import config_validation as cv, selector
+from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import (
@@ -166,7 +162,7 @@ class AIOEnergyManagementOptionsFlow(
     async def async_step_global_settings_options(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Manage global settings"""
+        """Manage global settings."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 

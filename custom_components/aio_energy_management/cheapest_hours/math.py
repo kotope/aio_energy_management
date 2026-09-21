@@ -2,9 +2,9 @@
 
 from datetime import timedelta
 import logging
+import math
 
 import numpy as np
-import math
 
 import homeassistant.util.dt as dt_util
 

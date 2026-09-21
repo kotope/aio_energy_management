@@ -96,9 +96,11 @@ Depending on the provider selected in Step 1, you will see one of these screens:
 | Add to calendar | Show this sensor's schedule in the calendar | — |
 | Retention days | Days of calendar history to keep (1–365, default: 1) | 1–365 |
 | Price modifications | Jinja2 template for adjusting prices (tariffs, taxes, etc.) | — |
-| Use offset | Enable start/end time offsets (shows Step 5 if enabled) | — |
+| Use offset *(sequential only)* | Enable start/end time offsets (shows Step 5 if enabled). Not shown when **Sequential** is off | — |
 
-#### Step 5: Time Offset *(only shown when "Use offset" is enabled)*
+> **Breaking change since 1.2.0:** offsets are only supported on sequential sensors, so the **Use offset** field is hidden when **Sequential** is off. Reconfiguring a non-sequential sensor clears any offset it had from an earlier version.
+
+#### Step 5: Time Offset *(only shown for sequential sensors when "Use offset" is enabled)*
 
 All offset fields are optional. Each can use a static integer **or** an entity (when dynamic entities are enabled), but not both.
 

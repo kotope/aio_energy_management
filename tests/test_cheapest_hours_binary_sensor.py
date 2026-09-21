@@ -1165,6 +1165,10 @@ async def test_cheapest_hours_offset(
     assert attributes["expiration"] == datetime(2024, 7, 16, 0, 0, tzinfo=tzinfo)
 
 
+# Note: Offset overlap scenario tests are in test_offset_overlap.py
+# Those tests run as standalone Python to avoid HA test fixture issues.
+
+
 async def test_cheapest_hours_binary_sensors_daylight_savings_non_sequential_winter_time(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory
 ) -> None:

@@ -380,7 +380,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     ),  # make sure it defaults to 1
                     self._data.get("active_number_of_blocks"),
                 )
-        except InvalidInput, ValueNotFound:
+        except (InvalidInput, ValueNotFound):
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
@@ -469,6 +469,23 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     ) -> None:
         nxt = {}
         lst, exp = self._add_offset(list_data, expiration)
+
+        # Check for overlap with current slot
+        if self._data.get("list") and lst:
+            current_end = self._data["list"][-1].get("end")
+            next_start = lst[0].get("start")
+            if current_end and next_start and next_start < current_end:
+                _LOGGER.warning(
+                    "Offset overlap detected for %s: next slot starts at %s but "
+                    "current slot (with offset) ends at %s. The sensor will remain "
+                    "in current state until %s, potentially missing 'on' time for "
+                    "the next slot",
+                    self._attr_unique_id,
+                    next_start,
+                    current_end,
+                    self._data.get("expiration"),
+                )
+
         nxt["list"] = lst
         nxt["expiration"] = exp
         nxt["extra"] = attributes
@@ -476,6 +493,15 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
     def _add_offset(self, list: list, expiration: datetime) -> tuple[list, datetime]:
         new_expiration = expiration
+        # Offset is only supported for sequential sensors
+        if not self._sequential:
+            if self._offset:
+                _LOGGER.error(
+                    "Offset is configured for %s but offsets are only supported for "
+                    "sequential sensors. The offset will be ignored",
+                    self._attr_unique_id,
+                )
+            return (list, new_expiration)
         if first := get_first(list):
             if start := first.get("start"):
                 if offset := self._offset.get("start"):
