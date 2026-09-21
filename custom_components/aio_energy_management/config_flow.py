@@ -25,6 +25,7 @@ from .const import (
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
     CONF_UNIQUE_ID,
+    CONF_SEQUENTIAL,
     DOMAIN,
 )
 from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
@@ -190,12 +191,19 @@ class AIOEnergyManagementOptionsFlow(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show the cheapest hours settings menu."""
+        menu_options = [
+            "cheapest_hours_data_provider",
+            "cheapest_hours_basic",
+            "cheapest_hours_advanced",
+        ]
+        # Retrive sequential value from sensor and add it to menu if true
+        is_sequential = self.config_entry.options.get(
+            CONF_SEQUENTIAL, self.config_entry.data.get(CONF_SEQUENTIAL, False)
+        )
+        if is_sequential is True:
+            menu_options.append("cheapest_hours_offset")
+
         return self.async_show_menu(
             step_id="cheapest_hours_menu",
-            menu_options=[
-                "cheapest_hours_data_provider",
-                "cheapest_hours_basic",
-                "cheapest_hours_advanced",
-                "cheapest_hours_offset",
-            ],
+            menu_options=menu_options,
         )
