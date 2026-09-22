@@ -31,6 +31,7 @@ from custom_components.aio_energy_management.const import (
     CONF_NUMBER_OF_SLOTS_ENTITY,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
+    CONF_SEQUENTIAL,
     CONF_START,
     CONF_START_HOURS_ENTITY,
     CONF_START_MINUTES_ENTITY,
@@ -48,51 +49,6 @@ def _get_val(
     if val is None:
         val = data.get(key)
     return val if val is not None else default
-
-
-def _mtu_default(user_input: dict[str, Any] | None) -> str:
-    """Return the MTU dropdown default as a string."""
-    if user_input and user_input.get(CONF_MTU) is not None:
-        return str(user_input[CONF_MTU])
-    return "60"
-
-
-def _coerce_mtu(user_input: dict[str, Any]) -> None:
-    """Coerce the MTU dropdown value (a string) back to an int in place."""
-    if user_input.get(CONF_MTU) is not None:
-        user_input[CONF_MTU] = int(user_input[CONF_MTU])
-
-
-def _normalize_optional_keys(user_input: dict[str, Any], keys: list[str]) -> None:
-    """Ensure every optional key is present (as None) so clearing it in the UI overwrites the stored value."""
-    for key in keys:
-        user_input.setdefault(key, None)
-
-
-def sanitize_cheapest_hours_input(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Convert form input numbers from float to int before saving."""
-    cleaned = dict(user_input)
-    int_keys = [
-        CONF_FIRST_HOUR,
-        CONF_LAST_HOUR,
-        CONF_NUMBER_OF_SLOTS,
-        CONF_FAILSAFE_STARTING_HOUR,
-        CONF_TRIGGER_HOUR,
-        CONF_MIN_SEQ_SLOTS,
-        CONF_NUMBER_OF_BLOCKS,
-        CONF_MAX_NUMBER_OF_SLOTS,
-        CONF_START_HOURS_ENTITY,
-        CONF_START_MINUTES_ENTITY,
-        CONF_END_HOURS_ENTITY,
-        CONF_END_MINUTES_ENTITY,
-    ]
-    for key in int_keys:
-        if key in cleaned and cleaned[key] is not None:
-            try:
-                cleaned[key] = int(cleaned[key])
-            except ValueError, TypeError:
-                pass
-    return cleaned
 
 
 def _validate_and_clean_static_or_entity(
@@ -129,7 +85,68 @@ def _validate_and_clean_static_or_entity(
     return errors
 
 
-def _validate_and_clean_number_of_slots(user_input: dict[str, Any]) -> dict[str, str]:
+def _mtu_default(user_input: dict[str, Any] | None) -> str:
+    """Return the MTU dropdown default as a string."""
+    if user_input and user_input.get(CONF_MTU) is not None:
+        return str(user_input[CONF_MTU])
+    return "60"
+
+
+def coerce_mtu(user_input: dict[str, Any]) -> None:
+    """Coerce the MTU dropdown value (a string) back to an int in place."""
+    if user_input.get(CONF_MTU) is not None:
+        user_input[CONF_MTU] = int(user_input[CONF_MTU])
+
+
+def normalize_optional_keys(user_input: dict[str, Any], keys: list[str]) -> None:
+    """Ensure every optional key is present (as None) so clearing it in the UI overwrites the stored value."""
+    for key in keys:
+        user_input.setdefault(key, None)
+
+
+def sanitize_cheapest_hours_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Convert form input numbers from float to int before saving."""
+    cleaned = dict(user_input)
+    int_keys = [
+        CONF_FIRST_HOUR,
+        CONF_LAST_HOUR,
+        CONF_NUMBER_OF_SLOTS,
+        CONF_FAILSAFE_STARTING_HOUR,
+        CONF_TRIGGER_HOUR,
+        CONF_MIN_SEQ_SLOTS,
+        CONF_NUMBER_OF_BLOCKS,
+        CONF_MAX_NUMBER_OF_SLOTS,
+        CONF_START_HOURS_ENTITY,
+        CONF_START_MINUTES_ENTITY,
+        CONF_END_HOURS_ENTITY,
+        CONF_END_MINUTES_ENTITY,
+    ]
+    for key in int_keys:
+        if key in cleaned and cleaned[key] is not None:
+            try:
+                cleaned[key] = int(cleaned[key])
+            except ValueError, TypeError:
+                pass
+    return cleaned
+
+
+def clean_sequential_basic_fields(user_input: dict[str, Any]) -> None:
+    """Clear non-sequential fields in user_input when sequential mode is active."""
+    if user_input.get(CONF_SEQUENTIAL) is True:
+        non_sequential_keys = [
+            CONF_MIN_SEQ_SLOTS,
+            CONF_NUMBER_OF_BLOCKS,
+            CONF_ADD_FLEXIBLE,
+            CONF_MAX_NUMBER_OF_SLOTS,
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+            CONF_FLEXIBLE_PRICE_LIMIT,
+            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+        ]
+        for key in non_sequential_keys:
+            user_input[key] = None
+
+
+def validate_and_clean_number_of_slots(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate and clean number of slots configuration."""
     return _validate_and_clean_static_or_entity(
         user_input,
@@ -140,7 +157,7 @@ def _validate_and_clean_number_of_slots(user_input: dict[str, Any]) -> dict[str,
     )
 
 
-def _validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, str]:
+def validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate and clean advanced configuration fields."""
     errors: dict[str, str] = {}
 
@@ -167,7 +184,7 @@ def _validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str,
     return errors
 
 
-def _validate_and_build_add_flexible(
+def validate_and_build_add_flexible(
     user_input: dict[str, Any],
     mtu: int,
 ) -> dict[str, str]:
@@ -249,7 +266,7 @@ def _validate_and_build_add_flexible(
     return errors
 
 
-def _validate_and_clean_offset_fields(user_input: dict[str, Any]) -> dict[str, str]:
+def validate_and_clean_offset_fields(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate and clean offset configuration fields."""
     errors: dict[str, str] = {}
 
@@ -296,7 +313,7 @@ def _validate_and_clean_offset_fields(user_input: dict[str, Any]) -> dict[str, s
     return errors
 
 
-def _validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
+def validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate integer fields on the basic cheapest hours step."""
     errors: dict[str, str] = {}
 
@@ -316,7 +333,7 @@ def _validate_basic_integer_fields(user_input: dict[str, Any]) -> dict[str, str]
     return errors
 
 
-def _validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
+def validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate optional integer fields on the advanced cheapest hours step."""
     errors: dict[str, str] = {}
 
@@ -339,7 +356,7 @@ def _validate_advanced_integer_fields(user_input: dict[str, Any]) -> dict[str, s
     return errors
 
 
-def _validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
+def validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str]:
     """Validate optional integer fields on the offset step."""
     errors: dict[str, str] = {}
 
@@ -354,7 +371,7 @@ def _validate_offset_integer_fields(user_input: dict[str, Any]) -> dict[str, str
     return errors
 
 
-def _process_offset_input(
+def process_offset_input(
     user_input: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Process offset input and build offset structure."""

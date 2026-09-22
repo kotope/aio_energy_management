@@ -43,17 +43,18 @@ from custom_components.aio_energy_management.const import (
     DATA_PROVIDER_STROMLIGNING,
 )
 from .helpers import (
-    _coerce_mtu,
-    _normalize_optional_keys,
-    _process_offset_input,
+    coerce_mtu,
+    normalize_optional_keys,
+    process_offset_input,
+    clean_sequential_basic_fields,
     sanitize_cheapest_hours_input,
-    _validate_advanced_integer_fields,
-    _validate_and_build_add_flexible,
-    _validate_and_clean_advanced_fields,
-    _validate_and_clean_number_of_slots,
-    _validate_and_clean_offset_fields,
-    _validate_basic_integer_fields,
-    _validate_offset_integer_fields,
+    validate_advanced_integer_fields,
+    validate_and_build_add_flexible,
+    validate_and_clean_advanced_fields,
+    validate_and_clean_number_of_slots,
+    validate_and_clean_offset_fields,
+    validate_basic_integer_fields,
+    validate_offset_integer_fields,
 )
 from .schemas import (
     _get_cheapest_hours_advanced_schema,
@@ -124,7 +125,7 @@ class CheapestHoursConfigFlowMixin:
     ) -> ConfigFlowResult:
         """Generic handler for price source provider configuration steps."""
         if user_input is not None:
-            _coerce_mtu(user_input)
+            coerce_mtu(user_input)
 
             # Options Flow: Save entry directly
             if hasattr(self, "_config_entry"):
@@ -187,6 +188,8 @@ class CheapestHoursConfigFlowMixin:
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure basic cheapest hours settings."""
+
+        # Validate and process form input
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -194,26 +197,21 @@ class CheapestHoursConfigFlowMixin:
                 user_input["dynamic_section"], dict
             ):
                 user_input.update(user_input.pop("dynamic_section"))
-            errors = _validate_basic_integer_fields(user_input)
-            slot_errors = _validate_and_clean_number_of_slots(user_input)
+            errors = validate_basic_integer_fields(user_input)
+            slot_errors = validate_and_clean_number_of_slots(user_input)
             errors.update(slot_errors)
 
             if not errors:
+                # Options flow
                 if hasattr(self, "_config_entry"):
-                    _normalize_optional_keys(
+                    normalize_optional_keys(
                         user_input,
                         [CONF_NUMBER_OF_SLOTS, CONF_NUMBER_OF_SLOTS_ENTITY],
                     )
-                    if user_input.get(CONF_SEQUENTIAL) is True:
-                        user_input[CONF_MIN_SEQ_SLOTS] = None
-                        user_input[CONF_NUMBER_OF_BLOCKS] = None
-                        user_input[CONF_ADD_FLEXIBLE] = None
-                        user_input[CONF_MAX_NUMBER_OF_SLOTS] = None
-                        user_input[CONF_MAX_NUMBER_OF_SLOTS_ENTITY] = None
-                        user_input[CONF_FLEXIBLE_PRICE_LIMIT] = None
-                        user_input[CONF_FLEXIBLE_PRICE_LIMIT_ENTITY] = None
+                    clean_sequential_basic_fields(user_input)
                     return self._save_options_entry(user_input)
 
+                # Config flow
                 self._config_data.update(user_input)
 
                 unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
@@ -229,6 +227,7 @@ class CheapestHoursConfigFlowMixin:
                     data=cleaned_data,
                 )
 
+        # Show form
         existing_data = None
         if hasattr(self, "_config_entry"):
             existing_data = dict(self._config_entry.data)
@@ -255,8 +254,8 @@ class CheapestHoursConfigFlowMixin:
             ):
                 user_input.update(user_input.pop("dynamic_section"))
 
-            errors = _validate_advanced_integer_fields(user_input)
-            advanced_errors = _validate_and_clean_advanced_fields(user_input)
+            errors = validate_advanced_integer_fields(user_input)
+            advanced_errors = validate_and_clean_advanced_fields(user_input)
             errors.update(advanced_errors)
 
             if sequential:
@@ -274,14 +273,14 @@ class CheapestHoursConfigFlowMixin:
                 self._config_data.pop(CONF_END_HOURS_ENTITY, None)
                 self._config_data.pop(CONF_END_MINUTES_ENTITY, None)
 
-                flexible_errors = _validate_and_build_add_flexible(
+                flexible_errors = validate_and_build_add_flexible(
                     user_input,
                     entry_data.get(CONF_MTU) or 60,
                 )
                 errors.update(flexible_errors)
 
             if not errors:
-                _normalize_optional_keys(
+                normalize_optional_keys(
                     user_input,
                     [
                         CONF_FAILSAFE_STARTING_HOUR,
@@ -320,12 +319,12 @@ class CheapestHoursConfigFlowMixin:
             ):
                 user_input.update(user_input.pop("dynamic_section"))
 
-            errors = _validate_offset_integer_fields(user_input)
-            offset_errors = _validate_and_clean_offset_fields(user_input)
+            errors = validate_offset_integer_fields(user_input)
+            offset_errors = validate_and_clean_offset_fields(user_input)
             errors.update(offset_errors)
 
             if not errors:
-                offset, entities = _process_offset_input(user_input)
+                offset, entities = process_offset_input(user_input)
 
                 save_data = {
                     CONF_OFFSET: offset if offset else None,
