@@ -295,6 +295,8 @@ class CheapestHoursConfigFlowMixin:
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure offset settings for cheapest hours (Options Flow only)."""
+
+        # Validate and process form input
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -308,6 +310,7 @@ class CheapestHoursConfigFlowMixin:
             errors.update(offset_errors)
 
             if not errors:
+                # Options flow (no config flow supported yet)
                 offset, entities = process_offset_input(user_input)
 
                 save_data = {
