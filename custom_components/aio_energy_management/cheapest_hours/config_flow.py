@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import Any
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlowResult
 
 from custom_components.aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
-    CONF_AREA,
     CONF_DATA_PROVIDER_TYPE,
     CONF_END_HOURS_ENTITY,
     CONF_END_MINUTES_ENTITY,
@@ -115,12 +116,21 @@ class CheapestHoursConfigFlowMixin:
             data_schema=_get_data_provider_type_schema(default=default),
         )
 
-    async def async_step_cheapest_hours_nordpool(
-        self, user_input: dict[str, Any] | None = None
+    async def _async_handle_price_source_step(
+        self,
+        step_id: str,
+        schema_factory: Callable[[dict[str, Any] | None], vol.Schema],
+        user_input: dict[str, Any] | None = None,
     ) -> ConfigFlowResult:
-        """Configure Nord Pool entity for cheapest hours."""
+        """Generic handler for price source provider configuration steps."""
         if user_input is not None:
             _coerce_mtu(user_input)
+
+            # Options Flow: Save entry directly
+            if hasattr(self, "_config_entry"):
+                return self._save_options_entry(user_input)
+
+            # Config Flow: forward towards basic settings
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
@@ -129,69 +139,48 @@ class CheapestHoursConfigFlowMixin:
             existing_data = dict(self._config_entry.data)
 
         return self.async_show_form(
+            step_id=step_id,
+            data_schema=schema_factory(existing_data or user_input),
+        )
+
+    async def async_step_cheapest_hours_nordpool(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure Nord Pool entity for cheapest hours."""
+        return await self._async_handle_price_source_step(
             step_id="cheapest_hours_nordpool",
-            data_schema=_get_nordpool_schema(existing_data or user_input),
+            schema_factory=_get_nordpool_schema,
+            user_input=user_input,
         )
 
     async def async_step_cheapest_hours_nordpool_official(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure Nord Pool official config entry for cheapest hours."""
-        if user_input is not None:
-            _coerce_mtu(user_input)
-
-            if hasattr(self, "_config_entry"):
-                _normalize_optional_keys(user_input, [CONF_AREA])
-                return self._save_options_entry(user_input)
-
-            self._config_data.update(user_input)
-            return await self.async_step_cheapest_hours_basic()
-
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = dict(self._config_entry.data)
-
-        return self.async_show_form(
+        return await self._async_handle_price_source_step(
             step_id="cheapest_hours_nordpool_official",
-            data_schema=_get_nordpool_official_schema(
-                self.hass, existing_data or user_input
-            ),
+            schema_factory=lambda data: _get_nordpool_official_schema(self.hass, data),
+            user_input=user_input,
         )
 
     async def async_step_cheapest_hours_entsoe(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure Entso-E entity for cheapest hours."""
-        if user_input is not None:
-            _coerce_mtu(user_input)
-            self._config_data.update(user_input)
-            return await self.async_step_cheapest_hours_basic()
-
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = dict(self._config_entry.data)
-
-        return self.async_show_form(
+        return await self._async_handle_price_source_step(
             step_id="cheapest_hours_entsoe",
-            data_schema=_get_entsoe_schema(existing_data or user_input),
+            schema_factory=_get_entsoe_schema,
+            user_input=user_input,
         )
 
     async def async_step_cheapest_hours_stromligning(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure Strømligning entities for cheapest hours."""
-        if user_input is not None:
-            _coerce_mtu(user_input)
-            self._config_data.update(user_input)
-            return await self.async_step_cheapest_hours_basic()
-
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = dict(self._config_entry.data)
-
-        return self.async_show_form(
+        return await self._async_handle_price_source_step(
             step_id="cheapest_hours_stromligning",
-            data_schema=_get_stromligning_schema(existing_data or user_input),
+            schema_factory=_get_stromligning_schema,
+            user_input=user_input,
         )
 
     async def async_step_cheapest_hours_basic(
