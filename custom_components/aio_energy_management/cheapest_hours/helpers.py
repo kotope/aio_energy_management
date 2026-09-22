@@ -29,6 +29,7 @@ from custom_components.aio_energy_management.const import (
     CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
+    CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_SEQUENTIAL,
@@ -37,6 +38,7 @@ from custom_components.aio_energy_management.const import (
     CONF_START_MINUTES_ENTITY,
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_HOUR_ENTITY,
+    CONF_USE_OFFSET,
 )
 
 
@@ -157,10 +159,19 @@ def validate_and_clean_number_of_slots(user_input: dict[str, Any]) -> dict[str, 
     )
 
 
-def validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, str]:
-    """Validate and clean advanced configuration fields."""
+def validate_and_clean_advanced_fields(
+    user_input: dict[str, Any],
+    sequential: bool = False,
+    mtu: int = 60,
+    config_data: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    """Validate and clean all advanced configuration fields."""
     errors: dict[str, str] = {}
 
+    # 1. Validate integers (failsafe, trigger, etc.)
+    errors.update(validate_advanced_integer_fields(user_input))
+
+    # 2. Validate and sanitize trigger hour and price limit (static vs. entity)
     trigger_errors = _validate_and_clean_static_or_entity(
         user_input,
         CONF_TRIGGER_HOUR,
@@ -168,8 +179,7 @@ def validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, 
         "trigger_hour",
         allow_both_empty=True,
     )
-    if trigger_errors:
-        errors.update(trigger_errors)
+    errors.update(trigger_errors)
 
     price_errors = _validate_and_clean_static_or_entity(
         user_input,
@@ -178,8 +188,31 @@ def validate_and_clean_advanced_fields(user_input: dict[str, Any]) -> dict[str, 
         "price_limit",
         allow_both_empty=True,
     )
-    if price_errors:
-        errors.update(price_errors)
+    errors.update(price_errors)
+
+    # 3. Process sequential/non-sequential fields and offset cleanup.
+    if sequential:
+        user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
+        user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
+    else:
+        # Offset does not apply to non-sequential sensors.
+        user_input.pop(CONF_USE_OFFSET, None)
+        user_input[CONF_USE_OFFSET] = False
+
+        if config_data is not None:
+            offset_keys = (
+                CONF_USE_OFFSET,
+                CONF_OFFSET,
+                CONF_START_HOURS_ENTITY,
+                CONF_START_MINUTES_ENTITY,
+                CONF_END_HOURS_ENTITY,
+                CONF_END_MINUTES_ENTITY,
+            )
+            for key in offset_keys:
+                config_data.pop(key, None)
+
+        flexible_errors = validate_and_build_add_flexible(user_input, mtu)
+        errors.update(flexible_errors)
 
     return errors
 

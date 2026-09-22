@@ -244,6 +244,8 @@ class CheapestHoursConfigFlowMixin:
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure advanced cheapest hours settings (Options Flow only)."""
+
+        # Validate and process form input
         errors: dict[str, str] = {}
         entry_data = dict(self._config_entry.data)
         sequential = entry_data.get(CONF_SEQUENTIAL, False)
@@ -253,33 +255,15 @@ class CheapestHoursConfigFlowMixin:
                 user_input["dynamic_section"], dict
             ):
                 user_input.update(user_input.pop("dynamic_section"))
-
-            errors = validate_advanced_integer_fields(user_input)
-            advanced_errors = validate_and_clean_advanced_fields(user_input)
-            errors.update(advanced_errors)
-
-            if sequential:
-                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
-                user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
-            else:
-                # Offset does not apply to non-sequential sensors; clear any offset
-                # fields (including a previously stored config).
-                user_input.pop(CONF_USE_OFFSET, None)
-                user_input[CONF_USE_OFFSET] = False
-                self._config_data.pop(CONF_USE_OFFSET, None)
-                self._config_data.pop(CONF_OFFSET, None)
-                self._config_data.pop(CONF_START_HOURS_ENTITY, None)
-                self._config_data.pop(CONF_START_MINUTES_ENTITY, None)
-                self._config_data.pop(CONF_END_HOURS_ENTITY, None)
-                self._config_data.pop(CONF_END_MINUTES_ENTITY, None)
-
-                flexible_errors = validate_and_build_add_flexible(
-                    user_input,
-                    entry_data.get(CONF_MTU) or 60,
-                )
-                errors.update(flexible_errors)
+            errors = validate_and_clean_advanced_fields(
+                user_input,
+                sequential=sequential,
+                mtu=entry_data.get(CONF_MTU) or 60,
+                config_data=self._config_data,
+            )
 
             if not errors:
+                # Options flow (no config flow supported yet)
                 normalize_optional_keys(
                     user_input,
                     [
