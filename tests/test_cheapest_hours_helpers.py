@@ -9,9 +9,6 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), "..", "custom_components"),
 )
 
-from aio_energy_management.cheapest_hours.config_flow import (  # noqa: E402
-    CONF_FLEXIBLE_PRICE_LIMIT,
-)
 from aio_energy_management.cheapest_hours.helpers import (  # noqa: E402
     sanitize_cheapest_hours_input,
 )
@@ -20,6 +17,7 @@ from aio_energy_management.const import (  # noqa: E402
     CONF_FIRST_HOUR,
     CONF_LAST_HOUR,
     CONF_MAX_NUMBER_OF_SLOTS,
+    CONF_FLEXIBLE_PRICE_LIMIT,
     CONF_NAME,
     CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
