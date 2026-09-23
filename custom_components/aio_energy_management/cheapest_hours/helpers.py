@@ -42,17 +42,6 @@ from custom_components.aio_energy_management.const import (
 )
 
 
-def _get_val(
-    data: dict, key: str, flex_key: str | None = None, default: Any = None
-) -> Any:
-    """Retrieve the suggested value from user_input, add_flexible, or the default."""
-    flex_data = data.get(CONF_ADD_FLEXIBLE) or {}
-    val = flex_data.get(flex_key) if flex_key else None
-    if val is None:
-        val = data.get(key)
-    return val if val is not None else default
-
-
 def _validate_and_clean_static_or_entity(
     user_input: dict[str, Any],
     static_key: str,
@@ -87,7 +76,18 @@ def _validate_and_clean_static_or_entity(
     return errors
 
 
-def _mtu_default(user_input: dict[str, Any] | None) -> str:
+def get_val(
+    data: dict, key: str, flex_key: str | None = None, default: Any = None
+) -> Any:
+    """Retrieve the suggested value from user_input, add_flexible, or the default."""
+    flex_data = data.get(CONF_ADD_FLEXIBLE) or {}
+    val = flex_data.get(flex_key) if flex_key else None
+    if val is None:
+        val = data.get(key)
+    return val if val is not None else default
+
+
+def mtu_default(user_input: dict[str, Any] | None) -> str:
     """Return the MTU dropdown default as a string."""
     if user_input and user_input.get(CONF_MTU) is not None:
         return str(user_input[CONF_MTU])

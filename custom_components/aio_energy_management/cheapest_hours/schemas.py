@@ -60,7 +60,7 @@ from custom_components.aio_energy_management.const import (
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
 )
-from .helpers import _get_val, _mtu_default
+from .helpers import get_val, mtu_default
 
 # Reusable selectors
 SEL_HOUR = selector.NumberSelector(
@@ -102,7 +102,7 @@ def _opt(
     key: str, data: dict, flex_key: str | None = None, default: Any = None
 ) -> vol.Optional:
     """Create a `vol.Optional` key with the suggested value in a single line."""
-    val = _get_val(data, key, flex_key, default)
+    val = get_val(data, key, flex_key, default)
     if key == CONF_MTU and val is not None:
         val = str(val)
     desc = {"suggested_value": val} if val is not None else {}
@@ -119,7 +119,7 @@ def _mtu_selector() -> selector.SelectSelector:
     )
 
 
-def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
+def get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
     """Get data provider type selection schema."""
     req_key = (
         vol.Required(CONF_DATA_PROVIDER_TYPE, default=default)
@@ -140,18 +140,18 @@ def _get_data_provider_type_schema(default: str | None = None) -> vol.Schema:
     )
 
 
-def _get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
+def get_nordpool_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
     """Get Nord Pool entity selection schema."""
     data = user_input or {}
     return vol.Schema(
         {
             _req(CONF_NORDPOOL_ENTITY, data): SEL_SENSOR,
-            _opt(CONF_MTU, data, default=_mtu_default(user_input)): _mtu_selector(),
+            _opt(CONF_MTU, data, default=mtu_default(user_input)): _mtu_selector(),
         }
     )
 
 
-def _get_nordpool_official_schema(
+def get_nordpool_official_schema(
     hass: HomeAssistant,
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
@@ -169,35 +169,35 @@ def _get_nordpool_official_schema(
                 )
             ),
             _opt(CONF_AREA, data): cv.string,
-            _opt(CONF_MTU, data, default=_mtu_default(user_input)): _mtu_selector(),
+            _opt(CONF_MTU, data, default=mtu_default(user_input)): _mtu_selector(),
         }
     )
 
 
-def _get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
+def get_entsoe_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
     """Get Entso-E entity selection schema."""
     data = user_input or {}
     return vol.Schema(
         {
             _req(CONF_ENTSOE_ENTITY, data): SEL_SENSOR,
-            _opt(CONF_MTU, data, default=_mtu_default(user_input)): _mtu_selector(),
+            _opt(CONF_MTU, data, default=mtu_default(user_input)): _mtu_selector(),
         }
     )
 
 
-def _get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
+def get_stromligning_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
     """Get Strømligning entity selection schema."""
     data = user_input or {}
     return vol.Schema(
         {
             _req(CONF_STROMLIGNING_ENTITY, data): SEL_SENSOR,
             _req(CONF_STROMLIGNING_TOMORROW_ENTITY, data): SEL_BINARY_SENSOR,
-            _opt(CONF_MTU, data, default=_mtu_default(user_input)): _mtu_selector(),
+            _opt(CONF_MTU, data, default=mtu_default(user_input)): _mtu_selector(),
         }
     )
 
 
-def _get_cheapest_hours_basic_schema(
+def get_cheapest_hours_basic_schema(
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
     """Get basic cheapest hours configuration schema."""
@@ -225,7 +225,7 @@ def _get_cheapest_hours_basic_schema(
     return vol.Schema(schema_dict)
 
 
-def _get_cheapest_hours_advanced_schema(
+def get_cheapest_hours_advanced_schema(
     user_input: dict[str, Any] | None = None,
     sequential: bool = False,
 ) -> vol.Schema:
@@ -285,7 +285,7 @@ def _get_cheapest_hours_advanced_schema(
         )
 
     has_dynamic = any(
-        _get_val(data, key, flex)
+        get_val(data, key, flex)
         for key, flex in [
             (CONF_TRIGGER_HOUR_ENTITY, None),
             (CONF_PRICE_LIMIT_ENTITY, None),
@@ -302,7 +302,7 @@ def _get_cheapest_hours_advanced_schema(
     return vol.Schema(schema_dict)
 
 
-def _get_offset_schema(offset_data: dict[str, Any]) -> vol.Schema:
+def get_offset_schema(offset_data: dict[str, Any]) -> vol.Schema:
     """Get offset configuration schema."""
     start = offset_data.get(CONF_START, {})
     end = offset_data.get(CONF_END, {})

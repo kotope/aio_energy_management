@@ -20,7 +20,6 @@ from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig
 
 from .cheapest_hours import ENTRY_TYPE_CHEAPEST_HOURS, CheapestHoursConfigFlowMixin
 from .const import (
-    CONF_CALENDAR,
     CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
@@ -157,6 +156,8 @@ class AIOEnergyManagementOptionsFlow(
             return await self.async_step_cheapest_hours_menu()
         if self._entry_type == ENTRY_TYPE_GLOBAL_SETTINGS:
             return await self.async_step_global_settings_options()
+        if self._entry_type == CONF_ENTITY_EXCESS_SOLAR:
+            return await self.async_step_excess_solar_menu()
 
         return self.async_abort(reason="unknown_entry_type")
 

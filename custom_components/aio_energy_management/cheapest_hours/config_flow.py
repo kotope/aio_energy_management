@@ -45,8 +45,6 @@ from .helpers import (
     process_offset_input,
     clean_sequential_basic_fields,
     sanitize_cheapest_hours_input,
-    validate_advanced_integer_fields,
-    validate_and_build_add_flexible,
     validate_and_clean_advanced_fields,
     validate_and_clean_number_of_slots,
     validate_and_clean_offset_fields,
@@ -54,14 +52,14 @@ from .helpers import (
     validate_offset_integer_fields,
 )
 from .schemas import (
-    _get_cheapest_hours_advanced_schema,
-    _get_cheapest_hours_basic_schema,
-    _get_data_provider_type_schema,
-    _get_entsoe_schema,
-    _get_nordpool_official_schema,
-    _get_nordpool_schema,
-    _get_offset_schema,
-    _get_stromligning_schema,
+    get_cheapest_hours_advanced_schema,
+    get_cheapest_hours_basic_schema,
+    get_data_provider_type_schema,
+    get_entsoe_schema,
+    get_nordpool_official_schema,
+    get_nordpool_schema,
+    get_offset_schema,
+    get_stromligning_schema,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -111,7 +109,7 @@ class CheapestHoursConfigFlowMixin:
 
         return self.async_show_form(
             step_id="cheapest_hours_data_provider",
-            data_schema=_get_data_provider_type_schema(default=default),
+            data_schema=get_data_provider_type_schema(default=default),
         )
 
     async def _async_handle_price_source_step(
@@ -147,7 +145,7 @@ class CheapestHoursConfigFlowMixin:
         """Configure Nord Pool entity for cheapest hours."""
         return await self._async_handle_price_source_step(
             step_id="cheapest_hours_nordpool",
-            schema_factory=_get_nordpool_schema,
+            schema_factory=get_nordpool_schema,
             user_input=user_input,
         )
 
@@ -157,7 +155,7 @@ class CheapestHoursConfigFlowMixin:
         """Configure Nord Pool official config entry for cheapest hours."""
         return await self._async_handle_price_source_step(
             step_id="cheapest_hours_nordpool_official",
-            schema_factory=lambda data: _get_nordpool_official_schema(self.hass, data),
+            schema_factory=lambda data: get_nordpool_official_schema(self.hass, data),
             user_input=user_input,
         )
 
@@ -167,7 +165,7 @@ class CheapestHoursConfigFlowMixin:
         """Configure Entso-E entity for cheapest hours."""
         return await self._async_handle_price_source_step(
             step_id="cheapest_hours_entsoe",
-            schema_factory=_get_entsoe_schema,
+            schema_factory=get_entsoe_schema,
             user_input=user_input,
         )
 
@@ -177,7 +175,7 @@ class CheapestHoursConfigFlowMixin:
         """Configure Strømligning entities for cheapest hours."""
         return await self._async_handle_price_source_step(
             step_id="cheapest_hours_stromligning",
-            schema_factory=_get_stromligning_schema,
+            schema_factory=get_stromligning_schema,
             user_input=user_input,
         )
 
@@ -233,7 +231,7 @@ class CheapestHoursConfigFlowMixin:
 
         return self.async_show_form(
             step_id="cheapest_hours_basic",
-            data_schema=_get_cheapest_hours_basic_schema(merged_input),
+            data_schema=get_cheapest_hours_basic_schema(merged_input),
             errors=errors,
         )
 
@@ -284,7 +282,7 @@ class CheapestHoursConfigFlowMixin:
 
         return self.async_show_form(
             step_id="cheapest_hours_advanced",
-            data_schema=_get_cheapest_hours_advanced_schema(merged_input, sequential),
+            data_schema=get_cheapest_hours_advanced_schema(merged_input, sequential),
             errors=errors,
         )
 
@@ -327,6 +325,6 @@ class CheapestHoursConfigFlowMixin:
 
         return self.async_show_form(
             step_id="cheapest_hours_offset",
-            data_schema=_get_offset_schema(merged_input),
+            data_schema=get_offset_schema(merged_input),
             errors=errors,
         )
