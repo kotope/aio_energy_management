@@ -41,7 +41,7 @@ from aio_energy_management.cheapest_hours.helpers import (  # noqa: E402
 )
 
 from aio_energy_management.cheapest_hours.schemas import (  # noqa: E402
-    _get_cheapest_hours_advanced_schema,
+    get_cheapest_hours_advanced_schema,
 )
 
 
@@ -403,7 +403,7 @@ class TestValidateAndBuildAddFlexible:
 
 
 # ---------------------------------------------------------------------------
-# _get_cheapest_hours_advanced_schema
+# get_cheapest_hours_advanced_schema
 # ---------------------------------------------------------------------------
 
 
@@ -427,7 +427,7 @@ class TestAdvancedSchemaSequential:
 
     def test_flexible_fields_present_when_not_sequential(self):
         fields = _schema_field_names(
-            _get_cheapest_hours_advanced_schema(sequential=False)
+            get_cheapest_hours_advanced_schema(sequential=False)
         )
         assert CONF_MAX_NUMBER_OF_SLOTS in fields
         assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY in fields
@@ -436,24 +436,12 @@ class TestAdvancedSchemaSequential:
 
     def test_flexible_fields_absent_when_sequential(self):
         fields = _schema_field_names(
-            _get_cheapest_hours_advanced_schema(sequential=True)
+            get_cheapest_hours_advanced_schema(sequential=True)
         )
         assert CONF_MAX_NUMBER_OF_SLOTS not in fields
         assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY not in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT not in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY not in fields
-
-    # def test_use_offset_present_when_sequential(self):
-    #     fields = _schema_field_names(
-    #         _get_cheapest_hours_advanced_schema(sequential=True)
-    #     )
-    #     assert CONF_USE_OFFSET in fields
-
-    # def test_use_offset_absent_when_not_sequential(self):
-    #     fields = _schema_field_names(
-    #         _get_cheapest_hours_advanced_schema(sequential=False)
-    #     )
-    #     assert CONF_USE_OFFSET not in fields
 
 
 # ---------------------------------------------------------------------------
