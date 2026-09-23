@@ -380,7 +380,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     ),  # make sure it defaults to 1
                     self._data.get("active_number_of_blocks"),
                 )
-        except InvalidInput, ValueNotFound:
+        except (InvalidInput, ValueNotFound):
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
