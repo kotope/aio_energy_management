@@ -2,6 +2,9 @@
 
 import sys
 import os
+import pytest
+from unittest.mock import MagicMock
+
 
 # Allow importing the custom component without a full HA environment
 sys.path.insert(
@@ -25,8 +28,11 @@ from aio_energy_management.const import (  # noqa: E402
     CONF_PRICE_LIMIT_ENTITY,
     CONF_START,
     CONF_TRIGGER_HOUR,
-    CONF_USE_OFFSET,
+    CONF_SEQUENTIAL,
 )
+
+from aio_energy_management.config_flow import AIOEnergyManagementOptionsFlow
+
 from aio_energy_management.cheapest_hours.helpers import (  # noqa: E402
     validate_advanced_integer_fields,
     validate_and_build_add_flexible,
@@ -437,14 +443,38 @@ class TestAdvancedSchemaSequential:
         assert CONF_FLEXIBLE_PRICE_LIMIT not in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY not in fields
 
-    def test_use_offset_present_when_sequential(self):
-        fields = _schema_field_names(
-            _get_cheapest_hours_advanced_schema(sequential=True)
-        )
-        assert CONF_USE_OFFSET in fields
+    # def test_use_offset_present_when_sequential(self):
+    #     fields = _schema_field_names(
+    #         _get_cheapest_hours_advanced_schema(sequential=True)
+    #     )
+    #     assert CONF_USE_OFFSET in fields
 
-    def test_use_offset_absent_when_not_sequential(self):
-        fields = _schema_field_names(
-            _get_cheapest_hours_advanced_schema(sequential=False)
-        )
-        assert CONF_USE_OFFSET not in fields
+    # def test_use_offset_absent_when_not_sequential(self):
+    #     fields = _schema_field_names(
+    #         _get_cheapest_hours_advanced_schema(sequential=False)
+    #     )
+    #     assert CONF_USE_OFFSET not in fields
+
+
+# ---------------------------------------------------------------------------
+# Validate offset menu
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_use_offset_present_when_sequential() -> None:
+    flow = MagicMock(config_entry=MagicMock(options={CONF_SEQUENTIAL: True}, data={}))
+    await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+    assert (
+        "cheapest_hours_offset" in flow.async_show_menu.call_args.kwargs["menu_options"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_use_offset_absent_when_not_sequential() -> None:
+    flow = MagicMock(config_entry=MagicMock(options={CONF_SEQUENTIAL: False}, data={}))
+    await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+    assert (
+        "cheapest_hours_offset"
+        not in flow.async_show_menu.call_args.kwargs["menu_options"]
+    )
