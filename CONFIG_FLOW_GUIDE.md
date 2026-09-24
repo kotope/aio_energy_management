@@ -67,8 +67,8 @@ Depending on the provider selected in Step 1, you will see one of these screens:
 **Strømligning**
 | Field | Description |
 |---|---|
-| Strømligning today entity (required) — select from dropdown
-| Strømligning tomorrow entity (required) — select from dropdown
+| Strømligning today entity (required) | Select from the Strømligning integration
+| Strømligning tomorrow entity (required) | Select from the Strømligning integration
 | MTU | Market time unit in minutes — `15` or `60` (default: `60`)
 
 #### Step 3: Basic Settings
@@ -96,9 +96,7 @@ If you would like to set Advanced Settings or Time Offset, click on `configure` 
 |---|---|---|
 | Failsafe starting hour | Fallback hour when price data is unavailable (optional) | 0–23 |
 | Trigger hour | Static earliest hour to calculate next cheapest hours (optional) | 0–23 |
-
 | Price limit | Only accept prices below this value (or above if Inversed) (optional) | — |
-
 | Retention days | Days of calendar history to keep (1–365, default: 1) | 1–365 |
 | Price modifications | Jinja2 template for adjusting prices (tariffs, taxes, etc.) | — |
 | Trigger hour entity *(dynamic only)* | Entity providing the trigger hour | Mutually exclusive with static value |
@@ -108,7 +106,7 @@ If you would like to set Advanced Settings or Time Offset, click on `configure` 
 
 > **Breaking change since 1.2.0:** offsets are only supported on sequential sensors, so the **Use offset** field is hidden when **Sequential** is off. Reconfiguring a non-sequential sensor clears any offset it had from an earlier version.
 
-#### Time Offset *(only shown for sequential sensors when "Use offset" is enabled)*
+#### Time Offset *(only shown for sequential sensors)*
 
 All offset fields are optional. Each can use a static integer **or** an entity, but not both.
 
