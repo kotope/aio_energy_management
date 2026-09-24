@@ -5,7 +5,7 @@ This guide explains how to use the UI-based configuration flow for AIO Energy Ma
 ## Overview
 
 AIO Energy Management supports both:
-- **UI Configuration** (recommended) — configure through Home Assistant’s UI (**Cheapest hours**, **Calendar**, **Excess solar**)
+- **UI Configuration** (recommended) — configure through Home Assistant’s UI (**Cheapest hours**, **Excess solar**)
 - **YAML Configuration** (legacy) — still supported for backward compatibility
 
 ## UI Configuration
@@ -39,6 +39,7 @@ Choose **one** data provider:
 - **Nord Pool** - Uses a Nord Pool sensor entity from the Nord Pool custom integration
 - **Nord Pool official** - Uses a config entry from the Nord Pool official integration
 - **Entso-E** - Uses a sensor entity from the Entso-E integration
+- **Strømligning** - Uses a sensor from the Strømligning integration
 
 #### Step 2: Data Provider Settings
 
@@ -49,7 +50,6 @@ Depending on the provider selected in Step 1, you will see one of these screens:
 |---|---|
 | Nord Pool entity (required) | Entity ID of the Nord Pool sensor (e.g. `sensor.nordpool`) |
 | MTU | Market time unit in minutes — `15` or `60` (default: `60`) |
-| Allow dynamic entities | Enable support for dynamic entities on upcoming steps. (default: off)  |
 
 **Nord Pool official:**
 | Field | Description |
@@ -57,18 +57,19 @@ Depending on the provider selected in Step 1, you will see one of these screens:
 | Config entry (required) | Select from existing Nord Pool official config entries |
 | Area | Market area override (optional) |
 | MTU | Market time unit in minutes — `15` or `60` (default: `60`) |
-| Allow dynamic entities | Enable support for dynamic entities on upcoming steps. (default: off)  |
-
 
 **Entso-E:**
 | Field | Description |
 |---|---|
 | Entso-E entity (required) | Entity ID of the Entso-E average price sensor |
 | MTU | Market time unit in minutes — `15` or `60` (default: `60`) |
-| Allow dynamic entities | Enable support for dynamic entities on upcoming steps. (default: off)  |
 
-
-> **Note:** When **Allow dynamic entities** is enabled, additional optional entity fields appear on subsequent steps. These let you use `sensor` or `input_number` entities to supply values at runtime instead of static numbers.
+**Strømligning**
+| Field | Description |
+|---|---|
+| Strømligning today entity (required) — select from dropdown
+| Strømligning tomorrow entity (required) — select from dropdown
+| MTU | Market time unit in minutes — `15` or `60` (default: `60`)
 
 #### Step 3: Basic Settings
 
@@ -76,43 +77,50 @@ Depending on the provider selected in Step 1, you will see one of these screens:
 |---|---|---|
 | Name (required) | Friendly name (e.g. "Cheapest 3 Hours") | — |
 | Number of slots | Static count of time slots to find (≥ 0; use `0` to rely on entity) | ≥ 0 |
-| Number of slots entity *(dynamic only)* | `sensor`/`input_number` entity providing the slot count | Mutually exclusive with static value |
 | First hour (required) | Start of the search window (0–23) | 0–23 |
 | Last hour (required) | End of the search window (0–23) | 0–23, must be ≥ First hour |
 | Sequential | Find consecutive hours only (vs. scattered) | — |
+| Add to calendar | Show scheduled hours on the energy management calendar | — |
+| Inversed | Find the most expensive hours instead of cheapest | — |
+| Number of slots entity *(dynamic only)* | `sensor`/`input_number` entity providing the slot count | Mutually exclusive with static value |
 
 > **Important:** Exactly one of **Number of slots** or **Number of slots entity** must be provided.
 
-#### Step 4: Advanced Settings
+✅ **Done!** Your sensor is now available as `binary_sensor.<name>`.
+If you would like to set Advanced Settings or Time Offset, click on `configure` after wizard is complete
+
+
+#### Advanced Settings
 
 | Field | Description | Validation |
 |---|---|---|
 | Failsafe starting hour | Fallback hour when price data is unavailable (optional) | 0–23 |
-| Inversed | Find most expensive hours instead of cheapest | — |
 | Trigger hour | Static earliest hour to calculate next cheapest hours (optional) | 0–23 |
-| Trigger hour entity *(dynamic only)* | Entity providing the trigger hour | Mutually exclusive with static value |
+
 | Price limit | Only accept prices below this value (or above if Inversed) (optional) | — |
-| Price limit entity *(dynamic only)* | Entity providing the price limit | Mutually exclusive with static value |
-| Add to calendar | Show this sensor's schedule in the calendar | — |
+
 | Retention days | Days of calendar history to keep (1–365, default: 1) | 1–365 |
 | Price modifications | Jinja2 template for adjusting prices (tariffs, taxes, etc.) | — |
-| Use offset *(sequential only)* | Enable start/end time offsets (shows Step 5 if enabled). Not shown when **Sequential** is off | — |
+| Trigger hour entity *(dynamic only)* | Entity providing the trigger hour | Mutually exclusive with static value |
+| Price limit entity *(dynamic only)* | Entity providing the price limit | Mutually exclusive with static value |
+| Flexbile: price limit (entity) | Entity to set `Flexbile: price limit` dynamically *(mutually exclusive with static)* | Mutually exclusive with static value |
+| Flexbile: max number of slots (entity)| Entity to set `Flexbile: max number of slots` dynamically *(mutually exclusive with static)* | Mutually exclusive with static value |
 
 > **Breaking change since 1.2.0:** offsets are only supported on sequential sensors, so the **Use offset** field is hidden when **Sequential** is off. Reconfiguring a non-sequential sensor clears any offset it had from an earlier version.
 
-#### Step 5: Time Offset *(only shown for sequential sensors when "Use offset" is enabled)*
+#### Time Offset *(only shown for sequential sensors when "Use offset" is enabled)*
 
-All offset fields are optional. Each can use a static integer **or** an entity (when dynamic entities are enabled), but not both.
+All offset fields are optional. Each can use a static integer **or** an entity, but not both.
 
 | Field | Description | Validation |
 |---|---|---|
 | Start hours | Hours to offset the start time | Any integer |
-| Start hours entity *(dynamic only)* | Entity providing start hours offset | — |
 | Start minutes | Minutes to offset the start time | 0–59 |
-| Start minutes entity *(dynamic only)* | Entity providing start minutes offset | — |
 | End hours | Hours to offset the end time | Any integer |
-| End hours entity *(dynamic only)* | Entity providing end hours offset | — |
 | End minutes | Minutes to offset the end time | 0–59 |
+| Start hours entity *(dynamic only)* | Entity providing start hours offset | — |
+| Start minutes entity *(dynamic only)* | Entity providing start minutes offset | — |
+| End hours entity *(dynamic only)* | Entity providing end hours offset | — |
 | End minutes entity *(dynamic only)* | Entity providing end minutes offset | — |
 
 ---

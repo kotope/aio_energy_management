@@ -31,6 +31,7 @@ Choose the integration that provides electricity price data:
 | **Nord Pool** | Uses a sensor entity from the Nord Pool custom integration |
 | **Nord Pool official** | Uses a config entry from the Nord Pool official integration |
 | **Entso-E** | Uses an average price sensor from the Entso-E integration |
+| **Strømligning** | Uses a sensor from the Strømligning integration |
 
 #### Step 3 — Configure Price Source
 Depending on the provider selected above, fill in:
@@ -51,36 +52,50 @@ Depending on the provider selected above, fill in:
 - **MTU** — `15` or `60` minutes (default: 60)
 - **Allow dynamic entities** — enable entity-based inputs in later steps
 
+**Strømligning**
+- **Strømligning today entity** — select from dropdown
+- **Strømligning tomorrow entity** — select from dropdown
+- **MTU** — `15` or `60` minutes (default: 60)
+
 #### Step 4 — Basic Settings
 
 | Field | Default | Description |
 |---|---|---|
 | **Name** | `Cheapest Hours` | Friendly name (becomes the entity ID) |
 | **Number of slots (static)** | `0` | How many time slots to find; leave `0` to use an entity instead |
-| **Number of slots (entity)** | — | Entity (sensor/input_number) to set slots dynamically *(if Allow dynamic entities is on)* |
 | **First hour** | `0` | Start of the allowed time window (0–23) |
 | **Last hour** | `23` | End of the allowed time window (0–23) |
 | **Sequential** | `false` | Require selected slots to be consecutive |
+| **Add to calendar** | `true` | Show scheduled hours on the energy management calendar |
+| **Inversed** | `false` | Find the most expensive hours instead of cheapest |
+| **Number of slots (entity)** | — | Entity (sensor/input_number) to set slots dynamically |
+
+✅ **Done!** Your sensor is now available as `binary_sensor.<name>`.
 
 > [!NOTE]
 > You must provide **either** a static number of slots greater than 0 **or** a dynamic entity — not both, not neither.
+> [!NOTE]
+> Advanced settings and Time Offset will NOT be shown during the first time wizard. They can be adapted by configuring the sensor afterwards!
 
-#### Step 5 — Advanced Settings *(all optional)*
+#### Advanced Settings *(all optional)*
 
 | Field | Default | Description |
 |---|---|---|
 | **Failsafe starting hour** | — | Fallback hour if price data is unavailable |
-| **Inversed** | `false` | Find the most expensive hours instead of cheapest |
 | **Trigger hour (static)** | — | Earliest hour to recalculate cheapest hours for the next day |
-| **Trigger hour (entity)** | — | Entity to set trigger hour dynamically *(mutually exclusive with static)* |
 | **Price limit (static)** | — | Only accept hours below this price (or above if Inversed) |
-| **Price limit (entity)** | — | Entity to set price limit dynamically *(mutually exclusive with static)* |
-| **Add to calendar** | `true` | Show scheduled hours on the energy management calendar |
+| **Flexbile: price limit** | — | Only add extra slots whose price is below this value (or above if inversed). Requires the max number of slots |
+| **Flexbile: max number of slots**| — | Add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit (non-sequential only). Requires the flexible price limit |
+| **Minimum continuous slots** |—| Enforce a number of continuous slots |
+| **Number of time blocks** |—| Divides the number of slots over the given number of blocks in order to get multiple blocks a day |
 | **Retention days** | `1` | Days of calendar history to keep (1–365) |
 | **Price modifications** | — | Jinja2 template to adjust prices before calculation (e.g. tariffs, taxes) |
-| **Configure time offset** | `false` | Enable an extra step to set start/end time offsets |
+| **Trigger hour (entity)** | — | Entity to set `trigger hour` dynamically *(mutually exclusive with static)* |
+| **Price limit (entity)** | — | Entity to set `price limit` dynamically *(mutually exclusive with static)* |
+| **Flexbile: price limit (entity)** | — | Entity to set `Flexbile: price limit` dynamically *(mutually exclusive with static)* |
+| **Flexbile: max number of slots (entity)**| — | Entity to set `Flexbile: max number of slots` dynamically *(mutually exclusive with static)* |
 
-#### Step 6 — Time Offset *(only shown if "Configure time offset" is enabled)*
+#### Time Offset *(all optional)*
 
 Configure how much the on/off times are shifted relative to the calculated slot boundaries.
 Each field accepts a **static integer value** or a **dynamic entity** (mutually exclusive):
@@ -91,8 +106,6 @@ Each field accepts a **static integer value** or a **dynamic entity** (mutually 
 | **Start offset minutes** | Minutes to add to the slot start time (0–59) |
 | **End offset hours** | Hours to add to the slot end time |
 | **End offset minutes** | Minutes to add to the slot end time (0–59) |
-
-✅ **Done!** Your sensor is now available as `binary_sensor.<name>`.
 
 ---
 
