@@ -187,9 +187,11 @@ Submit completes the chosen action and returns to Home Assistant.
 2. Find **AIO Energy Management**
 3. Open the config entry you want to change → **Configure**
 
-**Cheapest hours:** Walk through the same steps as the initial setup — existing values are pre-filled — then **Submit**.
-
-**Calendar:** Options may only confirm there are no extra settings.
+**Cheapest hours:** choose whatever setting you would like to change:
+ - Price data provider
+ - Basic settings
+ - Advanced settings
+ - Time offset
 
 **Excess solar:** Use the **manage** menu (edit global settings, add device, remove devices) as described in [Modifying existing entities (Excess solar)](#modifying-existing-entities-excess-solar).
 

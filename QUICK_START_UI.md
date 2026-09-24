@@ -9,7 +9,16 @@
   - Nord Pool (custom integration)
   - Nord Pool (official integration)
   - Entso-E
+  - Strømligning
 - **Excess solar path:** a `sensor` entity for **grid import/export power** (the integration expects **negative** values when you export solar to the grid)
+
+---
+
+### Configuring Global Settings
+
+Every installation will have **one** `⚙️ Global Settings` identity for overarching configurations. This identity will be recreated at system startup if removed.
+- **Enable calendar** - Enable or disable the calendar feature. Disabling this will remove the calendar identity and it's functionality.
+- **Calendar name** - Provide a user-friendly name for the calendar. Defaults to `Energy Management`.
 
 ---
 
@@ -74,8 +83,9 @@ Depending on the provider selected above, fill in:
 
 > [!NOTE]
 > You must provide **either** a static number of slots greater than 0 **or** a dynamic entity — not both, not neither.
+
 > [!NOTE]
-> Advanced settings and Time Offset will NOT be shown during the first time wizard. They can be adapted by configuring the sensor afterwards!
+> Advanced settings and Time Offset will **NOT** be shown during the first time wizard. They can be adapted by configuring the sensor afterwards!
 
 #### Advanced Settings *(all optional)*
 
@@ -109,21 +119,7 @@ Each field accepts a **static integer value** or a **dynamic entity** (mutually 
 
 ---
 
-### Option 2: Calendar
-
-> [!IMPORTANT]
-> Only **one** calendar entity can be created per Home Assistant instance.
-
-1. Go to **Settings → Devices & Services**
-2. Click **"+ Add Integration"** → search for **"AIO Energy Management"**
-3. Select **"Calendar"**
-4. Enter a **Name** (default: `Energy Management`)
-
-✅ **Done!** Your calendar is now available as `calendar.<name>`.
-
----
-
-### Option 3: Excess solar
+### Option 2: Excess solar
 
 Excess solar drives **binary sensors** (one per configured device) when your grid meter shows enough **export**; you wire real devices with automations. You can add **several** excess solar entries if you need separate setups.
 
@@ -257,7 +253,11 @@ sensor:
 1. Go to **Settings → Devices & Services**
 2. Find **"AIO Energy Management"**
 3. Click **"Configure"** on the entry you want to change
-4. **Cheapest hours:** step through the wizard (same steps as initial setup — current values are pre-filled)
+4. **Cheapest hours:** choose whatever setting you would like to change:
+ - Price data provider
+ - Basic settings
+ - Advanced settings
+ - Time offset
 5. **Excess solar:** pick **Edit global settings**, **Add a device**, or **Remove device(s)** from the menu, then submit
 
 Changes take effect immediately!
