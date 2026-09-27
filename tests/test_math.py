@@ -449,9 +449,10 @@ def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) ->
 def test_sequential_cheapest_hours_price_limit(today_valid, tomorrow_valid) -> None:
     """Test sequential with price_limit."""
     # Cheapest 10-slot window has mean ~3.276; price_limit below that → empty list
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=2.0
     )
+    assert expires_today_only is False
     assert result["list"] == []
     assert result["extra"]["mean_price"] is None
     assert result["extra"]["max_price"] is None
@@ -658,9 +659,10 @@ def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) ->
 def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> None:
     """Test sequential with inversed=True and price_limit."""
     # Most expensive 10-slot window has mean ~6.154; price_limit above that → empty list
-    result = calculate_sequential_cheapest_hours(
+    result, expires_today_only = calculate_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 10, False, 0, 23, inversed=True, price_limit=7.0
     )
+    assert expires_today_only is False
     assert result["list"] == []
     assert result["extra"]["mean_price"] is None
     assert result["extra"]["max_price"] is None
