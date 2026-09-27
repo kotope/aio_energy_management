@@ -151,7 +151,7 @@ def calculate_sequential_cheapest_hours(
         fd["extra"]["mean_price"] = None
         fd["extra"]["max_price"] = None
         fd["extra"]["min_price"] = None
-        return fd
+        return (fd, not has_tomorrow)
 
     fd["list"] = [{"start": cheapest_hour, "end": cheapest_hour + delta}]
 
