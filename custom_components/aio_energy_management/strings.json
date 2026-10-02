@@ -136,9 +136,6 @@
           "failsafe_starting_hour": "Failsafe starting hour",
           "trigger_hour": "Trigger hour (static value)",
           "price_limit": "Price limit (static value)",
-          "max_number_of_slots": "Flexible: max number of slots (static value)",
-          "flexible_price_limit": "Flexible: price limit (static value)",
-          "max_price_delta": "Flexible: max price difference",
           "min_seq_slots": "Minimum continuous slots",
           "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
@@ -162,15 +159,11 @@
             "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
             "data": {
               "trigger_hour_entity": "Trigger hour",
-              "price_limit_entity": "Price limit",
-              "max_number_of_slots_entity": "Flexible: max number of slots",
-              "flexible_price_limit_entity": "Flexible: price limit"
+              "price_limit_entity": "Price limit"
             },
             "data_description": {
               "trigger_hour_entity": "Dynamic sensor/input_number for trigger hour",
-              "price_limit_entity": "Dynamic sensor/input_number for price limit",
-              "max_number_of_slots_entity": "Dynamic sensor/input_number for max slots",
-              "flexible_price_limit_entity": "Dynamic sensor/input_number for flexible price limit"
+              "price_limit_entity": "Dynamic sensor/input_number for price limit"
             }
           }
         }
@@ -320,7 +313,8 @@
           "cheapest_hours_data_provider": "Price source provider",
           "cheapest_hours_basic": "Basic settings",
           "cheapest_hours_advanced": "Advanced settings",
-          "cheapest_hours_offset": "Time offset"
+          "cheapest_hours_offset": "Time offset",
+          "cheapest_hours_flexible": "Flexible slots"
         }
       },
       "cheapest_hours_data_provider": {
@@ -339,8 +333,10 @@
         "title": "Time offset",
         "description": "Configure optional start and end time offsets"
       },
-
-
+      "cheapest_hours_flexible": {
+        "title": "Flexible slots",
+        "description": "Configure flexible slots"
+      },
       "cheapest_hours_data_provider": {
         "title": "Price source",
         "description": "Select one price source for cheapest hours calculation. Choose Nord Pool (custom integration), Nord Pool official, Entso-E, or Strømligning (Danish total price).",
@@ -452,9 +448,6 @@
           "failsafe_starting_hour": "Failsafe starting hour",
           "trigger_hour": "Trigger hour (static value)",
           "price_limit": "Price limit (static value)",
-          "max_number_of_slots": "Flexible: max number of slots (static value)",
-          "flexible_price_limit": "Flexible: price limit (static value)",
-          "max_price_delta": "Flexible: max price difference",
           "min_seq_slots": "Minimum continuous slots",
           "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
@@ -464,9 +457,6 @@
           "failsafe_starting_hour": "Fallback hour if price data unavailable",
           "trigger_hour": "Static: Earliest hour to create next cheapest hours",
           "price_limit": "Static: Only accept prices below this value (or above if inversed)",
-          "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit or the max price difference (non-sequential only). Requires the flexible price limit or the max price difference",
-          "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Use either this or the max price difference, not both. Requires the max number of slots",
-          "max_price_delta": "Flexible slots: only add extra slots as long as their price difference is within min_price of the original window (or of the most expensive price if inversed). Use either this or the flexible price limit, not both. Requires the max number of slots",
           "min_seq_slots": "Enforce a number of continuous slots",
           "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
           "retention_days": "Number of days to keep calendar history",
@@ -478,15 +468,11 @@
             "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
             "data": {
               "trigger_hour_entity": "Trigger hour",
-              "price_limit_entity": "Price limit",
-              "max_number_of_slots_entity": "Flexible: max number of slots",
-              "flexible_price_limit_entity": "Flexible: price limit"
+              "price_limit_entity": "Price limit"
             },
             "data_description": {
               "trigger_hour_entity": "Dynamic sensor/input_number for trigger hour",
-              "price_limit_entity": "Dynamic sensor/input_number for price limit",
-              "max_number_of_slots_entity": "Dynamic sensor/input_number for max slots",
-              "flexible_price_limit_entity": "Dynamic sensor/input_number for flexible price limit"
+              "price_limit_entity": "Dynamic sensor/input_number for price limit"
             }
           }
         }
@@ -521,6 +507,34 @@
               "start_minutes_entity": "Optional: Entity to dynamically set start minutes offset (sensor or input_number).",
               "end_hours_entity": "Optional: Entity to dynamically set end hours offset (sensor or input_number).",
               "end_minutes_entity": "Optional: Entity to dynamically set end minutes offset (sensor or input_number)."
+            }
+          }
+        }
+      },
+      "cheapest_hours_flexible": {
+        "title": "Flexible slots",
+        "description": "Configure flexible slots",
+        "data": {
+        "max_number_of_slots": "Flexible: max number of slots (static value)",
+        "flexible_price_limit": "Flexible: price limit (static value)",
+        "max_price_delta": "Flexible: max price difference"
+        },
+        "data_description": {
+        "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit or the max price difference (non-sequential only). Requires the flexible price limit or the max price difference",
+        "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Use either this or the max price difference, not both. Requires the max number of slots",
+        "max_price_delta": "Flexible slots: keep adding extra slots as long as their price is within this amount of the cheapest price (or of the most expensive price if inversed), e.g. 0.03 for 3 cent when prices are in EUR/kWh. Use either this or the flexible price limit, not both. Requires the max number of slots"
+        },
+        "sections":{
+          "dynamic_section": {
+            "name": "Dynamic entities (Optional)",
+            "description": "Configure dynamic entities. Make sure to clear the corresponding static value.",
+            "data": {
+              "max_number_of_slots_entity": "Flexible: max number of slots",
+              "flexible_price_limit_entity": "Flexible: price limit"
+            },
+            "data_description": {
+              "max_number_of_slots_entity": "Dynamic sensor/input_number for max slots",
+              "flexible_price_limit_entity": "Dynamic sensor/input_number for flexible price limit"
             }
           }
         }

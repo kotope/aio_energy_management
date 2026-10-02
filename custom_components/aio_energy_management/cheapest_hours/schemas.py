@@ -247,15 +247,6 @@ def get_cheapest_hours_advanced_schema(
     if not sequential:
         schema_dict.update(
             {
-                _opt(
-                    CONF_FLEXIBLE_PRICE_LIMIT, data, flex_key=CONF_PRICE_LIMIT
-                ): SEL_FLOAT,
-                _opt(
-                    CONF_MAX_PRICE_DELTA, data, flex_key=CONF_MAX_PRICE_DELTA
-                ): SEL_FLOAT_0,
-                _opt(
-                    CONF_MAX_NUMBER_OF_SLOTS, data, flex_key=CONF_MAX_NUMBER_OF_SLOTS
-                ): SEL_INT,
                 _opt(CONF_MIN_SEQ_SLOTS, data): SEL_INT,
                 _opt(CONF_NUMBER_OF_BLOCKS, data): SEL_INT,
             }
@@ -346,6 +337,49 @@ def get_offset_schema(offset_data: dict[str, Any]) -> vol.Schema:
             CONF_END_HOURS_ENTITY,
             CONF_END_MINUTES_ENTITY,
         )
+    )
+
+    schema_dict[vol.Required("dynamic_section")] = section(
+        vol.Schema(dynamic_dict),
+        {"collapsed": not has_dynamic},
+    )
+
+    return vol.Schema(schema_dict)
+
+
+def get_flexible_schema(
+    user_input: dict[str, Any] | None = None,
+) -> vol.Schema:
+    """Get flexible slots configuration schema (non-sequential only)."""
+    data = user_input or {}
+
+    schema_dict = {
+        _opt(CONF_FLEXIBLE_PRICE_LIMIT, data, flex_key=CONF_PRICE_LIMIT): SEL_FLOAT,
+        _opt(CONF_MAX_PRICE_DELTA, data, flex_key=CONF_MAX_PRICE_DELTA): SEL_FLOAT_0,
+        _opt(
+            CONF_MAX_NUMBER_OF_SLOTS, data, flex_key=CONF_MAX_NUMBER_OF_SLOTS
+        ): SEL_INT,
+    }
+
+    dynamic_dict = {
+        _opt(
+            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+            data,
+            flex_key=CONF_PRICE_LIMIT_ENTITY,
+        ): SEL_ENTITY,
+        _opt(
+            CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+            data,
+            flex_key=CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+        ): SEL_ENTITY,
+    }
+
+    has_dynamic = any(
+        get_val(data, key, flex)
+        for key, flex in [
+            (CONF_MAX_NUMBER_OF_SLOTS_ENTITY, CONF_MAX_NUMBER_OF_SLOTS_ENTITY),
+            (CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, CONF_PRICE_LIMIT_ENTITY),
+        ]
     )
 
     schema_dict[vol.Required("dynamic_section")] = section(
