@@ -656,6 +656,168 @@ def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) ->
 
 
 @freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "flat_day, price_shift, number_of_slots, inversed, kwargs, expected_ranges",
+    [
+        # Prices of tomorrow_valid, cheapest first: 10 (1.547), 13 (1.71),
+        # 12 (1.851), 1 (2.461), 3 (2.859), 2 (2.967), 4 (3.063). Most expensive: 11.
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.31},
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="stops_at_delta",  # limit 1.857: adds 12, not 1
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.05},
+            [("10:00", "11:00"), ("13:00", "14:00")],
+            id="base_slots_always_kept",  # 13 is outside the delta but stays
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 2, "max_price_delta": 100.0},
+            [("01:00", "02:00"), ("10:00", "11:00"), ("12:00", "14:00")],
+            id="capped_by_max_number_of_slots",  # base 10, 13 + extra 12, 1
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            True,
+            {"max_number_of_slots": 5, "max_price_delta": 21.2},
+            [("11:00", "12:00"), ("14:00", "16:00")],
+            id="inversed",  # limit 25.874 - 21.2: adds 15 (4.706), not 16 (4.598)
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 100.0, "price_limit": 2.0},
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="price_limit_still_applies",
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {
+                "max_number_of_slots": 5,
+                "flexible_price_limit": 1.9,
+                "max_price_delta": 100.0,
+            },
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="fixed_limit_takes_precedence",  # same as fixed limit 1.9 alone
+        ),
+        pytest.param(
+            None,
+            0,
+            2,
+            False,
+            {"max_price_delta": 100.0},
+            [("10:00", "11:00"), ("13:00", "14:00")],
+            id="noop_without_max_number_of_slots",
+        ),
+        # The same day shifted 20 down: a delta follows the price level, a fixed
+        # limit does not and would now select every slot up to max_number_of_slots.
+        pytest.param(
+            None,
+            -20,
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.31},
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="shifted_day_delta_unchanged",
+        ),
+        pytest.param(
+            None,
+            -20,
+            2,
+            False,
+            {"max_number_of_slots": 5, "flexible_price_limit": 1.9},
+            [("01:00", "05:00"), ("10:00", "11:00"), ("12:00", "14:00")],
+            id="shifted_day_fixed_limit_selects_too_much",
+        ),
+        # Custom days: (default price, {hour: price})
+        pytest.param(
+            (0.0, {3: -0.15, 4: -0.14, 5: -0.13, 6: -0.12, 20: 0.30}),
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 10, "max_price_delta": 0.03},
+            [("03:00", "07:00")],
+            id="negative_dip_excludes_zero_prices",
+        ),
+        pytest.param(
+            (5.0, {10: 0.0, 11: 0.0, 12: -0.01, 13: 0.0, 14: 0.0, 15: 0.0}),
+            0,
+            2,
+            False,
+            {"max_number_of_slots": 10, "max_price_delta": 0.03},
+            [("10:00", "16:00")],
+            id="long_flat_period_fully_selected",
+        ),
+        pytest.param(
+            (5.0, {4: 0.7, 8: 0.8}),
+            0,
+            1,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.1},
+            [("04:00", "05:00"), ("08:00", "09:00")],
+            id="boundary_slot_included",  # 0.7 + 0.1 == 0.7999999999999999 in floats
+        ),
+    ],
+)
+def test_non_sequential_max_price_delta_scenarios(
+    today_valid,
+    tomorrow_valid,
+    flat_day,
+    price_shift: float,
+    number_of_slots: int,
+    inversed: bool,
+    kwargs: dict,
+    expected_ranges: list[tuple[str, str]],
+) -> None:
+    """Test max_price_delta extension of non-sequential slots."""
+    if flat_day is not None:
+        default, overrides = flat_day
+        tomorrow_valid = [
+            HourPrice(overrides.get(hour, default), p.start)
+            for hour, p in enumerate(tomorrow_valid)
+        ]
+    today = [HourPrice(p.value + price_shift, p.start) for p in today_valid]
+    tomorrow = [HourPrice(p.value + price_shift, p.start) for p in tomorrow_valid]
+
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today,
+        tomorrow=tomorrow,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        inversed=inversed,
+        **kwargs,
+    )
+
+    actual_ranges = [
+        (item["start"].strftime("%H:%M"), item["end"].strftime("%H:%M"))
+        for item in result["list"]
+    ]
+    assert expires_today_only is False
+    assert actual_ranges == expected_ranges
+
+
+@freeze_time("2024-07-22 14:25+03:00")
 def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> None:
     """Test sequential with inversed=True and price_limit."""
     # Most expensive 10-slot window has mean ~6.154; price_limit above that → empty list

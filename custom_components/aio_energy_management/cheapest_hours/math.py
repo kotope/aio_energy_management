@@ -17,6 +17,10 @@ _LOGGER = logging.getLogger(__name__)
 MAX_PRICE_VALUE = 99999.9
 MIN_PRICE_VALUE = -99999.9
 
+# Guards against floating point noise when comparing against min price + delta,
+# e.g. -0.15 + 0.03 must still include a slot priced exactly -0.12.
+PRICE_DELTA_TOLERANCE = 1e-9
+
 
 def calculate_sequential_cheapest_hours(
     today: list,
@@ -175,6 +179,7 @@ def calculate_non_sequential_cheapest_hours(
     flexible_price_limit: float | None = None,
     min_seq_slots: int = 1,  # defaults to 1 for backwards compatibility
     number_of_blocks: int | None = None,
+    max_price_delta: float | None = None,
 ) -> (dict, bool):
     """Calculate non-sequential cheapest hours.
 
@@ -184,6 +189,11 @@ def calculate_non_sequential_cheapest_hours(
     ``max_number_of_slots`` additional next-cheapest slots while their individual
     price stays below ``flexible_price_limit`` (above it when ``inversed``), for
     at most ``number_of_slots + max_number_of_slots`` slots in total.
+
+    Instead of a fixed ``flexible_price_limit``, ``max_price_delta`` can be used
+    to make the limit relative: extra slots are added while their price is within
+    ``max_price_delta`` of the cheapest price (most expensive when ``inversed``)
+    in the search window. If both are given, ``flexible_price_limit`` wins.
     """
     if (
         _is_cheapest_hours_input_valid(
@@ -305,6 +315,7 @@ def calculate_non_sequential_cheapest_hours(
         max_number_of_slots,
         flexible_price_limit,
         inversed,
+        max_price_delta,
     )
 
     data.sort(key=lambda x: x["start"])
@@ -362,6 +373,7 @@ def _select_flexible_slots(
     max_number_of_slots: int | None,
     flexible_price_limit: float | None,
     inversed: bool,
+    max_price_delta: float | None = None,
 ) -> list[dict]:
     """Select base slots and optionally extend them with flexible slots.
 
@@ -371,6 +383,11 @@ def _select_flexible_slots(
     ``max_number_of_slots`` additional slots are appended while their price
     stays within ``flexible_price_limit``, for at most
     ``number_of_slots + max_number_of_slots`` slots in total.
+
+    Alternatively ``max_price_delta`` can be given instead of
+    ``flexible_price_limit``. The limit is then derived from the best price in
+    ``all_slots``: cheapest price + delta (most expensive price - delta when
+    ``inversed``). If both are given, ``flexible_price_limit`` takes precedence.
     """
     mult = -1 if inversed else 1
 
@@ -382,7 +399,19 @@ def _select_flexible_slots(
     else:
         selected = list(base_slots_or_count)
 
-    if max_number_of_slots is None or flexible_price_limit is None:
+    if max_number_of_slots is None:
+        return selected
+
+    # Determine the limit for extra slots: fixed, or relative to the best price.
+    if flexible_price_limit is not None:
+        limit = flexible_price_limit
+    elif max_price_delta is not None and all_slots:
+        prices = [s["price"] for s in all_slots]
+        if inversed:
+            limit = max(prices) - max_price_delta - PRICE_DELTA_TOLERANCE
+        else:
+            limit = min(prices) + max_price_delta + PRICE_DELTA_TOLERANCE
+    else:
         return selected
 
     base_starts = {s["start"] for s in selected}
@@ -394,11 +423,7 @@ def _select_flexible_slots(
     )
 
     for slot in remaining_candidates[:max_number_of_slots]:
-        within_limit = (
-            slot["price"] >= flexible_price_limit
-            if inversed
-            else slot["price"] <= flexible_price_limit
-        )
+        within_limit = slot["price"] >= limit if inversed else slot["price"] <= limit
         if not within_limit:
             # Data is sorted, so no later slot can satisfy the limit either.
             break

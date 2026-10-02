@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from unittest.mock import AsyncMock, PropertyMock, patch
 import zoneinfo
+import logging
 
 from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
@@ -11,6 +12,7 @@ from custom_components.aio_energy_management.binary_sensor import (
 from custom_components.aio_energy_management.const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     DOMAIN,
@@ -2256,6 +2258,141 @@ async def test_cheapest_hours_add_flexible_dynamic_entities(
     assert _covered_hours(attributes) == 6.0
     assert attributes["max_number_of_slots"] == "input_number.max_slots"
     assert attributes["flexible_price_limit"] == "input_number.flex_limit"
+
+
+def _make_flexible_sensor(
+    hass: HomeAssistant, unique_id: str, add_flexible: dict | None
+) -> CheapestHoursBinarySensor:
+    """Create a non-sequential sensor (2 slots, window 18-23 tomorrow)."""
+    return CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id=unique_id,
+        name=unique_id,
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        add_flexible=add_flexible,
+        coordinator=_setup_coordinator_mock(),
+    )
+
+
+@pytest.mark.parametrize("delta", [9999, 9999.0])
+async def test_cheapest_hours_add_flexible_max_price_delta_extends_slots(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info, delta
+) -> None:
+    """max_price_delta extends a non-sequential sensor beyond number_of_slots."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = _make_flexible_sensor(
+        hass,
+        "delta_sensor",
+        {CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_MAX_PRICE_DELTA: delta},
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    # A generous delta pulls in every slot in the 18-23 window (6 hours).
+    assert _covered_hours(attributes) == 6.0
+    assert attributes["max_price_delta"] == delta
+    assert attributes["max_number_of_slots"] == 10
+    assert "flexible_price_limit" not in attributes
+    assert sensor._data["active_max_price_delta"] == float(delta)
+    assert sensor._data["active_flexible_price_limit"] is None
+
+
+async def test_cheapest_hours_add_flexible_max_price_delta_capped_by_max_slots(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """max_number_of_slots caps the extra slots added through max_price_delta."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = _make_flexible_sensor(
+        hass,
+        "delta_capped_sensor",
+        {CONF_MAX_NUMBER_OF_SLOTS: 1, CONF_MAX_PRICE_DELTA: 9999.0},
+    )
+    await sensor.async_update()
+
+    # 2 base slots + at most 1 extra slot = 3 hours.
+    assert _covered_hours(sensor.extra_state_attributes) == 3.0
+
+
+async def test_cheapest_hours_add_flexible_fixed_limit_wins_over_max_price_delta(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    hass_tz_info,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A fixed flexible price limit and max_price_delta are mutually exclusive."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = _make_flexible_sensor(
+        hass,
+        "delta_conflict_sensor",
+        {
+            CONF_MAX_NUMBER_OF_SLOTS: 10,
+            CONF_PRICE_LIMIT: 9999.0,
+            CONF_MAX_PRICE_DELTA: 0.0,
+        },
+    )
+    with caplog.at_level(logging.WARNING):
+        await sensor.async_update()
+
+    # The fixed limit (9999) wins and pulls in the whole window. If the delta of
+    # 0.0 had won, only the base slots would have been selected.
+    assert _covered_hours(sensor.extra_state_attributes) == 6.0
+    assert sensor._data["active_flexible_price_limit"] == 9999.0
+    assert sensor._data["active_max_price_delta"] is None
+    assert "mutually exclusive" in caplog.text
+
+
+async def test_cheapest_hours_add_flexible_negative_max_price_delta_ignored(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    hass_tz_info,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A negative max_price_delta is ignored, leaving only the base slots."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = _make_flexible_sensor(
+        hass,
+        "delta_negative_sensor",
+        {CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_MAX_PRICE_DELTA: -1.0},
+    )
+    with caplog.at_level(logging.ERROR):
+        await sensor.async_update()
+
+    assert _covered_hours(sensor.extra_state_attributes) == 2.0
+    assert sensor._data["active_max_price_delta"] is None
+    assert "must not be negative" in caplog.text
+
+
+async def test_cheapest_hours_add_flexible_without_max_price_delta_unchanged(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """Existing add_flexible configs without max_price_delta behave as before."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = _make_flexible_sensor(
+        hass,
+        "delta_absent_sensor",
+        {CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_PRICE_LIMIT: 9999.0},
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    assert _covered_hours(attributes) == 6.0
+    assert "max_price_delta" not in attributes
+    assert sensor._data["active_max_price_delta"] is None
 
 
 async def test_skip_calculation_when_today_only(
