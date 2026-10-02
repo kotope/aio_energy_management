@@ -192,13 +192,8 @@ def validate_and_clean_advanced_fields(
     )
     errors.update(price_errors)
 
-    # 3. Process sequential/non-sequential fields and offset cleanup.
-    if sequential:
-        user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
-        user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
-        user_input.pop(CONF_MAX_PRICE_DELTA, None)
-    else:
-        # Offset does not apply to non-sequential sensors.
+    # 3. Offset cleanup (does not apply to non-sequential sensors).
+    if not sequential:
         user_input.pop(CONF_USE_OFFSET, None)
         user_input[CONF_USE_OFFSET] = False
 
@@ -214,15 +209,13 @@ def validate_and_clean_advanced_fields(
             for key in offset_keys:
                 config_data.pop(key, None)
 
-        flexible_errors = validate_and_build_add_flexible(user_input, mtu)
-        errors.update(flexible_errors)
-
     return errors
 
 
 def validate_and_build_add_flexible(
     user_input: dict[str, Any],
     mtu: int,
+    stored_price_limit: float | None = None,
 ) -> dict[str, str]:
     """Validate flexible slot fields and assemble them into a nested dict."""
     errors: dict[str, str] = {}
@@ -287,6 +280,8 @@ def validate_and_build_add_flexible(
 
     flexible_price_limit = user_input.get(CONF_FLEXIBLE_PRICE_LIMIT)
     price_limit = user_input.get(CONF_PRICE_LIMIT)
+    if price_limit is None:
+        price_limit = stored_price_limit
     if (
         flexible_price_limit is not None
         and price_limit is not None

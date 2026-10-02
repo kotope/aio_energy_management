@@ -15,6 +15,7 @@ from custom_components.aio_energy_management.const import (
     CONF_END_HOURS_ENTITY,
     CONF_END_MINUTES_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
+    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MIN_SEQ_SLOTS,
@@ -49,6 +50,7 @@ from .helpers import (
     validate_and_clean_advanced_fields,
     validate_and_clean_number_of_slots,
     validate_and_clean_offset_fields,
+    validate_and_build_add_flexible,
     validate_basic_integer_fields,
     validate_offset_integer_fields,
 )
@@ -60,6 +62,7 @@ from .schemas import (
     get_nordpool_official_schema,
     get_nordpool_schema,
     get_offset_schema,
+    get_flexible_schema,
     get_stromligning_schema,
 )
 
@@ -271,10 +274,6 @@ class CheapestHoursConfigFlowMixin:
                         CONF_MIN_SEQ_SLOTS,
                         CONF_NUMBER_OF_BLOCKS,
                         CONF_PRICE_MODIFICATIONS,
-                        CONF_MAX_NUMBER_OF_SLOTS,
-                        CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
-                        CONF_MAX_PRICE_DELTA,
-                        CONF_ADD_FLEXIBLE,
                         CONF_RETENTION_DAYS,
                     ],
                 )
@@ -328,5 +327,48 @@ class CheapestHoursConfigFlowMixin:
         return self.async_show_form(
             step_id="cheapest_hours_offset",
             data_schema=get_offset_schema(merged_input),
+            errors=errors,
+        )
+
+    async def async_step_cheapest_hours_flexible(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure flexible slot settings for cheapest hours (Options Flow only)."""
+
+        errors: dict[str, str] = {}
+        entry_data = dict(self._config_entry.data)
+
+        if user_input is not None:
+            if "dynamic_section" in user_input and isinstance(
+                user_input["dynamic_section"], dict
+            ):
+                user_input.update(user_input.pop("dynamic_section"))
+
+            errors = validate_and_build_add_flexible(
+                user_input,
+                mtu=entry_data.get(CONF_MTU) or 60,
+                stored_price_limit=entry_data.get(CONF_PRICE_LIMIT),
+            )
+
+            if not errors:
+                normalize_optional_keys(
+                    user_input,
+                    [
+                        CONF_ADD_FLEXIBLE,
+                        CONF_MAX_NUMBER_OF_SLOTS,
+                        CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+                        CONF_MAX_PRICE_DELTA,
+                    ],
+                )
+                return self._save_options_entry(user_input)
+
+        merged_input = {**entry_data, **(user_input or {})}
+        if user_input:
+            # Show what the user just typed, not the previously stored values.
+            merged_input.pop(CONF_ADD_FLEXIBLE, None)
+
+        return self.async_show_form(
+            step_id="cheapest_hours_flexible",
+            data_schema=get_flexible_schema(merged_input),
             errors=errors,
         )
