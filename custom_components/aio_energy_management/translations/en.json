@@ -525,7 +525,7 @@
         "data_description": {
         "max_number_of_slots": "Flexible slots: add up to this many extra slots on top of the base number of slots while each extra slot stays within the flexible price limit or the max price difference (non-sequential only). Requires the flexible price limit or the max price difference",
         "flexible_price_limit": "Flexible slots: only add extra slots whose price is below this value (or above if inversed). Use either this or the max price difference, not both. Requires the max number of slots",
-        "max_price_delta": "Flexible slots: keep adding extra slots as long as their price is within this amount of the cheapest price (or of the most expensive price if inversed), e.g. 0.03 for 3 cent when prices are in EUR/kWh. Use either this or the flexible price limit, not both. Requires the max number of slots"
+        "max_price_delta": "Flexible slots: keep adding extra slots as long as their price is within this amount of the cheapest price (or of the most expensive price if inversed). Use either this or the flexible price limit, not both. Requires the max number of slots"
         },
         "sections":{
           "dynamic_section": {
