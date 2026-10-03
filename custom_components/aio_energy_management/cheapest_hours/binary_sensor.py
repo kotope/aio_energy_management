@@ -5,7 +5,7 @@ import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
@@ -13,9 +13,9 @@ import homeassistant.util.dt as dt_util
 from ..const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
-    CONF_MAX_PRICE_DELTA,
     INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS,
 )
 from ..coordinator import EnergyManagementCoordinator
@@ -1028,7 +1028,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             flexible_price_limit = add_flexible.get(
                 CONF_PRICE_LIMIT_ENTITY
             ) or add_flexible.get(CONF_PRICE_LIMIT)
-            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)  # nieuw
+            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
             if max_slots is not None:
                 attrs["max_number_of_slots"] = max_slots
             if flexible_price_limit is not None:
@@ -1060,6 +1060,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
         if price_limit := self._price_limit:
             self._data["active_price_limit"] = self._float_from_entity(price_limit)
+
         if add_flexible := self._add_flexible:
             max_slots = add_flexible.get(
                 CONF_MAX_NUMBER_OF_SLOTS_ENTITY
@@ -1069,31 +1070,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             ) or add_flexible.get(CONF_PRICE_LIMIT)
             max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
 
-            active_limit = self._float_from_entity(flexible_price_limit)
-            active_delta = (
-                float(max_price_delta) if max_price_delta is not None else None
-            )
-
-            # Fixed limit and Comparable delta are mutually exclusive.
-            if active_limit is not None and active_delta is not None:
-                _LOGGER.warning(
-                    "Both flexible price limit and max price delta are configured "
-                    "for %s. They are mutually exclusive: ignoring max price delta",
-                    self._attr_unique_id,
-                )
-                active_delta = None
-
-            if active_delta is not None and active_delta < 0:
-                _LOGGER.error(
-                    "Max price delta for %s must not be negative (got %s): ignoring it",
-                    self._attr_unique_id,
-                    active_delta,
-                )
-                active_delta = None
-
             self._data["active_max_number_of_slots"] = self._int_from_entity(max_slots)
-            self._data["active_flexible_price_limit"] = active_limit
-            self._data["active_max_price_delta"] = active_delta
+            self._data["active_flexible_price_limit"] = self._float_from_entity(
+                flexible_price_limit
+            )
+            self._data["active_max_price_delta"] = self._float_from_entity(
+                max_price_delta
+            )
         if min_seq_slots := self._min_seq_slots:
             self._data["active_min_seq_slots"] = self._int_from_entity(min_seq_slots)
 

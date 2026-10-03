@@ -4,7 +4,6 @@ from datetime import datetime
 import json
 from unittest.mock import AsyncMock, PropertyMock, patch
 import zoneinfo
-import logging
 
 from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
@@ -20,16 +19,14 @@ from custom_components.aio_energy_management.const import (
 from custom_components.aio_energy_management.exceptions import InvalidEntityState
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
-
 import numpy as np
 import pytest
 from pytest_homeassistant_custom_component.common import load_fixture
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
-from homeassistant.helpers.template import Template
-from homeassistant.helpers.entity_component import async_update_entity
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
 
@@ -2260,79 +2257,41 @@ async def test_cheapest_hours_add_flexible_dynamic_entities(
     assert attributes["flexible_price_limit"] == "input_number.flex_limit"
 
 
-def _make_flexible_sensor(
-    hass: HomeAssistant, unique_id: str, add_flexible: dict | None
-) -> CheapestHoursBinarySensor:
-    """Create a non-sequential sensor (2 slots, window 18-23 tomorrow)."""
-    return CheapestHoursBinarySensor(
+async def test_cheapest_hours_add_flexible_max_price_delta(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test max_price_delta handling and attributes in CheapestHoursBinarySensor."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    add_flexible_config = {
+        CONF_MAX_NUMBER_OF_SLOTS: 10,
+        CONF_MAX_PRICE_DELTA: 9999.0,
+    }
+
+    sensor = CheapestHoursBinarySensor(
         hass=hass,
         nordpool_entity="sensor.nordpool",
-        unique_id=unique_id,
-        name=unique_id,
+        unique_id="delta_sensor",
+        name="delta_sensor",
         first_hour=18,
         last_hour=23,
         starting_today=False,
         number_of_slots=2,
         sequential=False,
-        add_flexible=add_flexible,
+        add_flexible=add_flexible_config,
         coordinator=_setup_coordinator_mock(),
     )
 
+    await sensor.async_update()
 
-@pytest.mark.parametrize(
-    "add_flexible_config, expected_hours, expected_active_delta, expected_log",
-    [
-        # 1. Valid delta: extends the hours and saves active_delta
-        (
-            {CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_MAX_PRICE_DELTA: 9999.0},
-            6.0,
-            9999.0,
-            None,
-        ),
-        # 2. Conflict: fixed limit beats delta, issues warning
-        (
-            {
-                CONF_MAX_NUMBER_OF_SLOTS: 10,
-                CONF_PRICE_LIMIT: 9999.0,
-                CONF_MAX_PRICE_DELTA: 0.0,
-            },
-            6.0,
-            None,
-            "mutually exclusive",
-        ),
-        # 3. Negative delta: ignored (falls back to base slots), results in an error.
-        (
-            {CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_MAX_PRICE_DELTA: -1.0},
-            2.0,
-            None,
-            "must not be negative",
-        ),
-    ],
-    ids=["valid_delta", "fixed_limit_precedence", "negative_delta_ignored"],
-)
-async def test_cheapest_hours_add_flexible_max_price_delta(
-    hass: HomeAssistant,
-    freezer: FrozenDateTimeFactory,
-    caplog: pytest.LogCaptureFixture,
-    add_flexible_config: dict,
-    expected_hours: float,
-    expected_active_delta: float | None,
-    expected_log: str | None,
-) -> None:
-    """Test max_price_delta validation and handling in CheapestHoursBinarySensor."""
-    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
-    freezer.move_to("2024-07-13 14:25+03:00")
+    # Check whether the hours are correctly expanded based on the delta.
+    assert _covered_hours(sensor.extra_state_attributes) == 6.0
 
-    sensor = _make_flexible_sensor(hass, "delta_sensor", add_flexible_config)
-
-    with caplog.at_level(logging.WARNING):
-        await sensor.async_update()
-
-    assert _covered_hours(sensor.extra_state_attributes) == expected_hours
-    assert sensor._data["active_max_price_delta"] == expected_active_delta
-
-    if expected_log:
-        assert expected_log in caplog.text
+    # Check internal data and the exposure of the sensor attributes.
+    assert sensor._data["active_max_price_delta"] == 9999.0
+    assert sensor.extra_state_attributes.get("max_price_delta") == 9999.0
 
 
 async def test_skip_calculation_when_today_only(
