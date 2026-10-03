@@ -11,6 +11,7 @@ from custom_components.aio_energy_management.binary_sensor import (
 from custom_components.aio_energy_management.const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     DOMAIN,
@@ -18,16 +19,14 @@ from custom_components.aio_energy_management.const import (
 from custom_components.aio_energy_management.exceptions import InvalidEntityState
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
-
 import numpy as np
 import pytest
 from pytest_homeassistant_custom_component.common import load_fixture
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
-from homeassistant.helpers.template import Template
-from homeassistant.helpers.entity_component import async_update_entity
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
 
@@ -2256,6 +2255,43 @@ async def test_cheapest_hours_add_flexible_dynamic_entities(
     assert _covered_hours(attributes) == 6.0
     assert attributes["max_number_of_slots"] == "input_number.max_slots"
     assert attributes["flexible_price_limit"] == "input_number.flex_limit"
+
+
+async def test_cheapest_hours_add_flexible_max_price_delta(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test max_price_delta handling and attributes in CheapestHoursBinarySensor."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    add_flexible_config = {
+        CONF_MAX_NUMBER_OF_SLOTS: 10,
+        CONF_MAX_PRICE_DELTA: 9999.0,
+    }
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="delta_sensor",
+        name="delta_sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        add_flexible=add_flexible_config,
+        coordinator=_setup_coordinator_mock(),
+    )
+
+    await sensor.async_update()
+
+    # Check whether the hours are correctly expanded based on the delta.
+    assert _covered_hours(sensor.extra_state_attributes) == 6.0
+
+    # Check internal data and the exposure of the sensor attributes.
+    assert sensor._data["active_max_price_delta"] == 9999.0
+    assert sensor.extra_state_attributes.get("max_price_delta") == 9999.0
 
 
 async def test_skip_calculation_when_today_only(

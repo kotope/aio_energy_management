@@ -5,7 +5,7 @@ import logging
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
@@ -13,6 +13,7 @@ import homeassistant.util.dt as dt_util
 from ..const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS,
@@ -379,8 +380,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                         "active_min_seq_slots", 1
                     ),  # make sure it defaults to 1
                     self._data.get("active_number_of_blocks"),
+                    max_price_delta=self._data.get("active_max_price_delta"),
                 )
-        except (InvalidInput, ValueNotFound):
+        except InvalidInput, ValueNotFound:
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
@@ -1026,10 +1028,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             flexible_price_limit = add_flexible.get(
                 CONF_PRICE_LIMIT_ENTITY
             ) or add_flexible.get(CONF_PRICE_LIMIT)
+            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
             if max_slots is not None:
                 attrs["max_number_of_slots"] = max_slots
             if flexible_price_limit is not None:
                 attrs["flexible_price_limit"] = flexible_price_limit
+            if max_price_delta is not None:
+                attrs["max_price_delta"] = max_price_delta
         if min_seq_slots := self._min_seq_slots:
             attrs["min_seq_slots"] = min_seq_slots
         if number_of_blocks := self._number_of_blocks:
@@ -1055,6 +1060,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
         if price_limit := self._price_limit:
             self._data["active_price_limit"] = self._float_from_entity(price_limit)
+
         if add_flexible := self._add_flexible:
             max_slots = add_flexible.get(
                 CONF_MAX_NUMBER_OF_SLOTS_ENTITY
@@ -1062,9 +1068,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             flexible_price_limit = add_flexible.get(
                 CONF_PRICE_LIMIT_ENTITY
             ) or add_flexible.get(CONF_PRICE_LIMIT)
+            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
+
             self._data["active_max_number_of_slots"] = self._int_from_entity(max_slots)
             self._data["active_flexible_price_limit"] = self._float_from_entity(
                 flexible_price_limit
+            )
+            self._data["active_max_price_delta"] = self._float_from_entity(
+                max_price_delta
             )
         if min_seq_slots := self._min_seq_slots:
             self._data["active_min_seq_slots"] = self._int_from_entity(min_seq_slots)

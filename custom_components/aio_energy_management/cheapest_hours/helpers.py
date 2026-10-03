@@ -23,6 +23,7 @@ from custom_components.aio_energy_management.const import (
     CONF_LAST_HOUR,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_MIN_SEQ_SLOTS,
     CONF_MINUTES,
     CONF_MTU,
@@ -143,6 +144,7 @@ def clean_sequential_basic_fields(user_input: dict[str, Any]) -> None:
             CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
             CONF_FLEXIBLE_PRICE_LIMIT,
             CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
+            CONF_MAX_PRICE_DELTA,
         ]
         for key in non_sequential_keys:
             user_input[key] = None
@@ -194,6 +196,7 @@ def validate_and_clean_advanced_fields(
     if sequential:
         user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT, None)
         user_input.pop(CONF_FLEXIBLE_PRICE_LIMIT_ENTITY, None)
+        user_input.pop(CONF_MAX_PRICE_DELTA, None)
     else:
         # Offset does not apply to non-sequential sensors.
         user_input.pop(CONF_USE_OFFSET, None)
@@ -245,6 +248,14 @@ def validate_and_build_add_flexible(
     if errors:
         return errors
 
+    # The max price delta is a plain number (no entity variant). Zero is allowed.
+    max_price_delta = user_input.get(CONF_MAX_PRICE_DELTA)
+    if max_price_delta is None:
+        user_input.pop(CONF_MAX_PRICE_DELTA, None)
+    elif max_price_delta < 0:
+        errors[CONF_MAX_PRICE_DELTA] = "max_price_delta_negative"
+        return errors
+
     has_max = (
         CONF_MAX_NUMBER_OF_SLOTS in user_input
         or CONF_MAX_NUMBER_OF_SLOTS_ENTITY in user_input
@@ -254,7 +265,16 @@ def validate_and_build_add_flexible(
         or CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in user_input
     )
 
-    if has_max != has_price:
+    has_delta = CONF_MAX_PRICE_DELTA in user_input
+
+    # A fixed flexible price limit and a relative max price delta are mutually
+    # exclusive: either one fixed limit, or a limit relative to the cheapest price.
+    if has_price and has_delta:
+        errors["base"] = "flexible_limit_and_delta_exclusive"
+        return errors
+
+    # The max number of slots always needs one of the two limits, and vice versa.
+    if has_max != (has_price or has_delta):
         errors["base"] = "add_flexible_incomplete"
         return errors
 
@@ -290,6 +310,9 @@ def validate_and_build_add_flexible(
         add_flexible[CONF_PRICE_LIMIT_ENTITY] = user_input.pop(
             CONF_FLEXIBLE_PRICE_LIMIT_ENTITY
         )
+
+    if CONF_MAX_PRICE_DELTA in user_input:
+        add_flexible[CONF_MAX_PRICE_DELTA] = user_input.pop(CONF_MAX_PRICE_DELTA)
 
     if add_flexible:
         user_input[CONF_ADD_FLEXIBLE] = add_flexible
