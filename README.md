@@ -180,11 +180,14 @@ The base `number_of_slots` cheapest slots are always selected. After that, the n
 | Key | Required | Description |
 |-----|----------|-------------|
 | max_number_of_slots | yes | Maximum total number of slots (matches the selected MTU, i.e. 15/60 min). Must be ≥ `number_of_slots` and within the MTU cap (24 for 60-min, 96 for 15-min). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
-| price_limit | yes | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
+| price_limit | yes* | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number`. Use either this or the max price difference, not both. Requires the max number of slots |
+| max_price_delta | yes* | only add extra slots as long as their price is within this amount of the cheapest price (oabove it when `inversed`). * Use either this or the flexible price limit, not both. Requires the max number of slots |
 
 Notes:
 * Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
 * `add_flexible` has no effect on `sequential: true` sensors.
+* Only `price_limit` or `max_price_delta` can be configured.
+* Calculation is done after price modifications
 
 Example: always take the 5 cheapest slots, and keep adding more (up to 21 total) while each extra slot costs less than 0.05.
 ```
