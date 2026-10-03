@@ -23,8 +23,8 @@ from .const import (
     CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
-    CONF_UNIQUE_ID,
     CONF_SEQUENTIAL,
+    CONF_UNIQUE_ID,
     DOMAIN,
 )
 from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
