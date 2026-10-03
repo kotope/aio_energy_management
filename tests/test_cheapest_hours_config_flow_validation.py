@@ -1,10 +1,10 @@
 """Tests for integer field validation helpers in cheapest_hours_config_flow."""
 
-import sys
 import os
-import pytest
+import sys
 from unittest.mock import MagicMock
 
+import pytest
 
 # Allow importing the custom component without a full HA environment
 sys.path.insert(
@@ -12,7 +12,15 @@ sys.path.insert(
     os.path.join(os.path.dirname(__file__), "..", "custom_components"),
 )
 
-from aio_energy_management.const import (  # noqa: E402
+from aio_energy_management.cheapest_hours.helpers import (
+    validate_advanced_integer_fields,
+    validate_and_build_add_flexible,
+    validate_basic_integer_fields,
+    validate_offset_integer_fields,
+)
+from aio_energy_management.cheapest_hours.schemas import get_flexible_schema
+from aio_energy_management.config_flow import AIOEnergyManagementOptionsFlow
+from aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
     CONF_END,
     CONF_FAILSAFE_STARTING_HOUR,
@@ -22,28 +30,15 @@ from aio_energy_management.const import (  # noqa: E402
     CONF_LAST_HOUR,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_MINUTES,
     CONF_NUMBER_OF_SLOTS,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
+    CONF_SEQUENTIAL,
     CONF_START,
     CONF_TRIGGER_HOUR,
-    CONF_SEQUENTIAL,
 )
-
-from aio_energy_management.config_flow import AIOEnergyManagementOptionsFlow
-
-from aio_energy_management.cheapest_hours.helpers import (  # noqa: E402
-    validate_advanced_integer_fields,
-    validate_and_build_add_flexible,
-    validate_basic_integer_fields,
-    validate_offset_integer_fields,
-)
-
-from aio_energy_management.cheapest_hours.schemas import (  # noqa: E402
-    get_cheapest_hours_advanced_schema,
-)
-
 
 # ---------------------------------------------------------------------------
 # _validate_basic_integer_fields
@@ -422,26 +417,43 @@ def _schema_field_names(schema) -> set:
     return fields
 
 
+# ---------------------------------------------------------------------------
+# Validate flexible menu
+# ---------------------------------------------------------------------------
+
+
 class TestAdvancedSchemaSequential:
     """The flexible fields must only appear for non-sequential sensors."""
 
     def test_flexible_fields_present_when_not_sequential(self):
-        fields = _schema_field_names(
-            get_cheapest_hours_advanced_schema(sequential=False)
-        )
+        fields = _schema_field_names(get_flexible_schema())
         assert CONF_MAX_NUMBER_OF_SLOTS in fields
         assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT in fields
         assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY in fields
+        assert CONF_MAX_PRICE_DELTA in fields
 
-    def test_flexible_fields_absent_when_sequential(self):
-        fields = _schema_field_names(
-            get_cheapest_hours_advanced_schema(sequential=True)
+    @pytest.mark.asyncio
+    async def test_flexible_menu_option_present_when_not_sequential(self) -> None:
+        """Test that flexible_menu is visible in the options flow when sequential is False."""
+        flow = MagicMock(
+            config_entry=MagicMock(options={CONF_SEQUENTIAL: False}, data={})
         )
-        assert CONF_MAX_NUMBER_OF_SLOTS not in fields
-        assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY not in fields
-        assert CONF_FLEXIBLE_PRICE_LIMIT not in fields
-        assert CONF_FLEXIBLE_PRICE_LIMIT_ENTITY not in fields
+        await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+
+        menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
+        assert "cheapest_hours_flexible" in menu_options
+
+    @pytest.mark.asyncio
+    async def test_flexible_menu_option_absent_when_sequential(self) -> None:
+        """Test that flexible_menu is hidden from the options flow when sequential is True."""
+        flow = MagicMock(
+            config_entry=MagicMock(options={CONF_SEQUENTIAL: True}, data={})
+        )
+        await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+
+        menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
+        assert "cheapest_hours_flexible" not in menu_options
 
 
 # ---------------------------------------------------------------------------
