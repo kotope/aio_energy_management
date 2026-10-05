@@ -656,6 +656,88 @@ def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) ->
 
 
 @freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, inversed, kwargs, custom_prices, expected_ranges",
+    [
+        # 1. Core delta: maximum hours within (min_price + delta)
+        pytest.param(
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.31},
+            None,
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="stops_at_delta",
+        ),
+        # 2. Inverted delta: selects hours within (max price - delta)
+        pytest.param(
+            2,
+            True,
+            {"max_number_of_slots": 5, "max_price_delta": 21.2},
+            None,
+            [("11:00", "12:00"), ("14:00", "16:00")],
+            id="inversed_delta",
+        ),
+        # 3. Priority: if someone provides both, flexible_price_limit must take precedence.
+        pytest.param(
+            2,
+            False,
+            {
+                "max_number_of_slots": 5,
+                "flexible_price_limit": 1.9,
+                "max_price_delta": 100.0,
+            },
+            None,
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="fixed_limit_precedence",
+        ),
+        # 4. Float tolerance: checks PRICE_DELTA_TOLERANCE at the exact boundary.
+        pytest.param(
+            1,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.1},
+            (5.0, {4: 0.7, 8: 0.8}),
+            [("04:00", "05:00"), ("08:00", "09:00")],
+            id="boundary_float_tolerance",
+        ),
+    ],
+)
+def test_max_price_delta_scenarios(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    inversed: bool,
+    kwargs: dict,
+    custom_prices: tuple[float, dict] | None,
+    expected_ranges: list[tuple[str, str]],
+) -> None:
+    """Test max_price_delta extension of non-sequential slots."""
+    if custom_prices is not None:
+        default, overrides = custom_prices
+        tomorrow_valid = [
+            HourPrice(overrides.get(hour, default), p.start)
+            for hour, p in enumerate(tomorrow_valid)
+        ]
+
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        inversed=inversed,
+        **kwargs,
+    )
+
+    actual_ranges = [
+        (item["start"].strftime("%H:%M"), item["end"].strftime("%H:%M"))
+        for item in result["list"]
+    ]
+    assert expires_today_only is False
+    assert actual_ranges == expected_ranges
+
+
+@freeze_time("2024-07-22 14:25+03:00")
 def test_sequential_expensive_hours_price_limit(today_valid, tomorrow_valid) -> None:
     """Test sequential with inversed=True and price_limit."""
     # Most expensive 10-slot window has mean ~6.154; price_limit above that → empty list

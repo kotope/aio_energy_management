@@ -30,6 +30,7 @@ CONF_TRIGGER_TIME = "trigger_time"  # DEPRECATED: use trigger_hour instead
 CONF_TRIGGER_HOUR = "trigger_hour"
 CONF_MAX_PRICE = "max_price"  # DEPRECATED: use price_limit instead
 CONF_PRICE_LIMIT = "price_limit"
+CONF_MAX_PRICE_DELTA = "max_price_delta"
 CONF_FLEXIBLE_PRICE_LIMIT = "flexible_price_limit"
 CONF_FLEXIBLE_PRICE_LIMIT_ENTITY = "flexible_price_limit_entity"
 # Flexible slots: extend number_of_slots up to max_number_of_slots while the

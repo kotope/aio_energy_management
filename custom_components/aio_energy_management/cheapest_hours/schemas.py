@@ -43,6 +43,7 @@ from custom_components.aio_energy_management.const import (
     CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
@@ -70,6 +71,11 @@ SEL_HOUR = selector.NumberSelector(
 )
 SEL_FLOAT = selector.NumberSelector(
     selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX, step="any")
+)
+SEL_FLOAT_0 = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=0, mode=selector.NumberSelectorMode.BOX, step="any"
+    )
 )
 SEL_INT = selector.NumberSelector(
     selector.NumberSelectorConfig(min=1, mode=selector.NumberSelectorMode.BOX, step=1)
@@ -244,6 +250,9 @@ def get_cheapest_hours_advanced_schema(
                 _opt(
                     CONF_FLEXIBLE_PRICE_LIMIT, data, flex_key=CONF_PRICE_LIMIT
                 ): SEL_FLOAT,
+                _opt(
+                    CONF_MAX_PRICE_DELTA, data, flex_key=CONF_MAX_PRICE_DELTA
+                ): SEL_FLOAT_0,
                 _opt(
                     CONF_MAX_NUMBER_OF_SLOTS, data, flex_key=CONF_MAX_NUMBER_OF_SLOTS
                 ): SEL_INT,
