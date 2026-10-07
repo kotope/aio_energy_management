@@ -23,8 +23,8 @@ from .const import (
     CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
-    CONF_UNIQUE_ID,
     CONF_SEQUENTIAL,
+    CONF_UNIQUE_ID,
     DOMAIN,
 )
 from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
@@ -203,6 +203,8 @@ class AIOEnergyManagementOptionsFlow(
         )
         if is_sequential is True:
             menu_options.append("cheapest_hours_offset")
+        if is_sequential is False:
+            menu_options.append("cheapest_hours_flexible")
 
         return self.async_show_menu(
             step_id="cheapest_hours_menu",
