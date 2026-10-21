@@ -232,18 +232,19 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._data["failsafe"] = self._create_failsafe()
 
         # Throttle: don't hit the price API more often than FETCH_INTERVAL
-        now = dt_util.utcnow()
-        if (
-            self._last_fetch_attempt is not None
-            and now - self._last_fetch_attempt < self._fetch_interval
-        ):
-            _LOGGER.debug(
-                "Skipping price fetch for %s: last attempt was %s ago",
-                self._attr_unique_id,
-                now - self._last_fetch_attempt,
-            )
-            return
-        self._last_fetch_attempt = now
+        if self._nordpool_official_config_entry is not None:
+            now = dt_util.utcnow()
+            if (
+                self._last_fetch_attempt is not None
+                and now - self._last_fetch_attempt < self._fetch_interval
+            ):
+                _LOGGER.debug(
+                    "Skipping price fetch for %s: last attempt was %s ago",
+                    self._attr_unique_id,
+                    now - self._last_fetch_attempt,
+                )
+                return
+            self._last_fetch_attempt = now
 
         # No valid data found from store either, try get new
         _LOGGER.debug(
