@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timedelta
 import logging
+import random
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -42,6 +43,7 @@ from .math import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+FETCH_INTERVAL = timedelta(minutes=5)
 
 
 class CheapestHoursBinarySensor(BinarySensorEntity):
@@ -118,8 +120,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._last_known_day = None
         self._retention_days = retention_days
         self._area = area
-
         self._archived = None
+        self._last_fetch_attempt: datetime | None = None
+        self._fetch_interval = FETCH_INTERVAL + timedelta(
+            seconds=random.uniform(0, 300)
+        )
         self._price_modifications = price_modifications
         if mtu is None:
             self._mtu = 60
@@ -211,12 +216,6 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             if self._is_expired() is False:
                 return
 
-        # No valid data found from store either, try get new
-        _LOGGER.debug(
-            "No today fetch done for %s or value is expired. Request new data from nord pool integration",
-            self._attr_unique_id,
-        )
-
         # Update number of hours.. this actually needs to be stored in the data..
         try:
             self._update_entity_variables()
@@ -231,6 +230,26 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Create entity failsafe from configuration
         self._data["failsafe"] = self._create_failsafe()
+
+        # Throttle: don't hit the price API more often than FETCH_INTERVAL
+        now = dt_util.utcnow()
+        if (
+            self._last_fetch_attempt is not None
+            and now - self._last_fetch_attempt < self._fetch_interval
+        ):
+            _LOGGER.debug(
+                "Skipping price fetch for %s: last attempt was %s ago",
+                self._attr_unique_id,
+                now - self._last_fetch_attempt,
+            )
+            return
+        self._last_fetch_attempt = now
+
+        # No valid data found from store either, try get new
+        _LOGGER.debug(
+            "No today fetch done for %s or value is expired. Request new data from nord pool integration",
+            self._attr_unique_id,
+        )
 
         # Price array from integrations
         today: list = None
