@@ -209,12 +209,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return
 
         # Check if our data is valid and we do not need to do anything
-        if self._is_fetched_today():  # Data valid for today
-            _LOGGER.debug(
-                "Local entity data is still valid for %s", self._attr_unique_id
-            )
-            if self._is_expired() is False:
-                return
+        if self._is_fetched_today() and not self._is_expired():
+            _LOGGER.debug("Data complete for %s, no fetch needed", self._attr_unique_id)
+            return
 
         # Update number of hours.. this actually needs to be stored in the data..
         try:
@@ -239,16 +236,16 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                 and now - self._last_fetch_attempt < self._fetch_interval
             ):
                 _LOGGER.debug(
-                    "Skipping price fetch for %s: last attempt was %s ago",
+                    "Waiting for new prices for %s, next fetch in %s",
                     self._attr_unique_id,
-                    now - self._last_fetch_attempt,
+                    self._fetch_interval - (now - self._last_fetch_attempt),
                 )
                 return
             self._last_fetch_attempt = now
 
         # No valid data found from store either, try get new
         _LOGGER.debug(
-            "No today fetch done for %s or value is expired. Request new data from nord pool integration",
+            "Fetching prices for %s (data expired or tomorrow's prices not yet received)",
             self._attr_unique_id,
         )
 
