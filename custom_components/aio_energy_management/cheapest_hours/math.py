@@ -395,8 +395,7 @@ def _select_flexible_slots(
 
     Extra slots follow the same block rules as the base selection: they are never
     added on their own, but always as part of a block of at least
-    ``min_seq_slots`` slots (and never creating a block longer than
-    ``max_seq_slots``). Every extra slot must pass the limit itself; if no valid
+    ``min_seq_slots`` slots. Every extra slot must pass the limit itself; if no valid
     combination exists, no extra slots are added.
     """
     # Determine if we are looking for cheapest slots (-1) or most expensive slots (1)
