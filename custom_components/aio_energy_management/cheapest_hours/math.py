@@ -396,8 +396,10 @@ def _select_flexible_slots(
     Extra slots follow the same block rules as the base selection: they are never
     added on their own, but always as part of a block of at least
     ``min_seq_slots`` slots (and never creating a block longer than
-    ``max_seq_slots``). A slot missing the limit may only bridge a one slot gap.
+    ``max_seq_slots``). Every extra slot must pass the limit itself; if no valid
+    combination exists, no extra slots are added.
     """
+    # Determine if we are looking for cheapest slots (-1) or most expensive slots (1)
     mult = -1 if inversed else 1
 
     # Support both base_slots (list) and int (for backwards compatibility)
@@ -408,6 +410,7 @@ def _select_flexible_slots(
     else:
         selected = list(base_slots_or_count)
 
+    # Exit when max_number_of_slots is not provided
     if max_number_of_slots is None:
         return selected
 
@@ -423,18 +426,21 @@ def _select_flexible_slots(
     else:
         return selected
 
-    # Work on indices of the chronologically ordered slots, so adjacency is explicit.
+    #  Order all slots based on start time, add index numbers to the slots to preserve chronological order
     ordered = sorted(all_slots, key=lambda x: x["start"])
     index_of = {slot["start"]: i for i, slot in enumerate(ordered)}
     chosen = {index_of[s["start"]] for s in selected if s["start"] in index_of}
 
+    # Helper function to determine if a slot is within price limit.
     def within_limit(idx: int) -> bool:
         price = ordered[idx]["price"]
         return price >= limit if inversed else price <= limit
 
+    # Set vars for min and max number of slots.
     window_size = max(min_seq_slots, 1)
     budget = max_number_of_slots
 
+    # Loop over all slots to find slots which are within all the rules (price limit, price delta, min/max slots)
     while budget > 0:
         best_score = float("inf")
         best_new: list[int] = []
@@ -445,17 +451,8 @@ def _select_flexible_slots(
             if not new or len(new) > budget:
                 continue
 
-            # At least one new slot must pass the limit on its own merit
-            passing = {i for i in new if within_limit(i)}
-            if not passing:
-                continue
-
-            # Slots missing the limit are only allowed as a one slot bridge
-            anchors = chosen | passing
-            if any(
-                i not in passing and not (i - 1 in anchors and i + 1 in anchors)
-                for i in new
-            ):
+            # Every new slot must pass the limit, no exceptions
+            if not all(within_limit(i) for i in new):
                 continue
 
             if _would_exceed_max_seq(chosen, set(new), max_seq_slots):

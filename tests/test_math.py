@@ -693,13 +693,13 @@ def _blocks(result: dict) -> list:
             [
                 ("10:00", 4, 0.5),  # base block
                 ("08:00", 3, 2.0),  # passes the limit, only 3 slots
-                ("08:45", 1, 3.2),  # just misses the limit (3.0)
+                ("08:45", 1, 3.2),  # just misses the limit (3.0), no bridging
                 ("09:00", 1, 2.5),  # passes the limit
                 ("15:00", 1, 2.0),  # isolated, cannot form a block
             ],
             8,
-            [("08:00", "09:15"), ("10:00", "11:00")],
-            id="bridges_one_slot_gap_and_drops_isolated_slot",
+            [("10:00", "11:00")],
+            id="does_not_bridge_with_slot_above_limit",
         ),
         pytest.param(
             [
@@ -787,11 +787,8 @@ def test_non_sequential_add_flexible_min_seq_slots_inversed() -> None:
         flexible_price_limit=7.0,
     )
     assert expires_today_only is False
-    assert _blocks(result) == [
-        (_dt("08:00"), _dt("09:15")),
-        (_dt("10:00"), _dt("11:00")),
-    ]
-    assert np.size(result["list"]) == 2
+    assert _blocks(result) == [(_dt("10:00"), _dt("11:00"))]
+    assert np.size(result["list"]) == 1
 
 
 @freeze_time("2024-07-22 14:25+03:00")
