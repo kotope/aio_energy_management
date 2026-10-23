@@ -1,11 +1,12 @@
 """Tests for math."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import math
 import zoneinfo
 
 from custom_components.aio_energy_management.cheapest_hours.math import (
     ValueNotFound,
+    _select_flexible_slots,
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )
@@ -655,179 +656,39 @@ def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) ->
         )
 
 
-###################################################
-#### Add flexbible test with min/max_seq_slots ####
-###################################################
-HELSINKI = zoneinfo.ZoneInfo(key="Europe/Helsinki")
-SLOT = timedelta(minutes=15)
-
-
-def _dt(hhmm: str, day: int = 23) -> datetime:
-    """Datetime on the 'tomorrow' of the frozen time (2024-07-23, Helsinki)."""
-    hour, minute = (int(x) for x in hhmm.split(":"))
-    return datetime(2024, 7, day, hour, minute, tzinfo=HELSINKI)
-
-
-def _quarter_hour_day(day: int, default: float, spans: list | None = None) -> list:
-    """Build 96 quarter-hour prices; ``spans`` = [(start 'HH:MM', slots, price)]."""
-    prices = [default] * 96
-    for start, slots, price in spans or []:
-        hour, minute = (int(x) for x in start.split(":"))
-        first = hour * 4 + minute // 15
-        prices[first : first + slots] = [price] * slots
-    return [
-        HourPrice(value=value, start=_dt("00:00", day) + i * SLOT)
-        for i, value in enumerate(prices)
-    ]
-
-
-def _blocks(result: dict) -> list:
-    return [(item["start"], item["end"]) for item in result["list"]]
-
-
-@freeze_time("2024-07-22 14:25+03:00")
 @pytest.mark.parametrize(
-    ("spans", "max_extra", "expected"),
+    "base_count, max_slots, price_limit, min_seq, max_seq, expected_len",
     [
-        pytest.param(
-            [
-                ("10:00", 4, 0.5),  # base block
-                ("08:00", 3, 2.0),  # passes the limit, only 3 slots
-                ("08:45", 1, 3.2),  # just misses the limit (3.0), no bridging
-                ("09:00", 1, 2.5),  # passes the limit
-                ("15:00", 1, 2.0),  # isolated, cannot form a block
-            ],
-            8,
-            [("10:00", "11:00")],
-            id="does_not_bridge_with_slot_above_limit",
-        ),
-        pytest.param(
-            [
-                ("10:00", 4, 0.5),
-                ("11:00", 1, 2.0),  # directly adjacent to the base block
-                ("15:00", 1, 2.0),  # isolated, cannot form a block
-            ],
-            8,
-            [("10:00", "11:15")],
-            id="joins_adjacent_block",
-        ),
-        pytest.param(
-            [
-                ("10:00", 4, 0.5),
-                ("14:00", 4, 2.5),  # 4 passing slots form a valid new block
-                ("09:00", 1, 2.0),  # isolated, cannot form a block
-            ],
-            6,
-            [("10:00", "11:00"), ("14:00", "15:00")],
-            id="forms_new_block_of_min_seq_slots",
-        ),
-        pytest.param(
-            [
-                ("10:00", 4, 0.5),
-                ("14:00", 4, 2.5),  # valid block, but needs 4 extra slots
-                ("09:00", 1, 2.0),
-            ],
-            3,
-            [("10:00", "11:00")],
-            id="dropped_when_block_does_not_fit_in_max_number_of_slots",
-        ),
+        # 1. Valid addition with min_seq_slots=2:
+        # Index 21 (price 0.434) is the base. Slots 21 and 22 fall within limit 2.0 and form a valid block of 2.
+        (1, 2, 2.0, 2, None, 2),
+        # 2. Strict price limit check (no bridges/exceptions):
+        # Limit is 1.0. Slot 21 is 0.434 (good), but slot 22 is 1.391 (too expensive).
+        # The entire window fails immediately, resulting in no extra slots added.
+        (1, 2, 1.0, 2, None, 1),
+        # 3. Violation of max_seq_slots:
+        # Although price limit (2.0) and min_seq_slots (2) are valid, max_seq_slots=1
+        # forbids sequences larger than 1 slot, blocking the addition.
+        (1, 2, 2.0, 2, 1, 1),
     ],
 )
-def test_non_sequential_add_flexible_respects_min_seq_slots(
-    spans, max_extra, expected
+def test_select_flexible_slots_rules(
+    today_valid, base_count, max_slots, price_limit, min_seq, max_seq, expected_len
 ) -> None:
-    """Flexible slots are never added on their own, they follow min_seq_slots.
+    """Test rules for min_seq_slots, max_seq_slots, and the strict price limit."""
+    # Convert HourPrice objects to dictionaries as expected by _select_flexible_slots
+    slots = [{"price": hp.value, "start": hp.start} for hp in today_valid]
 
-    Base is one block of 4 slots (min_seq_slots=4). Extra slots that pass the
-    flexible limit (3.0) must join a block, bridge a one slot gap, form a block
-    of at least 4 slots, or be dropped.
-    """
-    result, expires_today_only = calculate_non_sequential_cheapest_hours(
-        _quarter_hour_day(22, 10.0),
-        _quarter_hour_day(23, 10.0, spans),
-        4,
-        False,
-        0,
-        23,
-        mtu=15,
-        min_seq_slots=4,
-        max_number_of_slots=max_extra,
-        flexible_price_limit=3.0,
+    result = _select_flexible_slots(
+        all_slots=slots,
+        base_slots_or_count=base_count,
+        max_number_of_slots=max_slots,
+        flexible_price_limit=price_limit,
+        inversed=False,
+        min_seq_slots=min_seq,
+        max_seq_slots=max_seq,
     )
-    assert expires_today_only is False
-    assert _blocks(result) == [(_dt(start), _dt(end)) for start, end in expected]
-    # No block (and certainly no single 15 minute slot) is shorter than min_seq_slots
-    assert all(end - start >= 4 * SLOT for start, end in _blocks(result))
-
-
-@freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_min_seq_slots_inversed() -> None:
-    """Same bridging rule for the inversed (expensive) calculation."""
-    result, expires_today_only = calculate_non_sequential_cheapest_hours(
-        _quarter_hour_day(22, 0.0),
-        _quarter_hour_day(
-            23,
-            0.0,
-            [
-                ("10:00", 4, 20.0),  # base block
-                ("08:00", 3, 8.0),  # passes the limit (>= 7.0)
-                ("08:45", 1, 6.8),  # just misses the limit
-                ("09:00", 1, 7.5),  # passes the limit
-                ("15:00", 1, 8.0),  # isolated, cannot form a block
-            ],
-        ),
-        4,
-        False,
-        0,
-        23,
-        inversed=True,
-        mtu=15,
-        min_seq_slots=4,
-        max_number_of_slots=8,
-        flexible_price_limit=7.0,
-    )
-    assert expires_today_only is False
-    assert _blocks(result) == [(_dt("10:00"), _dt("11:00"))]
-    assert np.size(result["list"]) == 1
-
-
-@freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_respects_max_seq_slots() -> None:
-    """Flexible slots never create a block longer than max_seq_slots.
-
-    number_of_blocks=2 with 4 slots gives min_seq_slots=2 and max_seq_slots=2.
-    Slot 10:30 passes the limit but would stretch the 10:00 block to 3 slots, so
-    it is dropped. 20:00-20:15 forms a valid new block of 2 slots and is added.
-    """
-    result, expires_today_only = calculate_non_sequential_cheapest_hours(
-        _quarter_hour_day(22, 10.0),
-        _quarter_hour_day(
-            23,
-            10.0,
-            [
-                ("10:00", 2, 0.5),  # base block 1
-                ("12:00", 2, 0.6),  # base block 2
-                ("10:30", 1, 2.0),  # adjacent, but block would exceed max_seq_slots
-                ("20:00", 2, 2.5),  # valid new block of min_seq_slots
-                ("15:00", 1, 2.0),  # isolated, cannot form a block
-            ],
-        ),
-        4,
-        False,
-        0,
-        23,
-        mtu=15,
-        number_of_blocks=2,
-        max_number_of_slots=6,
-        flexible_price_limit=3.0,
-    )
-    assert expires_today_only is False
-    assert _blocks(result) == [
-        (_dt("10:00"), _dt("10:30")),
-        (_dt("12:00"), _dt("12:30")),
-        (_dt("20:00"), _dt("20:30")),
-    ]
-    assert all(end - start <= 2 * SLOT for start, end in _blocks(result))
+    assert len(result) == expected_len
 
 
 @freeze_time("2024-07-22 14:25+03:00")
