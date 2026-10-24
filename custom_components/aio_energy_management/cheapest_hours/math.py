@@ -327,7 +327,7 @@ def calculate_non_sequential_cheapest_hours(
             min_seq_slots = actual_number_of_slots // effective_blocks
             max_seq_slots = math.ceil(actual_number_of_slots / effective_blocks)
 
-        # 4. Select the final slots according to min_seq_slots / max_seq_slots.
+        # Select the final slots according to min_seq_slots / max_seq_slots.
         data = _select_slots_with_min_seq_slot_size(
             all_window_slots,
             actual_number_of_slots,
