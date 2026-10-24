@@ -1,19 +1,20 @@
 """Tests for math."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
+import math
 import zoneinfo
 
-from custom_components.aio_energy_management.exceptions import InvalidInput
 from custom_components.aio_energy_management.cheapest_hours.math import (
+    ValueNotFound,
+    _select_flexible_slots,
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
-    ValueNotFound,
 )
+from custom_components.aio_energy_management.exceptions import InvalidInput
 from custom_components.aio_energy_management.models.hour_price import HourPrice
 from freezegun import freeze_time
 import numpy as np
 import pytest
-import math
 
 
 @pytest.fixture
@@ -653,6 +654,41 @@ def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) ->
             max_number_of_slots=25,
             flexible_price_limit=1.0,
         )
+
+
+@pytest.mark.parametrize(
+    "base_count, max_slots, price_limit, min_seq, max_seq, expected_len",
+    [
+        # 1. Valid addition with min_seq_slots=2:
+        # Index 21 (price 0.434) is the base. Slots 21 and 22 fall within limit 2.0 and form a valid block of 2.
+        (1, 2, 2.0, 2, None, 2),
+        # 2. Strict price limit check (no bridges/exceptions):
+        # Limit is 1.0. Slot 21 is 0.434 (good), but slot 22 is 1.391 (too expensive).
+        # The entire window fails immediately, resulting in no extra slots added.
+        (1, 2, 1.0, 2, None, 1),
+        # 3. Violation of max_seq_slots:
+        # Although price limit (2.0) and min_seq_slots (2) are valid, max_seq_slots=1
+        # forbids sequences larger than 1 slot, blocking the addition.
+        (1, 2, 2.0, 2, 1, 1),
+    ],
+)
+def test_select_flexible_slots_rules(
+    today_valid, base_count, max_slots, price_limit, min_seq, max_seq, expected_len
+) -> None:
+    """Test rules for min_seq_slots, max_seq_slots, and the strict price limit."""
+    # Convert HourPrice objects to dictionaries as expected by _select_flexible_slots
+    slots = [{"price": hp.value, "start": hp.start} for hp in today_valid]
+
+    result = _select_flexible_slots(
+        all_slots=slots,
+        base_slots_or_count=base_count,
+        max_number_of_slots=max_slots,
+        flexible_price_limit=price_limit,
+        inversed=False,
+        min_seq_slots=min_seq,
+        max_seq_slots=max_seq,
+    )
+    assert len(result) == expected_len
 
 
 @freeze_time("2024-07-22 14:25+03:00")
