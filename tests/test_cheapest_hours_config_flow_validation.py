@@ -423,9 +423,9 @@ def _schema_field_names(schema) -> set:
 
 
 class TestAdvancedSchemaSequential:
-    """The flexible fields must only appear for non-sequential sensors."""
+    """The flexible fields must appear for both sequential and non-sequential sensors."""
 
-    def test_flexible_fields_present_when_not_sequential(self):
+    def test_flexible_fields_present(self):
         fields = _schema_field_names(get_flexible_schema())
         assert CONF_MAX_NUMBER_OF_SLOTS in fields
         assert CONF_MAX_NUMBER_OF_SLOTS_ENTITY in fields
@@ -445,15 +445,15 @@ class TestAdvancedSchemaSequential:
         assert "cheapest_hours_flexible" in menu_options
 
     @pytest.mark.asyncio
-    async def test_flexible_menu_option_absent_when_sequential(self) -> None:
-        """Test that flexible_menu is hidden from the options flow when sequential is True."""
+    async def test_flexible_menu_option_present_when_sequential(self) -> None:
+        """Test that flexible_menu is visible in the options flow when sequential is True."""
         flow = MagicMock(
             config_entry=MagicMock(options={CONF_SEQUENTIAL: True}, data={})
         )
         await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
 
         menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
-        assert "cheapest_hours_flexible" not in menu_options
+        assert "cheapest_hours_flexible" in menu_options
 
 
 # ---------------------------------------------------------------------------
