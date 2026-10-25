@@ -698,8 +698,15 @@ def _remove_duplicate_starts(hours: list) -> list:
     result = []
 
     for item in hours:
-        if item.start not in seen_starts:
+        # Official prices have distinct UTC instants for the repeated local hour.
+        # Other sources may already provide identical start timestamps.
+        start = (
+            dt_util.as_local(item.start).replace(tzinfo=None)
+            if item.type == HourPriceType.NORDPOOL_OFFICIAL
+            else item.start
+        )
+        if start not in seen_starts:
             result.append(item)
-            seen_starts.add(item.start)
+            seen_starts.add(start)
 
     return result
