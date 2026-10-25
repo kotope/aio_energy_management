@@ -1,19 +1,49 @@
 """Tests for math."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import zoneinfo
 
 from custom_components.aio_energy_management.exceptions import InvalidInput
 from custom_components.aio_energy_management.cheapest_hours.math import (
+    _check_day_light_savings,
+    _is_valid_data_length,
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
     ValueNotFound,
 )
 from custom_components.aio_energy_management.models.hour_price import HourPrice
+from custom_components.aio_energy_management.enums import HourPriceType
 from freezegun import freeze_time
 import numpy as np
 import pytest
 import math
+
+
+@pytest.mark.parametrize("mtu", [15, 60])
+def test_nordpool_official_fall_back_keeps_first_local_hour(mtu: int) -> None:
+    """UTC-aligned prices for a 25-hour day must be usable as 24 local hours."""
+    start = datetime(2026, 10, 24, 21, tzinfo=timezone.utc)
+    hours = [
+        HourPrice(
+            value=float(index),
+            start=start + timedelta(minutes=index * mtu),
+            type=HourPriceType.NORDPOOL_OFFICIAL,
+        )
+        for index in range(25 * 60 // mtu)
+    ]
+
+    result = _check_day_light_savings(hours, mtu=mtu)
+
+    assert _is_valid_data_length(result, mtu)
+    assert [item.start for item in result] == [
+        item.start
+        for item in hours
+        if not (
+            datetime(2026, 10, 25, 1, tzinfo=timezone.utc)
+            <= item.start
+            < datetime(2026, 10, 25, 2, tzinfo=timezone.utc)
+        )
+    ]
 
 
 @pytest.fixture
