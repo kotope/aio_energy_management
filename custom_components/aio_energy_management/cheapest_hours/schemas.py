@@ -350,7 +350,7 @@ def get_offset_schema(offset_data: dict[str, Any]) -> vol.Schema:
 def get_flexible_schema(
     user_input: dict[str, Any] | None = None,
 ) -> vol.Schema:
-    """Get flexible slots configuration schema (non-sequential only)."""
+    """Get flexible slots configuration schema."""
     data = user_input or {}
 
     schema_dict = {

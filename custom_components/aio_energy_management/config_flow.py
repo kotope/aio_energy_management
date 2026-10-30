@@ -196,6 +196,7 @@ class AIOEnergyManagementOptionsFlow(
             "cheapest_hours_data_provider",
             "cheapest_hours_basic",
             "cheapest_hours_advanced",
+            "cheapest_hours_flexible",
         ]
         # Retrive sequential value from sensor and add it to menu if true
         is_sequential = self.config_entry.options.get(
@@ -203,8 +204,6 @@ class AIOEnergyManagementOptionsFlow(
         )
         if is_sequential is True:
             menu_options.append("cheapest_hours_offset")
-        if is_sequential is False:
-            menu_options.append("cheapest_hours_flexible")
 
         return self.async_show_menu(
             step_id="cheapest_hours_menu",

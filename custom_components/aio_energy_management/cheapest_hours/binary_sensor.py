@@ -377,6 +377,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._inversed,
                     self._data.get("active_price_limit"),
                     self._mtu,
+                    self._data.get("active_max_number_of_slots"),
+                    self._data.get("active_flexible_price_limit"),
+                    max_price_delta=self._data.get("active_max_price_delta"),
                 )
             else:
                 (cheapest, today_only) = calculate_non_sequential_cheapest_hours(
