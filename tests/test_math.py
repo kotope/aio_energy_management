@@ -539,10 +539,10 @@ def test_non_sequential_add_flexible_stops_at_limit(
 
 
 @freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_extends_by_max_extra_slots(
+def test_non_sequential_add_flexible_caps_total_slots(
     today_valid, tomorrow_valid
 ) -> None:
-    """max_number_of_slots counts extra slots added on top of the base slots."""
+    """max_number_of_slots is the total number of slots, base slots included."""
     result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
@@ -555,19 +555,19 @@ def test_non_sequential_add_flexible_extends_by_max_extra_slots(
     )
     assert expires_today_only is False
     lis: list = result.get("list")
-    # Base 2 cheapest: 10 (1.547), 13 (1.71). Up to 4 extra slots are added while
-    # each stays within 3.0: 12 (1.851), 1 (2.461), 3 (2.859), 2 (2.967). Total 6
-    # slots across hours 1, 2, 3, 10, 12, 13. Hours 1-3 merge into one item, hour
-    # 10 stands alone, and hours 12-13 merge into one item.
+    # Base 2 cheapest: 10 (1.547), 13 (1.71). Extra slots within 3.0 are added
+    # until 4 slots in total: 12 (1.851), 1 (2.461). Hours 3 (2.859) and
+    # 2 (2.967) are within the limit too but exceed the total. Hour 1 and hour 10
+    # stand alone, and hours 12-13 merge into one item.
     assert np.size(lis) == 3
     assert lis[0]["start"] == datetime(
         2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
     assert lis[0]["end"] == datetime(
-        2024, 7, 23, 4, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+        2024, 7, 23, 2, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
     assert result["extra"]["min_price"] == 1.547
-    assert result["extra"]["max_price"] == 2.967
+    assert result["extra"]["max_price"] == 2.461
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -646,9 +646,9 @@ def test_non_sequential_add_flexible_noop_without_both_params(
 
 @freeze_time("2024-07-22 14:25+03:00")
 def test_non_sequential_add_flexible_max_smaller_than_base(
-    today_valid, tomorrow_valid
+    today_valid, tomorrow_valid, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """max_number_of_slots may be smaller than number_of_slots (it is a count of extra slots)."""
+    """max_number_of_slots below number_of_slots is raised to number_of_slots."""
     base, base_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23
     )
@@ -664,10 +664,13 @@ def test_non_sequential_add_flexible_max_smaller_than_base(
     )
     assert base_expires_today_only is False
     assert expires_today_only is False
-    # Base 3 slots (10, 12, 13) get 2 extra slots (1, 3) appended.
-    assert result["list"] != base["list"]
-    assert result["extra"]["min_price"] == 1.547
-    assert result["extra"]["max_price"] == 2.859
+    # Only the base 3 slots (10, 12, 13) are kept; no extra slot is added.
+    assert result["list"] == base["list"]
+    assert result["extra"] == base["extra"]
+    assert (
+        "max_number_of_slots (2) is less than number_of_slots (3), "
+        "using 3 as max_number_of_slots"
+    ) in caplog.text
 
 
 def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) -> None:

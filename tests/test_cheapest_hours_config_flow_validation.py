@@ -349,8 +349,8 @@ class TestValidateAndBuildAddFlexible:
         assert not errors
 
     def test_max_smaller_than_number_of_slots_is_allowed(self):
-        # max_number_of_slots now counts extra slots on top of the base slots,
-        # so it may be smaller than number_of_slots without being an error.
+        # A max_number_of_slots below number_of_slots is raised to
+        # number_of_slots at calculation time, so it is not a config error.
         user_input = {
             CONF_MAX_NUMBER_OF_SLOTS: 3,
             CONF_FLEXIBLE_PRICE_LIMIT: 0.05,

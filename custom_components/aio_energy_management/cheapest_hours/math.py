@@ -185,10 +185,11 @@ def calculate_non_sequential_cheapest_hours(
 
     When ``max_number_of_slots`` and ``flexible_price_limit`` are both provided,
     the base ``number_of_slots`` cheapest slots are always selected (subject to
-    the regular ``price_limit``) and then extended with up to
-    ``max_number_of_slots`` additional next-cheapest slots while their individual
-    price stays below ``flexible_price_limit`` (above it when ``inversed``), for
-    at most ``number_of_slots + max_number_of_slots`` slots in total.
+    the regular ``price_limit``) and then extended with the next-cheapest slots
+    while their individual price stays below ``flexible_price_limit`` (above it
+    when ``inversed``), for at most ``max_number_of_slots`` slots in total. A
+    ``max_number_of_slots`` below ``number_of_slots`` is raised to
+    ``number_of_slots``.
 
     Instead of a fixed ``flexible_price_limit``, ``max_price_delta`` can be used
     to make the limit relative: extra slots are added while their price is within
@@ -308,6 +309,16 @@ def calculate_non_sequential_cheapest_hours(
         inversed=inversed,
     )
 
+    if max_number_of_slots is not None and max_number_of_slots < number_of_slots:
+        _LOGGER.warning(
+            "max_number_of_slots (%s) is less than number_of_slots (%s), "
+            "using %s as max_number_of_slots",
+            max_number_of_slots,
+            number_of_slots,
+            number_of_slots,
+        )
+        max_number_of_slots = number_of_slots
+
     # 2. Extend base slots with possible flexible slots according to flexible_price_limit
     data = _select_flexible_slots(
         all_window_slots,
@@ -379,10 +390,9 @@ def _select_flexible_slots(
 
     The base ``number_of_slots`` slots are always selected (the caller applies the
     regular ``price_limit`` to them afterwards). When both
-    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, up to
-    ``max_number_of_slots`` additional slots are appended while their price
-    stays within ``flexible_price_limit``, for at most
-    ``number_of_slots + max_number_of_slots`` slots in total.
+    ``max_number_of_slots`` and ``flexible_price_limit`` are provided, extra
+    slots are appended while their price stays within ``flexible_price_limit``,
+    for at most ``max_number_of_slots`` slots in total (base slots included).
 
     Alternatively ``max_price_delta`` can be given instead of
     ``flexible_price_limit``. The limit is then derived from the best price in
@@ -422,7 +432,8 @@ def _select_flexible_slots(
         key=lambda x: (x["price"] * mult, x["start"]),
     )
 
-    for slot in remaining_candidates[:max_number_of_slots]:
+    extra_slots = max(0, max_number_of_slots - len(selected))
+    for slot in remaining_candidates[:extra_slots]:
         within_limit = slot["price"] >= limit if inversed else slot["price"] <= limit
         if not within_limit:
             # Data is sorted, so no later slot can satisfy the limit either.
