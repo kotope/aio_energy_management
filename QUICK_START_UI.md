@@ -95,7 +95,7 @@ Depending on the provider selected above, fill in:
 | **Trigger hour (static)** | — | Earliest hour to recalculate cheapest hours for the next day |
 | **Price limit (static)** | — | Only accept hours below this price (or above if Inversed) |
 | **Flexbile: price limit** | — | Only add extra slots whose price is below this value (or above if inversed). Requires the max number of slots |
-| **Flexbile: max number of slots**| — | Maximum total number of slots, base number of slots included. Extra slots are added while each extra slot stays within the flexible price limit (non-sequential only). Requires the flexible price limit |
+| **Flexbile: max number of slots**| — | Maximum total number of slots, base number of slots included. Extra slots are added while each extra slot stays within the flexible price limit. For sequential sensors the block is extended at its start or end. Requires the flexible price limit |
 | **Minimum continuous slots** |—| Enforce a number of continuous slots |
 | **Number of time blocks** |—| Divides the number of slots over the given number of blocks in order to get multiple blocks a day |
 | **Retention days** | `1` | Days of calendar history to keep (1–365) |

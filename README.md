@@ -99,7 +99,7 @@ Configuration parameters are shown below:
 | inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
 | trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
 | price_limit      | no        | Only accept prices less than given float value or more than given float value if inversed is used. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Can contain entity_id of dynamic entity to get value from e.g. input_number. On sequential cheapest hours mean price is compared and all-or-nothing is returned |
-| add_flexible     | no        | Extend `number_of_slots` with additional cheap (or expensive if inversed) slots when prices are favorable. Only applies to **non-sequential** sensors. See its own section below. |
+| add_flexible     | no        | Extend `number_of_slots` with additional cheap (or expensive if inversed) slots when prices are favorable. See its own section below. |
 | trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
 | calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
 | offset    | no      | Possible start and end offset. Only applies to **sequential** sensors (`sequential: true`). Avg/min/max prices does not take the offset into account. See its own section below. **! Breaking change since 1.2.0: offset is no longer supported on non-sequential sensors !** |
@@ -173,7 +173,7 @@ aio_energy_management:
 ```
 
 ### Flexible slots (add_flexible)
-`add_flexible` lets a **non-sequential** sensor opportunistically grab more slots than `number_of_slots` when prices are cheap (or expensive when `inversed: true`).
+`add_flexible` lets a sensor opportunistically grab more slots than `number_of_slots` when prices are cheap (or expensive when `inversed: true`).
 
 The base `number_of_slots` cheapest slots are always selected. After that, the next-cheapest slots are added one by one **as long as each slot's price stays below `price_limit`** (above it when `inversed: true`), up to a total of `max_number_of_slots`.
 
@@ -185,7 +185,7 @@ The base `number_of_slots` cheapest slots are always selected. After that, the n
 
 Notes:
 * Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
-* `add_flexible` has no effect on `sequential: true` sensors.
+* For `sequential: true` sensors the cheapest block of `number_of_slots` is selected first and then grown at its start or end, one slot at a time, taking the cheapest neighbouring slot (most expensive when `inversed`) while it stays within the flexible limit. The result is always one contiguous block, and it never grows outside `first_hour`/`last_hour`. The top-level `price_limit` applies to the mean price of the base block.
 * ¹Only `price_limit` **or** `max_price_delta` can be configured. When you would like to combine the best of these features, two seperate sensors need to be configured.
 * Calculation is done **after** price modifications
 
