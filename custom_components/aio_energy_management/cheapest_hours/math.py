@@ -418,11 +418,11 @@ def calculate_non_sequential_cheapest_hours(
     )
 
     data.sort(key=lambda x: x["start"])
-    if inversed:
-        if mp := price_limit:
-            data = [d for d in data if d["price"] >= mp]
-    elif mp := price_limit:
-        data = [d for d in data if d["price"] <= mp]
+    if price_limit is not None:
+        if inversed:
+            data = [d for d in data if d["price"] >= price_limit]
+        else:
+            data = [d for d in data if d["price"] <= price_limit]
 
     fd["extra"]["mean_price"] = _get_average(data)
     fd["extra"]["max_price"] = _get_max(data)

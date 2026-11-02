@@ -7,6 +7,7 @@ import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
+    _create_cheapest_hours_entity,
 )
 from custom_components.aio_energy_management.const import (
     CONF_MAX_NUMBER_OF_SLOTS,
@@ -14,6 +15,7 @@ from custom_components.aio_energy_management.const import (
     CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
+    COORDINATOR,
     DOMAIN,
 )
 from custom_components.aio_energy_management.exceptions import InvalidEntityState
@@ -2167,6 +2169,37 @@ async def test_float_from_entity_handles_non_numeric_state(
     hass.states.async_set("input_number.price_limit", bad_state)
     with pytest.raises(InvalidEntityState):
         sensor._float_from_entity("input_number.price_limit")
+
+
+async def test_float_from_entity_accepts_int(hass: HomeAssistant) -> None:
+    """Whole numbers from YAML (e.g. 20 instead of 20.0) are used as floats."""
+    sensor = _make_sensor(hass)
+    assert sensor._float_from_entity(20) == 20.0
+
+
+@pytest.mark.parametrize("price_limit", [0, 0.0])
+async def test_yaml_price_limit_zero_is_applied(
+    hass: HomeAssistant, price_limit: float
+) -> None:
+    """price_limit 0 is a valid limit and must not be ignored."""
+    hass.data[DOMAIN] = {COORDINATOR: _setup_coordinator_mock()}
+    sensor = _create_cheapest_hours_entity(
+        hass,
+        {
+            "nordpool_entity": "sensor.nordpool",
+            "unique_id": "x",
+            "name": "X",
+            "first_hour": 0,
+            "last_hour": 23,
+            "number_of_slots": 3,
+            "sequential": True,
+            "inversed": True,
+            CONF_PRICE_LIMIT: price_limit,
+        },
+    )
+    sensor._update_entity_variables()
+    assert sensor._data["active_price_limit"] == 0.0
+    assert sensor.extra_state_attributes["price_limit"] == 0
 
 
 def _covered_hours(attributes: dict) -> float:

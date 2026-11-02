@@ -432,6 +432,12 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
     assert result["extra"]["min_price"] is None
     assert result["extra"]["max_price"] is None
 
+    # A price_limit of 0 is a valid limit too: all prices are above it
+    result, _ = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=0.0
+    )
+    assert np.size(result.get("list")) == 0
+
 
 @freeze_time("2024-07-22 14:25+03:00")
 def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) -> None:

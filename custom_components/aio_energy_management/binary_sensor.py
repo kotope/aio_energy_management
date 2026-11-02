@@ -217,9 +217,10 @@ def _create_cheapest_hours_entity(
     price_modifications = None
     if calendar is None:
         calendar = True
-    if pl := discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(
+    pl = discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(
         CONF_PRICE_LIMIT
-    ):
+    )
+    if pl is not None:  # price_limit 0 is a valid limit
         price_limit = pl
     if pm := discovery_info.get(CONF_PRICE_MODIFICATIONS):
         price_modifications = cv.template(pm)
