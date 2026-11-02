@@ -1033,8 +1033,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "unique_id": self._attr_unique_id,
         }
 
-        if price_limit := self._price_limit:
-            attrs["price_limit"] = price_limit
+        if self._price_limit is not None:
+            attrs["price_limit"] = self._price_limit
         if trigger_time := self._trigger_time:
             attrs["trigger_time"] = trigger_time
         if trigger_hour := self._trigger_hour:
@@ -1076,8 +1076,10 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
         if trigger_hour := self._trigger_hour:
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
-        if price_limit := self._price_limit:
-            self._data["active_price_limit"] = self._float_from_entity(price_limit)
+        if self._price_limit is not None:
+            self._data["active_price_limit"] = self._float_from_entity(
+                self._price_limit
+            )
 
         if add_flexible := self._add_flexible:
             max_slots = add_flexible.get(
@@ -1108,8 +1110,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if entity_id is None:
             return None
 
-        if isinstance(entity_id, float):
-            return entity_id
+        if isinstance(entity_id, (int, float)):
+            # Whole numbers in YAML (e.g. 20 instead of 20.0) arrive as int
+            return float(entity_id)
 
         state = self.hass.states.get(entity_id)
         value = state.state if state is not None else None
