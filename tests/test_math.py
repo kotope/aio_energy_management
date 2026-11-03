@@ -731,22 +731,6 @@ def test_non_sequential_flexible_slots_respect_min_seq(
         flexible_price_limit=flexible_price_limit,
     )
 
-    # Print nicely formatted information about the returned hours/blocks and price stats
-    print(
-        f"\n--- TEST CONFIG: slots={number_of_slots}, min_seq={min_seq_slots}, max_extra={max_number_of_slots}, limit={flexible_price_limit} ---"
-    )
-    print(f"Mean price: {result['extra'].get('mean_price')}")
-    print(f"Min price:  {result['extra'].get('min_price')}")
-    print(f"Max price:  {result['extra'].get('max_price')}")
-    print("Selected time blocks:")
-    for idx, block in enumerate(result.get("list", [])):
-        start_str = block["start"].strftime("%Y-%m-%d %H:%M")
-        end_str = block["end"].strftime("%Y-%m-%d %H:%M")
-        duration_hours = (block["end"] - block["start"]).total_seconds() / 3600
-        print(
-            f"  [{idx + 1}] Start: {start_str} | End: {end_str} | Duration: {duration_hours}h"
-        )
-
     assert expires_today_only is False
     assert isinstance(result, dict)
     assert "list" in result
@@ -760,6 +744,61 @@ def test_non_sequential_flexible_slots_respect_min_seq(
         duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
         slots_count = int(duration_minutes / 60)
         assert slots_count >= min_seq_slots
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, number_of_blocks, max_number_of_slots, flexible_price_limit",
+    [
+        # 1. Base of 2 slots, max 4 slots, 2 blocks -> Total selected slots get divided into 2 blocks
+        pytest.param(
+            2,
+            2,
+            4,
+            3.0,
+            id="flexible_slots_respect_number_of_blocks_2",
+        ),
+        # 2. Base of 3 slots, max 9 slots, 3 blocks -> Extended flexible slots split across 3 blocks
+        pytest.param(
+            3,
+            3,
+            9,
+            4.0,
+            id="flexible_slots_respect_number_of_blocks_3",
+        ),
+    ],
+)
+def test_non_sequential_flexible_slots_respect_number_of_blocks(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    number_of_blocks: int,
+    max_number_of_slots: int,
+    flexible_price_limit: float,
+) -> None:
+    """Test that flexible slot configurations respect number_of_blocks."""
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        number_of_blocks=number_of_blocks,
+        max_number_of_slots=max_number_of_slots,
+        flexible_price_limit=flexible_price_limit,
+    )
+
+    assert expires_today_only is False
+    assert isinstance(result, dict)
+    assert "list" in result
+    assert "extra" in result
+
+    blocks: list = result.get("list")
+    assert len(blocks) > 0
+
+    # Verify that the total number of combined blocks matches the requested number_of_blocks
+    assert len(blocks) == number_of_blocks
 
 
 @freeze_time("2024-07-22 14:25+03:00")
