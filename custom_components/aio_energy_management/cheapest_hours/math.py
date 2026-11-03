@@ -376,6 +376,17 @@ def calculate_non_sequential_cheapest_hours(
 
     # Base slots: the cheapest number_of_slots, subject to the regular price_limit.
     base_count = int(number_of_slots)
+
+    if max_number_of_slots is not None and max_number_of_slots < number_of_slots:
+        _LOGGER.warning(
+            "max_number_of_slots (%s) is less than number_of_slots (%s), "
+            "using %s as max_number_of_slots",
+            max_number_of_slots,
+            number_of_slots,
+            number_of_slots,
+        )
+        max_number_of_slots = number_of_slots
+
     candidate_slots = _select_flexible_slots(
         all_window_slots,
         base_count,
