@@ -2294,6 +2294,34 @@ async def test_cheapest_hours_add_flexible_max_price_delta(
     assert sensor.extra_state_attributes.get("max_price_delta") == 9999.0
 
 
+async def test_cheapest_hours_add_flexible_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """add_flexible grows a sequential sensor into one larger block."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="flexible_sequential_sensor",
+        name="Flexible Sequential Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=True,
+        add_flexible={CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_PRICE_LIMIT: 9999.0},
+        coordinator=_setup_coordinator_mock(),
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    # A generous price limit grows the block over the whole 18-23 window.
+    assert len(attributes["list"]) == 1
+    assert _covered_hours(attributes) == 6.0
+
+
 async def test_skip_calculation_when_today_only(
     hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
 ) -> None:

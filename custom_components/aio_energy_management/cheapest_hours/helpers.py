@@ -139,12 +139,6 @@ def clean_sequential_basic_fields(user_input: dict[str, Any]) -> None:
         non_sequential_keys = [
             CONF_MIN_SEQ_SLOTS,
             CONF_NUMBER_OF_BLOCKS,
-            CONF_ADD_FLEXIBLE,
-            CONF_MAX_NUMBER_OF_SLOTS,
-            CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
-            CONF_FLEXIBLE_PRICE_LIMIT,
-            CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
-            CONF_MAX_PRICE_DELTA,
         ]
         for key in non_sequential_keys:
             user_input[key] = None
