@@ -401,7 +401,7 @@ def calculate_non_sequential_cheapest_hours(
     #  are only bound by flexible_price_limit / max_price_delta.
     base_part = candidate_slots[:base_count]
     flexible_part = candidate_slots[base_count:]
-    if price_limit:
+    if price_limit is not None:
         if inversed:
             base_part = [s for s in base_part if s["price"] >= price_limit]
         else:
