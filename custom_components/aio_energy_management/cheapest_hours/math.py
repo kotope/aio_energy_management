@@ -374,28 +374,8 @@ def calculate_non_sequential_cheapest_hours(
     # Save all available slots unsorted --> replaced data.sort(key=lambda x: (x["price"], x["start"], x["end"]), reverse=inversed)
     all_window_slots = list(data)
 
-    # Initialize max_seq_slots to None by default
-    max_seq_slots: int | None = None
-
-    # Translate number_of_blocks to min_seq_slots and max_seq_slots if provided
-    if number_of_blocks and number_of_blocks > 0:
-        if min_seq_slots > 1:
-            _LOGGER.debug(
-                "Both number_of_blocks and min_seq_slots were provided. "
-                "number_of_blocks will take precedence."
-            )
-        effective_blocks = min(number_of_blocks, number_of_slots)
-        min_seq_slots = number_of_slots // effective_blocks
-        max_seq_slots = math.ceil(number_of_slots / effective_blocks)
-
-    # Select base slots according to min_seq_slots info.
-    base_slots = _select_slots_with_min_seq_slot_size(
-        all_window_slots,
-        number_of_slots,
-        min_seq_slots=min_seq_slots,
-        max_seq_slots=max_seq_slots,
-        inversed=inversed,
-    )
+    # Base slots: the cheapest number_of_slots, subject to the regular price_limit.
+    base_count = int(number_of_slots)
 
     if max_number_of_slots is not None and max_number_of_slots < number_of_slots:
         _LOGGER.warning(
@@ -407,22 +387,56 @@ def calculate_non_sequential_cheapest_hours(
         )
         max_number_of_slots = number_of_slots
 
-    # 2. Extend base slots with possible flexible slots according to flexible_price_limit
-    data = _select_flexible_slots(
+    candidate_slots = _select_flexible_slots(
         all_window_slots,
-        base_slots,
+        base_count,
         max_number_of_slots,
         flexible_price_limit,
         inversed,
         max_price_delta,
     )
 
-    data.sort(key=lambda x: x["start"])
+    # The regular price_limit only applies to the base slots, which
+    # _select_flexible_slots always returns first. Flexible slots (the rest)
+    #  are only bound by flexible_price_limit / max_price_delta.
+    base_part = candidate_slots[:base_count]
+    flexible_part = candidate_slots[base_count:]
     if price_limit is not None:
         if inversed:
-            data = [d for d in data if d["price"] >= price_limit]
+            base_part = [s for s in base_part if s["price"] >= price_limit]
         else:
-            data = [d for d in data if d["price"] <= price_limit]
+            base_part = [s for s in base_part if s["price"] <= price_limit]
+
+    actual_number_of_slots = len(base_part) + len(flexible_part)
+
+    if actual_number_of_slots == 0:
+        data = []
+    else:
+        # Initialize max_seq_slots to None by default
+        max_seq_slots: int | None = None
+
+        # Translate number_of_blocks to min_seq_slots and max_seq_slots if provided,
+        # based on the actual number of slots instead of the configured number.
+        if number_of_blocks and number_of_blocks > 0:
+            if min_seq_slots > 1:
+                _LOGGER.debug(
+                    "Both number_of_blocks and min_seq_slots were provided. "
+                    "number_of_blocks will take precedence."
+                )
+            effective_blocks = min(number_of_blocks, actual_number_of_slots)
+            min_seq_slots = actual_number_of_slots // effective_blocks
+            max_seq_slots = math.ceil(actual_number_of_slots / effective_blocks)
+
+        # Select the final slots according to min_seq_slots / max_seq_slots.
+        data = _select_slots_with_min_seq_slot_size(
+            all_window_slots,
+            actual_number_of_slots,
+            min_seq_slots=min_seq_slots,
+            max_seq_slots=max_seq_slots,
+            inversed=inversed,
+        )
+
+    data.sort(key=lambda x: x["start"])
 
     fd["extra"]["mean_price"] = _get_average(data)
     fd["extra"]["max_price"] = _get_max(data)
