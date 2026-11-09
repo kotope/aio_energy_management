@@ -128,7 +128,7 @@ def sanitize_cheapest_hours_input(user_input: dict[str, Any]) -> dict[str, Any]:
         if key in cleaned and cleaned[key] is not None:
             try:
                 cleaned[key] = int(cleaned[key])
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 pass
     return cleaned
 

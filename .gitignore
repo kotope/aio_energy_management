@@ -10,6 +10,7 @@ htmlcov/
 
 # Virtual environments
 .venv/
+.venv-*/
 venv/
 
 # Editors / OS

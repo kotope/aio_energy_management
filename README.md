@@ -375,5 +375,32 @@ aio_energy_management:
     unique_id: energy_management_calendar
 ```
 
+## Development
+
+### Running the unit tests
+
+The tests can be run in the Home Assistant dev container, or directly on your machine without it:
+
+```bash
+scripts/test
+```
+
+The script creates a `.venv` with Python 3.14, installs `requirements.test.txt` into it and runs `pytest`. It uses [uv](https://docs.astral.sh/uv/) when it is installed and falls back to a local `python3.14` otherwise. Arguments are passed on to `pytest`:
+
+```bash
+scripts/test tests/test_math.py -x
+scripts/test -k sequential --no-cov
+```
+
+Set `REINSTALL=1` to recreate the virtual environment, for example after bumping Home Assistant.
+
+The integration supports Python 3.13 as well as 3.14, so older Home Assistant installations keep working. Avoid 3.14-only syntax such as unparenthesized `except A, B:`. To test on 3.13 (uses a separate `.venv-3.13`, and an older Home Assistant that still supports 3.13):
+
+```bash
+PYTHON_VERSION=3.13 scripts/test
+```
+
+CI runs the tests on both versions for every pull request.
+
 ## Support the developer?
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/tokorhon)
