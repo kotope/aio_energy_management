@@ -181,7 +181,7 @@ The base `number_of_slots` cheapest slots are always selected. After that, the n
 |-----|----------|-------------|
 | max_number_of_slots | yes | Maximum total number of slots (matches the selected MTU, i.e. 15/60 min). Should be ≥ `number_of_slots`; a smaller value is raised to `number_of_slots` and a warning is logged. Must be within the MTU cap (24 for 60-min, 96 for 15-min). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
 | price_limit | yes¹ | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number`. Use either this or the max price difference, not both. Requires the max number of slots |
-| max_price_delta | yes¹ | only add extra slots as long as their price is within this amount of the cheapest price (or above it when `inversed`). The price delta is compared to the min_price of the base slot. Use either this or the flexible price limit, not both. Requires the max number of slots |
+| max_price_delta | yes¹ | Only add extra slots as long as their price is within this amount of the cheapest price (of the most expensive price when `inversed`). The cheapest (most expensive) price is taken from the whole `first_hour`/`last_hour` window, not only from the base slots. Use either this or the flexible price limit, not both. Requires the max number of slots |
 
 Notes:
 * Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
