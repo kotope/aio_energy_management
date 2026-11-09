@@ -7,27 +7,28 @@ import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
     CheapestHoursBinarySensor,
+    _create_cheapest_hours_entity,
 )
 from custom_components.aio_energy_management.const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
+    COORDINATOR,
     DOMAIN,
 )
 from custom_components.aio_energy_management.exceptions import InvalidEntityState
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
-
 import numpy as np
 import pytest
 from pytest_homeassistant_custom_component.common import load_fixture
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State, SupportsResponse
-from homeassistant.helpers.template import Template
-from homeassistant.helpers.entity_component import async_update_entity
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
 
 
@@ -2170,6 +2171,37 @@ async def test_float_from_entity_handles_non_numeric_state(
         sensor._float_from_entity("input_number.price_limit")
 
 
+async def test_float_from_entity_accepts_int(hass: HomeAssistant) -> None:
+    """Whole numbers from YAML (e.g. 20 instead of 20.0) are used as floats."""
+    sensor = _make_sensor(hass)
+    assert sensor._float_from_entity(20) == 20.0
+
+
+@pytest.mark.parametrize("price_limit", [0, 0.0])
+async def test_yaml_price_limit_zero_is_applied(
+    hass: HomeAssistant, price_limit: float
+) -> None:
+    """price_limit 0 is a valid limit and must not be ignored."""
+    hass.data[DOMAIN] = {COORDINATOR: _setup_coordinator_mock()}
+    sensor = _create_cheapest_hours_entity(
+        hass,
+        {
+            "nordpool_entity": "sensor.nordpool",
+            "unique_id": "x",
+            "name": "X",
+            "first_hour": 0,
+            "last_hour": 23,
+            "number_of_slots": 3,
+            "sequential": True,
+            "inversed": True,
+            CONF_PRICE_LIMIT: price_limit,
+        },
+    )
+    sensor._update_entity_variables()
+    assert sensor._data["active_price_limit"] == 0.0
+    assert sensor.extra_state_attributes["price_limit"] == 0
+
+
 def _covered_hours(attributes: dict) -> float:
     """Return the total number of hours covered by the sensor's slot list."""
     return sum(
@@ -2256,6 +2288,71 @@ async def test_cheapest_hours_add_flexible_dynamic_entities(
     assert _covered_hours(attributes) == 6.0
     assert attributes["max_number_of_slots"] == "input_number.max_slots"
     assert attributes["flexible_price_limit"] == "input_number.flex_limit"
+
+
+async def test_cheapest_hours_add_flexible_max_price_delta(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test max_price_delta handling and attributes in CheapestHoursBinarySensor."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    add_flexible_config = {
+        CONF_MAX_NUMBER_OF_SLOTS: 10,
+        CONF_MAX_PRICE_DELTA: 9999.0,
+    }
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="delta_sensor",
+        name="delta_sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=False,
+        add_flexible=add_flexible_config,
+        coordinator=_setup_coordinator_mock(),
+    )
+
+    await sensor.async_update()
+
+    # Check whether the hours are correctly expanded based on the delta.
+    assert _covered_hours(sensor.extra_state_attributes) == 6.0
+
+    # Check internal data and the exposure of the sensor attributes.
+    assert sensor._data["active_max_price_delta"] == 9999.0
+    assert sensor.extra_state_attributes.get("max_price_delta") == 9999.0
+
+
+async def test_cheapest_hours_add_flexible_sequential(
+    hass: HomeAssistant, freezer: FrozenDateTimeFactory, hass_tz_info
+) -> None:
+    """add_flexible grows a sequential sensor into one larger block."""
+    _setup_nordpool_mock(hass, "nordpool_happy_20240713.json")
+    freezer.move_to("2024-07-13 14:25+03:00")
+
+    sensor = CheapestHoursBinarySensor(
+        hass=hass,
+        nordpool_entity="sensor.nordpool",
+        unique_id="flexible_sequential_sensor",
+        name="Flexible Sequential Sensor",
+        first_hour=18,
+        last_hour=23,
+        starting_today=False,
+        number_of_slots=2,
+        sequential=True,
+        add_flexible={CONF_MAX_NUMBER_OF_SLOTS: 10, CONF_PRICE_LIMIT: 9999.0},
+        coordinator=_setup_coordinator_mock(),
+    )
+    await sensor.async_update()
+    attributes = sensor.extra_state_attributes
+
+    # A generous price limit grows the block over the whole 18-23 window.
+    assert len(attributes["list"]) == 1
+    assert _covered_hours(attributes) == 6.0
 
 
 async def test_skip_calculation_when_today_only(

@@ -30,6 +30,7 @@ from .const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MAX_PRICE,
+    CONF_MAX_PRICE_DELTA,
     CONF_MIN_SEQ_SLOTS,
     CONF_MINUTES,
     CONF_MTU,
@@ -90,6 +91,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
             vol.Optional(CONF_MAX_NUMBER_OF_SLOTS_ENTITY): cv.entity_id,
             vol.Optional(CONF_PRICE_LIMIT): vol.Any(float, cv.entity_id),
             vol.Optional(CONF_PRICE_LIMIT_ENTITY): cv.entity_id,
+            vol.Optional(CONF_MAX_PRICE_DELTA): vol.Any(float, cv.entity_id),
         },
         vol.Optional(CONF_CALENDAR): bool,
         vol.Optional(CONF_RETENTION_DAYS): int,
@@ -215,9 +217,10 @@ def _create_cheapest_hours_entity(
     price_modifications = None
     if calendar is None:
         calendar = True
-    if pl := discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(
+    pl = discovery_info.get(CONF_PRICE_LIMIT_ENTITY) or discovery_info.get(
         CONF_PRICE_LIMIT
-    ):
+    )
+    if pl is not None:  # price_limit 0 is a valid limit
         price_limit = pl
     if pm := discovery_info.get(CONF_PRICE_MODIFICATIONS):
         price_modifications = cv.template(pm)

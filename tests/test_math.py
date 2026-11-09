@@ -1,28 +1,28 @@
 """Tests for math."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+import math
 import zoneinfo
 
-from custom_components.aio_energy_management.exceptions import InvalidInput
 from custom_components.aio_energy_management.cheapest_hours.math import (
+    ValueNotFound,
     _check_day_light_savings,
     _is_valid_data_length,
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
-    ValueNotFound,
 )
-from custom_components.aio_energy_management.models.hour_price import HourPrice
 from custom_components.aio_energy_management.enums import HourPriceType
+from custom_components.aio_energy_management.exceptions import InvalidInput
+from custom_components.aio_energy_management.models.hour_price import HourPrice
 from freezegun import freeze_time
 import numpy as np
 import pytest
-import math
 
 
 @pytest.mark.parametrize("mtu", [15, 60])
 def test_nordpool_official_fall_back_keeps_first_local_hour(mtu: int) -> None:
     """UTC-aligned prices for a 25-hour day must be usable as 24 local hours."""
-    start = datetime(2026, 10, 24, 21, tzinfo=timezone.utc)
+    start = datetime(2026, 10, 24, 21, tzinfo=UTC)
     hours = [
         HourPrice(
             value=float(index),
@@ -39,9 +39,9 @@ def test_nordpool_official_fall_back_keeps_first_local_hour(mtu: int) -> None:
         item.start
         for item in hours
         if not (
-            datetime(2026, 10, 25, 1, tzinfo=timezone.utc)
+            datetime(2026, 10, 25, 1, tzinfo=UTC)
             <= item.start
-            < datetime(2026, 10, 25, 2, tzinfo=timezone.utc)
+            < datetime(2026, 10, 25, 2, tzinfo=UTC)
         )
     ]
 
@@ -432,6 +432,12 @@ def test_non_sequential_cheapest_hours_max_price(today_valid, tomorrow_valid) ->
     assert result["extra"]["min_price"] is None
     assert result["extra"]["max_price"] is None
 
+    # A price_limit of 0 is a valid limit too: all prices are above it
+    result, _ = calculate_non_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 10, False, 0, 23, price_limit=0.0
+    )
+    assert np.size(result.get("list")) == 0
+
 
 @freeze_time("2024-07-22 14:25+03:00")
 def test_non_sequential_cheapest_hours_min_price(today_valid, tomorrow_valid) -> None:
@@ -539,10 +545,10 @@ def test_non_sequential_add_flexible_stops_at_limit(
 
 
 @freeze_time("2024-07-22 14:25+03:00")
-def test_non_sequential_add_flexible_extends_by_max_extra_slots(
+def test_non_sequential_add_flexible_caps_total_slots(
     today_valid, tomorrow_valid
 ) -> None:
-    """max_number_of_slots counts extra slots added on top of the base slots."""
+    """max_number_of_slots is the total number of slots, base slots included."""
     result, expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid,
         tomorrow_valid,
@@ -555,19 +561,19 @@ def test_non_sequential_add_flexible_extends_by_max_extra_slots(
     )
     assert expires_today_only is False
     lis: list = result.get("list")
-    # Base 2 cheapest: 10 (1.547), 13 (1.71). Up to 4 extra slots are added while
-    # each stays within 3.0: 12 (1.851), 1 (2.461), 3 (2.859), 2 (2.967). Total 6
-    # slots across hours 1, 2, 3, 10, 12, 13. Hours 1-3 merge into one item, hour
-    # 10 stands alone, and hours 12-13 merge into one item.
+    # Base 2 cheapest: 10 (1.547), 13 (1.71). Extra slots within 3.0 are added
+    # until 4 slots in total: 12 (1.851), 1 (2.461). Hours 3 (2.859) and
+    # 2 (2.967) are within the limit too but exceed the total. Hour 1 and hour 10
+    # stand alone, and hours 12-13 merge into one item.
     assert np.size(lis) == 3
     assert lis[0]["start"] == datetime(
         2024, 7, 23, 1, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
     assert lis[0]["end"] == datetime(
-        2024, 7, 23, 4, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
+        2024, 7, 23, 2, 0, tzinfo=zoneinfo.ZoneInfo(key="Europe/Helsinki")
     )
     assert result["extra"]["min_price"] == 1.547
-    assert result["extra"]["max_price"] == 2.967
+    assert result["extra"]["max_price"] == 2.461
 
 
 @freeze_time("2024-07-22 14:25+03:00")
@@ -646,9 +652,9 @@ def test_non_sequential_add_flexible_noop_without_both_params(
 
 @freeze_time("2024-07-22 14:25+03:00")
 def test_non_sequential_add_flexible_max_smaller_than_base(
-    today_valid, tomorrow_valid
+    today_valid, tomorrow_valid, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """max_number_of_slots may be smaller than number_of_slots (it is a count of extra slots)."""
+    """max_number_of_slots below number_of_slots is raised to number_of_slots."""
     base, base_expires_today_only = calculate_non_sequential_cheapest_hours(
         today_valid, tomorrow_valid, 3, False, 0, 23
     )
@@ -664,16 +670,384 @@ def test_non_sequential_add_flexible_max_smaller_than_base(
     )
     assert base_expires_today_only is False
     assert expires_today_only is False
-    # Base 3 slots (10, 12, 13) get 2 extra slots (1, 3) appended.
-    assert result["list"] != base["list"]
-    assert result["extra"]["min_price"] == 1.547
-    assert result["extra"]["max_price"] == 2.859
+    # Only the base 3 slots (10, 12, 13) are kept; no extra slot is added.
+    assert result["list"] == base["list"]
+    assert result["extra"] == base["extra"]
+    assert (
+        "max_number_of_slots (2) is less than number_of_slots (3), "
+        "using 3 as max_number_of_slots"
+    ) in caplog.text
 
 
 def test_non_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) -> None:
     """max_number_of_slots above the MTU cap is rejected."""
     with pytest.raises(InvalidInput):
         calculate_non_sequential_cheapest_hours(
+            today_valid,
+            tomorrow_valid,
+            2,
+            False,
+            0,
+            23,
+            max_number_of_slots=25,
+            flexible_price_limit=1.0,
+        )
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, min_seq_slots, max_number_of_slots, flexible_price_limit",
+    [
+        # 1. Base of 2 slots, min_seq_slots = 2, extended with flexible slots up to limit 3.0
+        pytest.param(
+            2,
+            2,
+            2,
+            3.0,
+            id="flexible_slots_respect_min_seq_2",
+        ),
+        # 2. Base of 3 slots, min_seq_slots = 3, with extra flexible extension
+        pytest.param(
+            3,
+            3,
+            3,
+            3.0,
+            id="flexible_slots_respect_min_seq_3",
+        ),
+    ],
+)
+def test_non_sequential_flexible_slots_respect_min_seq(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    min_seq_slots: int,
+    max_number_of_slots: int,
+    flexible_price_limit: float,
+) -> None:
+    """Test that flexible slot configurations maintain min_seq_slots rules."""
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        min_seq_slots=min_seq_slots,
+        max_number_of_slots=max_number_of_slots,
+        flexible_price_limit=flexible_price_limit,
+    )
+
+    assert expires_today_only is False
+    assert isinstance(result, dict)
+    assert "list" in result
+    assert "extra" in result
+
+    lis: list = result.get("list")
+    assert len(lis) > 0
+
+    # Verify that EACH returned block strictly complies with the min_seq_slots rule
+    for seq_slots in lis:
+        duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
+        slots_count = int(duration_minutes / 60)
+        assert slots_count >= min_seq_slots
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, number_of_blocks, max_number_of_slots, flexible_price_limit",
+    [
+        # 1. Base of 2 slots, max 4 slots, 2 blocks -> Total selected slots get divided into 2 blocks
+        pytest.param(
+            2,
+            2,
+            4,
+            3.0,
+            id="flexible_slots_respect_number_of_blocks_2",
+        ),
+        # 2. Base of 3 slots, max 9 slots, 3 blocks -> Extended flexible slots split across 3 blocks
+        pytest.param(
+            3,
+            3,
+            9,
+            4.0,
+            id="flexible_slots_respect_number_of_blocks_3",
+        ),
+    ],
+)
+def test_non_sequential_flexible_slots_respect_number_of_blocks(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    number_of_blocks: int,
+    max_number_of_slots: int,
+    flexible_price_limit: float,
+) -> None:
+    """Test that flexible slot configurations respect number_of_blocks."""
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        number_of_blocks=number_of_blocks,
+        max_number_of_slots=max_number_of_slots,
+        flexible_price_limit=flexible_price_limit,
+    )
+
+    assert expires_today_only is False
+    assert isinstance(result, dict)
+    assert "list" in result
+    assert "extra" in result
+
+    blocks: list = result.get("list")
+    assert len(blocks) > 0
+
+    # Verify that the total number of combined blocks matches the requested number_of_blocks
+    assert len(blocks) == number_of_blocks
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, inversed, kwargs, custom_prices, expected_ranges",
+    [
+        # 1. Core delta: maximum hours within (min_price + delta)
+        pytest.param(
+            2,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.31},
+            None,
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="stops_at_delta",
+        ),
+        # 2. Inverted delta: selects hours within (max price - delta)
+        pytest.param(
+            2,
+            True,
+            {"max_number_of_slots": 5, "max_price_delta": 21.2},
+            None,
+            [("11:00", "12:00"), ("14:00", "16:00")],
+            id="inversed_delta",
+        ),
+        # 3. Priority: if someone provides both, flexible_price_limit must take precedence.
+        pytest.param(
+            2,
+            False,
+            {
+                "max_number_of_slots": 5,
+                "flexible_price_limit": 1.9,
+                "max_price_delta": 100.0,
+            },
+            None,
+            [("10:00", "11:00"), ("12:00", "14:00")],
+            id="fixed_limit_precedence",
+        ),
+        # 4. Float tolerance: checks PRICE_DELTA_TOLERANCE at the exact boundary.
+        pytest.param(
+            1,
+            False,
+            {"max_number_of_slots": 5, "max_price_delta": 0.1},
+            (5.0, {4: 0.7, 8: 0.8}),
+            [("04:00", "05:00"), ("08:00", "09:00")],
+            id="boundary_float_tolerance",
+        ),
+    ],
+)
+def test_max_price_delta_scenarios(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    inversed: bool,
+    kwargs: dict,
+    custom_prices: tuple[float, dict] | None,
+    expected_ranges: list[tuple[str, str]],
+) -> None:
+    """Test max_price_delta extension of non-sequential slots."""
+    if custom_prices is not None:
+        default, overrides = custom_prices
+        tomorrow_valid = [
+            HourPrice(overrides.get(hour, default), p.start)
+            for hour, p in enumerate(tomorrow_valid)
+        ]
+
+    result, expires_today_only = calculate_non_sequential_cheapest_hours(
+        today=today_valid,
+        tomorrow=tomorrow_valid,
+        number_of_slots=number_of_slots,
+        starting_today=False,
+        first_hour=0,
+        last_hour=23,
+        inversed=inversed,
+        **kwargs,
+    )
+
+    actual_ranges = [
+        (item["start"].strftime("%H:%M"), item["end"].strftime("%H:%M"))
+        for item in result["list"]
+    ]
+    assert expires_today_only is False
+    assert actual_ranges == expected_ranges
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+@pytest.mark.parametrize(
+    "number_of_slots, inversed, kwargs, expected_range",
+    [
+        # Base block 01-04 (2.461, 2.967, 2.859). Neighbours 04 (3.063) and
+        # 05 (3.249) are added; 00 (3.482) and 06 (3.582) exceed the limit.
+        pytest.param(
+            3,
+            False,
+            {"max_number_of_slots": 8, "flexible_price_limit": 3.3},
+            ("01:00", "06:00"),
+            id="grows_right_until_limit",
+        ),
+        # With a higher limit 00 (3.482) is added too, the block then hits the
+        # start of the window and 06 (3.582) still exceeds the limit.
+        pytest.param(
+            3,
+            False,
+            {"max_number_of_slots": 8, "flexible_price_limit": 3.5},
+            ("00:00", "06:00"),
+            id="grows_left_and_stops_at_window_start",
+        ),
+        # max_number_of_slots caps the block at 4 slots in total (1 extra).
+        pytest.param(
+            3,
+            False,
+            {"max_number_of_slots": 4, "flexible_price_limit": 10.0},
+            ("01:00", "05:00"),
+            id="capped_by_max_number_of_slots",
+        ),
+        # Limit = cheapest price in window (1.547) + 1.6 = 3.147: only 04 (3.063).
+        pytest.param(
+            3,
+            False,
+            {"max_number_of_slots": 8, "max_price_delta": 1.6},
+            ("01:00", "05:00"),
+            id="max_price_delta",
+        ),
+        # Without a limit there is nothing to extend.
+        pytest.param(
+            3,
+            False,
+            {"max_number_of_slots": 8},
+            ("01:00", "04:00"),
+            id="noop_without_limit",
+        ),
+        # Inversed base block 11-13 (25.874, 1.851). Neighbour 13 (1.71) is
+        # preferred over 10 (1.547), then 14 (4.774), after which the cap is hit.
+        pytest.param(
+            2,
+            True,
+            {"max_number_of_slots": 4, "flexible_price_limit": 1.6},
+            ("11:00", "15:00"),
+            id="inversed",
+        ),
+    ],
+)
+def test_sequential_add_flexible(
+    today_valid,
+    tomorrow_valid,
+    number_of_slots: int,
+    inversed: bool,
+    kwargs: dict,
+    expected_range: tuple[str, str],
+) -> None:
+    """Flexible slots grow the sequential block at its edges."""
+    result, expires_today_only = calculate_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        number_of_slots,
+        False,
+        0,
+        23,
+        inversed=inversed,
+        **kwargs,
+    )
+    assert expires_today_only is False
+    assert len(result["list"]) == 1
+    item = result["list"][0]
+    assert (
+        item["start"].strftime("%H:%M"),
+        item["end"].strftime("%H:%M"),
+    ) == expected_range
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_sequential_add_flexible_extra_prices(today_valid, tomorrow_valid) -> None:
+    """Mean, min and max price are calculated over the extended block."""
+    result, _ = calculate_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        2,
+        False,
+        0,
+        23,
+        inversed=True,
+        max_number_of_slots=4,
+        flexible_price_limit=1.6,
+    )
+    # Block 11-15: 25.874, 1.851, 1.71, 4.774
+    assert result["extra"]["mean_price"] == pytest.approx(8.55225)
+    assert result["extra"]["min_price"] == 1.71
+    assert result["extra"]["max_price"] == 25.874
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_sequential_add_flexible_max_smaller_than_base(
+    today_valid, tomorrow_valid, caplog: pytest.LogCaptureFixture
+) -> None:
+    """max_number_of_slots below number_of_slots is raised to number_of_slots."""
+    base, base_expires_today_only = calculate_sequential_cheapest_hours(
+        today_valid, tomorrow_valid, 3, False, 0, 23
+    )
+    result, expires_today_only = calculate_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        3,
+        False,
+        0,
+        23,
+        max_number_of_slots=2,
+        flexible_price_limit=10.0,
+    )
+    assert base_expires_today_only is False
+    assert expires_today_only is False
+    # Only the base block 01-04 is kept; it is not extended.
+    assert result["list"] == base["list"]
+    assert result["extra"] == base["extra"]
+    assert (
+        "max_number_of_slots (2) is less than number_of_slots (3), "
+        "using 3 as max_number_of_slots"
+    ) in caplog.text
+
+
+@freeze_time("2024-07-22 14:25+03:00")
+def test_sequential_add_flexible_price_limit_on_base_block(
+    today_valid, tomorrow_valid
+) -> None:
+    """The regular price_limit is checked against the base block mean."""
+    # Base block 01-04 has a mean of ~2.762, above the price limit.
+    result, _ = calculate_sequential_cheapest_hours(
+        today_valid,
+        tomorrow_valid,
+        3,
+        False,
+        0,
+        23,
+        price_limit=2.7,
+        max_number_of_slots=8,
+        flexible_price_limit=10.0,
+    )
+    assert result["list"] == []
+    assert result["extra"]["mean_price"] is None
+
+
+def test_sequential_add_flexible_invalid_max(today_valid, tomorrow_valid) -> None:
+    """max_number_of_slots above the MTU cap is rejected."""
+    with pytest.raises(InvalidInput):
+        calculate_sequential_cheapest_hours(
             today_valid,
             tomorrow_valid,
             2,

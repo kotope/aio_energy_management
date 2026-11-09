@@ -2,10 +2,11 @@
 
 from datetime import date, datetime, timedelta
 import logging
+import random
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant, State
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.template import Template
 import homeassistant.util.dt as dt_util
@@ -13,6 +14,7 @@ import homeassistant.util.dt as dt_util
 from ..const import (
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     INTERNAL_CHEAPEST_HOURS_MINIMUM_VALID_SLOTS,
@@ -41,6 +43,7 @@ from .math import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+FETCH_INTERVAL = timedelta(minutes=5)
 
 
 class CheapestHoursBinarySensor(BinarySensorEntity):
@@ -117,8 +120,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         self._last_known_day = None
         self._retention_days = retention_days
         self._area = area
-
         self._archived = None
+        self._last_fetch_attempt: datetime | None = None
+        self._fetch_interval = FETCH_INTERVAL + timedelta(
+            seconds=random.uniform(0, 300)
+        )
         self._price_modifications = price_modifications
         if mtu is None:
             self._mtu = 60
@@ -203,18 +209,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             return
 
         # Check if our data is valid and we do not need to do anything
-        if self._is_fetched_today():  # Data valid for today
-            _LOGGER.debug(
-                "Local entity data is still valid for %s", self._attr_unique_id
-            )
-            if self._is_expired() is False:
-                return
-
-        # No valid data found from store either, try get new
-        _LOGGER.debug(
-            "No today fetch done for %s or value is expired. Request new data from nord pool integration",
-            self._attr_unique_id,
-        )
+        if self._is_fetched_today() and not self._is_expired():
+            _LOGGER.debug("Data complete for %s, no fetch needed", self._attr_unique_id)
+            return
 
         # Update number of hours.. this actually needs to be stored in the data..
         try:
@@ -237,6 +234,25 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
 
         # Update from nordpool official
         if self._nordpool_official_config_entry is not None:
+            # Throttle: don't hit the price API more often than FETCH_INTERVAL
+            now = dt_util.utcnow()
+            if (
+                self._last_fetch_attempt is not None
+                and now - self._last_fetch_attempt < self._fetch_interval
+            ):
+                _LOGGER.debug(
+                    "Waiting for new prices for %s, next fetch in %s",
+                    self._attr_unique_id,
+                    self._fetch_interval - (now - self._last_fetch_attempt),
+                )
+                return
+            self._last_fetch_attempt = now
+
+            # No valid data found from store either, try get new
+            _LOGGER.debug(
+                "Fetching prices for %s (data expired or tomorrow's prices not yet received)",
+                self._attr_unique_id,
+            )
             try:
                 (
                     today,
@@ -361,6 +377,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                     self._inversed,
                     self._data.get("active_price_limit"),
                     self._mtu,
+                    self._data.get("active_max_number_of_slots"),
+                    self._data.get("active_flexible_price_limit"),
+                    max_price_delta=self._data.get("active_max_price_delta"),
                 )
             else:
                 (cheapest, today_only) = calculate_non_sequential_cheapest_hours(
@@ -379,8 +398,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
                         "active_min_seq_slots", 1
                     ),  # make sure it defaults to 1
                     self._data.get("active_number_of_blocks"),
+                    max_price_delta=self._data.get("active_max_price_delta"),
                 )
-        except (InvalidInput, ValueNotFound):
+        except (InvalidInput, ValueNotFound):  # fmt: skip
             # math.py already logged the reason (e.g. invalid input, or an
             # overnight window without tomorrow's prices yet). These signal that
             # no calculation should happen right now, so skip this update and
@@ -1013,8 +1033,8 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             "unique_id": self._attr_unique_id,
         }
 
-        if price_limit := self._price_limit:
-            attrs["price_limit"] = price_limit
+        if self._price_limit is not None:
+            attrs["price_limit"] = self._price_limit
         if trigger_time := self._trigger_time:
             attrs["trigger_time"] = trigger_time
         if trigger_hour := self._trigger_hour:
@@ -1026,10 +1046,13 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             flexible_price_limit = add_flexible.get(
                 CONF_PRICE_LIMIT_ENTITY
             ) or add_flexible.get(CONF_PRICE_LIMIT)
+            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
             if max_slots is not None:
                 attrs["max_number_of_slots"] = max_slots
             if flexible_price_limit is not None:
                 attrs["flexible_price_limit"] = flexible_price_limit
+            if max_price_delta is not None:
+                attrs["max_price_delta"] = max_price_delta
         if min_seq_slots := self._min_seq_slots:
             attrs["min_seq_slots"] = min_seq_slots
         if number_of_blocks := self._number_of_blocks:
@@ -1053,8 +1076,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             )
         if trigger_hour := self._trigger_hour:
             self._data["active_trigger_hour"] = self._int_from_entity(trigger_hour)
-        if price_limit := self._price_limit:
-            self._data["active_price_limit"] = self._float_from_entity(price_limit)
+        if self._price_limit is not None:
+            self._data["active_price_limit"] = self._float_from_entity(
+                self._price_limit
+            )
+
         if add_flexible := self._add_flexible:
             max_slots = add_flexible.get(
                 CONF_MAX_NUMBER_OF_SLOTS_ENTITY
@@ -1062,9 +1088,14 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             flexible_price_limit = add_flexible.get(
                 CONF_PRICE_LIMIT_ENTITY
             ) or add_flexible.get(CONF_PRICE_LIMIT)
+            max_price_delta = add_flexible.get(CONF_MAX_PRICE_DELTA)
+
             self._data["active_max_number_of_slots"] = self._int_from_entity(max_slots)
             self._data["active_flexible_price_limit"] = self._float_from_entity(
                 flexible_price_limit
+            )
+            self._data["active_max_price_delta"] = self._float_from_entity(
+                max_price_delta
             )
         if min_seq_slots := self._min_seq_slots:
             self._data["active_min_seq_slots"] = self._int_from_entity(min_seq_slots)
@@ -1079,8 +1110,9 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         if entity_id is None:
             return None
 
-        if isinstance(entity_id, float):
-            return entity_id
+        if isinstance(entity_id, (int, float)):
+            # Whole numbers in YAML (e.g. 20 instead of 20.0) arrive as int
+            return float(entity_id)
 
         state = self.hass.states.get(entity_id)
         value = state.state if state is not None else None
