@@ -6,10 +6,12 @@ from unittest.mock import AsyncMock, PropertyMock, patch
 import zoneinfo
 
 from custom_components.aio_energy_management.binary_sensor import (
+    CHEAPEST_HOURS_PLATFORM_SCHEMA,
     CheapestHoursBinarySensor,
     _create_cheapest_hours_entity,
 )
 from custom_components.aio_energy_management.const import (
+    CONF_ADD_FLEXIBLE,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
     CONF_MAX_PRICE_DELTA,
@@ -2175,6 +2177,43 @@ async def test_float_from_entity_accepts_int(hass: HomeAssistant) -> None:
     """Whole numbers from YAML (e.g. 20 instead of 20.0) are used as floats."""
     sensor = _make_sensor(hass)
     assert sensor._float_from_entity(20) == 20.0
+
+
+@pytest.mark.parametrize(
+    "extra_config",
+    [
+        pytest.param({CONF_PRICE_LIMIT: 0}, id="price_limit_int"),
+        pytest.param({CONF_PRICE_LIMIT: 0.0}, id="price_limit_float"),
+        pytest.param(
+            {CONF_PRICE_LIMIT: "input_number.price_limit"}, id="price_limit_entity"
+        ),
+        pytest.param(
+            {CONF_ADD_FLEXIBLE: {CONF_MAX_NUMBER_OF_SLOTS: 8, CONF_PRICE_LIMIT: 1}},
+            id="flexible_price_limit_int",
+        ),
+        pytest.param(
+            {
+                CONF_ADD_FLEXIBLE: {
+                    CONF_MAX_NUMBER_OF_SLOTS: 8,
+                    CONF_MAX_PRICE_DELTA: 20,
+                }
+            },
+            id="max_price_delta_int",
+        ),
+    ],
+)
+def test_platform_schema_accepts_whole_numbers(extra_config: dict) -> None:
+    """Whole numbers from YAML pass validation for float fields."""
+    CHEAPEST_HOURS_PLATFORM_SCHEMA(
+        {
+            "unique_id": "test",
+            "name": "Test",
+            "first_hour": 0,
+            "last_hour": 23,
+            "sequential": False,
+            **extra_config,
+        }
+    )
 
 
 @pytest.mark.parametrize("price_limit", [0, 0.0])
