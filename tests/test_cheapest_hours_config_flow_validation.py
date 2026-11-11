@@ -19,7 +19,11 @@ from aio_energy_management.cheapest_hours.helpers import (
     validate_offset_integer_fields,
 )
 from aio_energy_management.cheapest_hours.schemas import get_flexible_schema
-from aio_energy_management.config_flow import AIOEnergyManagementOptionsFlow
+from aio_energy_management.config_flow import (
+    CONF_ENTRY_TYPE,
+    ENTRY_TYPE_CHEAPEST_HOURS,
+    AIOEnergyManagementOptionsFlow,
+)
 from aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
     CONF_END,
@@ -436,24 +440,36 @@ class TestAdvancedSchemaSequential:
     @pytest.mark.asyncio
     async def test_flexible_menu_option_present_when_not_sequential(self) -> None:
         """Test that flexible_menu is visible in the options flow when sequential is False."""
-        flow = MagicMock(
-            config_entry=MagicMock(options={CONF_SEQUENTIAL: False}, data={})
+        config_entry = MagicMock(
+            options={CONF_SEQUENTIAL: False},
+            data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
         )
-        await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+        flow = AIOEnergyManagementOptionsFlow(config_entry)
+        flow.async_show_menu = MagicMock()
+
+        await flow.async_step_cheapest_hours_menu()
 
         menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
         assert "cheapest_hours_flexible" in menu_options
+        assert "cheapest_hours_offset" not in menu_options
+        assert "finish" in menu_options
 
     @pytest.mark.asyncio
     async def test_flexible_menu_option_present_when_sequential(self) -> None:
         """Test that flexible_menu is visible in the options flow when sequential is True."""
-        flow = MagicMock(
-            config_entry=MagicMock(options={CONF_SEQUENTIAL: True}, data={})
+        config_entry = MagicMock(
+            options={CONF_SEQUENTIAL: True},
+            data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
         )
-        await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
+        flow = AIOEnergyManagementOptionsFlow(config_entry)
+        flow.async_show_menu = MagicMock()
+
+        await flow.async_step_cheapest_hours_menu()
 
         menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
         assert "cheapest_hours_flexible" in menu_options
+        assert "cheapest_hours_offset" in menu_options
+        assert "finish" in menu_options
 
 
 # ---------------------------------------------------------------------------
@@ -461,20 +477,27 @@ class TestAdvancedSchemaSequential:
 # ---------------------------------------------------------------------------
 
 
+async def _get_cheapest_hours_menu_options(sequential: bool) -> list[str]:
+    """Open the cheapest hours menu in the options flow and return its options."""
+    config_entry = MagicMock(
+        options={CONF_SEQUENTIAL: sequential},
+        data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
+    )
+    flow = AIOEnergyManagementOptionsFlow(config_entry)
+    flow.async_show_menu = MagicMock()
+
+    await flow.async_step_cheapest_hours_menu()
+
+    return flow.async_show_menu.call_args.kwargs["menu_options"]
+
+
 @pytest.mark.asyncio
 async def test_use_offset_present_when_sequential() -> None:
-    flow = MagicMock(config_entry=MagicMock(options={CONF_SEQUENTIAL: True}, data={}))
-    await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
-    assert (
-        "cheapest_hours_offset" in flow.async_show_menu.call_args.kwargs["menu_options"]
-    )
+    menu_options = await _get_cheapest_hours_menu_options(sequential=True)
+    assert "cheapest_hours_offset" in menu_options
 
 
 @pytest.mark.asyncio
 async def test_use_offset_absent_when_not_sequential() -> None:
-    flow = MagicMock(config_entry=MagicMock(options={CONF_SEQUENTIAL: False}, data={}))
-    await AIOEnergyManagementOptionsFlow.async_step_cheapest_hours_menu(flow)
-    assert (
-        "cheapest_hours_offset"
-        not in flow.async_show_menu.call_args.kwargs["menu_options"]
-    )
+    menu_options = await _get_cheapest_hours_menu_options(sequential=False)
+    assert "cheapest_hours_offset" not in menu_options
