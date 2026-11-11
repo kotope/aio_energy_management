@@ -452,7 +452,7 @@ class TestAdvancedSchemaSequential:
         menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
         assert "cheapest_hours_flexible" in menu_options
         assert "cheapest_hours_offset" not in menu_options
-        assert "finish" in menu_options
+        assert "cheapest_hours_finish" in menu_options
 
     @pytest.mark.asyncio
     async def test_flexible_menu_option_present_when_sequential(self) -> None:
@@ -469,7 +469,7 @@ class TestAdvancedSchemaSequential:
         menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
         assert "cheapest_hours_flexible" in menu_options
         assert "cheapest_hours_offset" in menu_options
-        assert "finish" in menu_options
+        assert "cheapest_hours_finish" in menu_options
 
 
 # ---------------------------------------------------------------------------

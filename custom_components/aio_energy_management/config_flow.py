@@ -186,33 +186,3 @@ class AIOEnergyManagementOptionsFlow(
                 }
             ),
         )
-
-    # async def async_step_cheapest_hours_menu(
-    #     self, user_input: dict[str, Any] | None = None
-    # ) -> ConfigFlowResult:
-    #     """Show the cheapest hours settings menu."""
-    #     menu_options = [
-    #         "cheapest_hours_data_provider",
-    #         "cheapest_hours_basic",
-    #         "cheapest_hours_advanced",
-    #         "cheapest_hours_flexible",
-    #     ]
-    #     # Retrive sequential value from sensor and add it to menu if true
-    #     is_sequential = self.config_entry.options.get(
-    #         CONF_SEQUENTIAL, self.config_entry.data.get(CONF_SEQUENTIAL, False)
-    #     )
-    #     if is_sequential is True:
-    #         menu_options.append("cheapest_hours_offset")
-
-    #     menu_options.append("finish")
-
-    #     return self.async_show_menu(
-    #         step_id="cheapest_hours_menu",
-    #         menu_options=menu_options,
-    #     )
-
-    # async def async_step_finish(
-    #     self, user_input: dict[str, Any] | None = None
-    # ) -> ConfigFlowResult:
-    #     """Finalize the options flow and save all changes."""
-    #     return self.async_create_entry(title="", data=self._config_data)

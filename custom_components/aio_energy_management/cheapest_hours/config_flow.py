@@ -86,17 +86,6 @@ class CheapestHoursConfigFlowMixin:
             menu_options=self._get_cheapest_hours_menu_options(),
         )
 
-        # new_data = {
-        #     **self._config_entry.data,
-        #     **cleaned_input,
-        # }
-        # self.hass.config_entries.async_update_entry(
-        #     self._config_entry,
-        #     title=new_data.get(CONF_NAME, self._config_entry.title),
-        #     data=new_data,
-        # )
-        # return self.async_create_entry(title="", data={})
-
     def _get_cheapest_hours_menu_options(self) -> list[str]:
         """Determine available menu options based on current settings."""
         menu_options = [
@@ -117,7 +106,7 @@ class CheapestHoursConfigFlowMixin:
             menu_options.append("cheapest_hours_offset")
 
         # Add the 'finish' / 'all done' option to exit the menu loop and save
-        menu_options.append("finish")
+        menu_options.append("cheapest_hours_finish")
         return menu_options
 
     async def async_step_cheapest_hours_menu(
@@ -132,7 +121,7 @@ class CheapestHoursConfigFlowMixin:
             menu_options=self._get_cheapest_hours_menu_options(),
         )
 
-    async def async_step_finish(
+    async def async_step_cheapest_hours_finish(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Finalize the options flow and save all changes to Home Assistant."""
