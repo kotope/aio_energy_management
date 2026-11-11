@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
+import logging
 from typing import Any
-import voluptuous as vol
-
-from homeassistant.config_entries import ConfigFlowResult
 
 from custom_components.aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
@@ -15,16 +12,15 @@ from custom_components.aio_energy_management.const import (
     CONF_END_HOURS_ENTITY,
     CONF_END_MINUTES_ENTITY,
     CONF_FAILSAFE_STARTING_HOUR,
-    CONF_FLEXIBLE_PRICE_LIMIT_ENTITY,
     CONF_MAX_NUMBER_OF_SLOTS,
     CONF_MAX_NUMBER_OF_SLOTS_ENTITY,
+    CONF_MAX_PRICE_DELTA,
     CONF_MIN_SEQ_SLOTS,
     CONF_MTU,
     CONF_NAME,
     CONF_NUMBER_OF_BLOCKS,
     CONF_NUMBER_OF_SLOTS,
     CONF_NUMBER_OF_SLOTS_ENTITY,
-    CONF_MAX_PRICE_DELTA,
     CONF_OFFSET,
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
@@ -41,16 +37,20 @@ from custom_components.aio_energy_management.const import (
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
 )
+import voluptuous as vol
+
+from homeassistant.config_entries import ConfigFlowResult
+
 from .helpers import (
+    clean_sequential_basic_fields,
     coerce_mtu,
     normalize_optional_keys,
     process_offset_input,
-    clean_sequential_basic_fields,
     sanitize_cheapest_hours_input,
+    validate_and_build_add_flexible,
     validate_and_clean_advanced_fields,
     validate_and_clean_number_of_slots,
     validate_and_clean_offset_fields,
-    validate_and_build_add_flexible,
     validate_basic_integer_fields,
     validate_offset_integer_fields,
 )
@@ -59,10 +59,10 @@ from .schemas import (
     get_cheapest_hours_basic_schema,
     get_data_provider_type_schema,
     get_entsoe_schema,
+    get_flexible_schema,
     get_nordpool_official_schema,
     get_nordpool_schema,
     get_offset_schema,
-    get_flexible_schema,
     get_stromligning_schema,
 )
 
@@ -79,9 +79,67 @@ class CheapestHoursConfigFlowMixin:
         """Helper to save updated data directly during Options Flow."""
         cleaned_input = sanitize_cheapest_hours_input(user_input)
 
+        self._config_data.update(cleaned_input)
+
+        return self.async_show_menu(
+            step_id="cheapest_hours_menu",
+            menu_options=self._get_cheapest_hours_menu_options(),
+        )
+
+        # new_data = {
+        #     **self._config_entry.data,
+        #     **cleaned_input,
+        # }
+        # self.hass.config_entries.async_update_entry(
+        #     self._config_entry,
+        #     title=new_data.get(CONF_NAME, self._config_entry.title),
+        #     data=new_data,
+        # )
+        # return self.async_create_entry(title="", data={})
+
+    def _get_cheapest_hours_menu_options(self) -> list[str]:
+        """Determine available menu options based on current settings."""
+        menu_options = [
+            "cheapest_hours_data_provider",
+            "cheapest_hours_basic",
+            "cheapest_hours_advanced",
+            "cheapest_hours_flexible",
+        ]
+
+        # Check sequential setting from working data or entry data
+        is_sequential = self._config_data.get(
+            CONF_SEQUENTIAL,
+            getattr(self, "_config_entry", None).data.get(CONF_SEQUENTIAL, False)
+            if hasattr(self, "_config_entry")
+            else False,
+        )
+        if is_sequential is True:
+            menu_options.append("cheapest_hours_offset")
+
+        # Add the 'finish' / 'all done' option to exit the menu loop and save
+        menu_options.append("finish")
+        return menu_options
+
+    async def async_step_cheapest_hours_menu(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show the cheapest hours settings menu."""
+        if not hasattr(self, "_config_data"):
+            self._config_data = dict(self._config_entry.data)
+
+        return self.async_show_menu(
+            step_id="cheapest_hours_menu",
+            menu_options=self._get_cheapest_hours_menu_options(),
+        )
+
+    async def async_step_finish(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Finalize the options flow and save all changes to Home Assistant."""
+        cleaned_data = sanitize_cheapest_hours_input(self._config_data)
         new_data = {
             **self._config_entry.data,
-            **cleaned_input,
+            **cleaned_data,
         }
         self.hass.config_entries.async_update_entry(
             self._config_entry,
@@ -126,7 +184,7 @@ class CheapestHoursConfigFlowMixin:
         if user_input is not None:
             coerce_mtu(user_input)
 
-            # Options Flow: Save entry directly
+            # Options Flow: Update temporary data and return to menu
             if hasattr(self, "_config_entry"):
                 return self._save_options_entry(user_input)
 
@@ -134,9 +192,9 @@ class CheapestHoursConfigFlowMixin:
             self._config_data.update(user_input)
             return await self.async_step_cheapest_hours_basic()
 
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = dict(self._config_entry.data)
+        existing_data = getattr(self, "_config_data", None)
+        if not existing_data and hasattr(self, "_config_entry"):
+            existing_data = {**self._config_entry.data, **self._config_entry.options}
 
         return self.async_show_form(
             step_id=step_id,
@@ -226,10 +284,10 @@ class CheapestHoursConfigFlowMixin:
                     data=cleaned_data,
                 )
 
-        # Show form
-        existing_data = None
-        if hasattr(self, "_config_entry"):
-            existing_data = dict(self._config_entry.data)
+        # Show form from working data
+        existing_data = getattr(self, "_config_data", None)
+        if not existing_data and hasattr(self, "_config_entry"):
+            existing_data = {**self._config_entry.data, **self._config_entry.options}
 
         merged_input = {**(existing_data or {}), **(user_input or {})}
 
@@ -246,7 +304,9 @@ class CheapestHoursConfigFlowMixin:
 
         # Validate and process form input
         errors: dict[str, str] = {}
-        entry_data = dict(self._config_entry.data)
+        entry_data = getattr(self, "_config_data", None)
+        if not entry_data and hasattr(self, "_config_entry"):
+            entry_data = {**self._config_entry.data, **self._config_entry.options}
         sequential = entry_data.get(CONF_SEQUENTIAL, False)
 
         if user_input is not None:
@@ -310,7 +370,7 @@ class CheapestHoursConfigFlowMixin:
                 offset, entities = process_offset_input(user_input)
 
                 save_data = {
-                    CONF_OFFSET: offset if offset else None,
+                    CONF_OFFSET: offset or None,
                     CONF_START_HOURS_ENTITY: entities.get(CONF_START_HOURS_ENTITY),
                     CONF_START_MINUTES_ENTITY: entities.get(CONF_START_MINUTES_ENTITY),
                     CONF_END_HOURS_ENTITY: entities.get(CONF_END_HOURS_ENTITY),
@@ -318,9 +378,13 @@ class CheapestHoursConfigFlowMixin:
                 }
                 return self._save_options_entry(save_data)
 
+        work_data = getattr(self, "_config_data", None)
+        if not work_data and hasattr(self, "_config_entry"):
+            work_data = {**self._config_entry.data, **self._config_entry.options}
+
         offset_data = {
-            **(self._config_entry.data.get(CONF_OFFSET) or {}),
-            **self._config_entry.data,
+            **(work_data.get(CONF_OFFSET) or {}),
+            **work_data,
         }
         merged_input = {**offset_data, **(user_input or {})}
 
@@ -336,7 +400,9 @@ class CheapestHoursConfigFlowMixin:
         """Configure flexible slot settings for cheapest hours (Options Flow only)."""
 
         errors: dict[str, str] = {}
-        entry_data = dict(self._config_entry.data)
+        entry_data = getattr(self, "_config_data", None)
+        if not entry_data and hasattr(self, "_config_entry"):
+            entry_data = {**self._config_entry.data, **self._config_entry.options}
 
         if user_input is not None:
             if "dynamic_section" in user_input and isinstance(

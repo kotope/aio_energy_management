@@ -23,7 +23,6 @@ from .const import (
     CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
-    CONF_SEQUENTIAL,
     CONF_UNIQUE_ID,
     DOMAIN,
 )
@@ -146,7 +145,7 @@ class AIOEnergyManagementOptionsFlow(
         self._config_entry = config_entry
         self._entry_type = config_entry.data.get(CONF_ENTRY_TYPE)
         self._data_provider_type = config_entry.data.get(CONF_DATA_PROVIDER_TYPE)
-        self._config_data = dict(config_entry.data)
+        self._config_data = {**config_entry.data, **config_entry.options}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -188,24 +187,32 @@ class AIOEnergyManagementOptionsFlow(
             ),
         )
 
-    async def async_step_cheapest_hours_menu(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Show the cheapest hours settings menu."""
-        menu_options = [
-            "cheapest_hours_data_provider",
-            "cheapest_hours_basic",
-            "cheapest_hours_advanced",
-            "cheapest_hours_flexible",
-        ]
-        # Retrive sequential value from sensor and add it to menu if true
-        is_sequential = self.config_entry.options.get(
-            CONF_SEQUENTIAL, self.config_entry.data.get(CONF_SEQUENTIAL, False)
-        )
-        if is_sequential is True:
-            menu_options.append("cheapest_hours_offset")
+    # async def async_step_cheapest_hours_menu(
+    #     self, user_input: dict[str, Any] | None = None
+    # ) -> ConfigFlowResult:
+    #     """Show the cheapest hours settings menu."""
+    #     menu_options = [
+    #         "cheapest_hours_data_provider",
+    #         "cheapest_hours_basic",
+    #         "cheapest_hours_advanced",
+    #         "cheapest_hours_flexible",
+    #     ]
+    #     # Retrive sequential value from sensor and add it to menu if true
+    #     is_sequential = self.config_entry.options.get(
+    #         CONF_SEQUENTIAL, self.config_entry.data.get(CONF_SEQUENTIAL, False)
+    #     )
+    #     if is_sequential is True:
+    #         menu_options.append("cheapest_hours_offset")
 
-        return self.async_show_menu(
-            step_id="cheapest_hours_menu",
-            menu_options=menu_options,
-        )
+    #     menu_options.append("finish")
+
+    #     return self.async_show_menu(
+    #         step_id="cheapest_hours_menu",
+    #         menu_options=menu_options,
+    #     )
+
+    # async def async_step_finish(
+    #     self, user_input: dict[str, Any] | None = None
+    # ) -> ConfigFlowResult:
+    #     """Finalize the options flow and save all changes."""
+    #     return self.async_create_entry(title="", data=self._config_data)
