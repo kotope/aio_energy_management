@@ -422,6 +422,25 @@ def _schema_field_names(schema) -> set:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+async def _get_cheapest_hours_menu_options(sequential: bool) -> list[str]:
+    """Open the cheapest hours menu in the options flow and return its options."""
+    config_entry = MagicMock(
+        options={CONF_SEQUENTIAL: sequential},
+        data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
+    )
+    flow = AIOEnergyManagementOptionsFlow(config_entry)
+    flow.async_show_menu = MagicMock()
+
+    await flow.async_step_cheapest_hours_menu()
+
+    return flow.async_show_menu.call_args.kwargs["menu_options"]
+
+
+# ---------------------------------------------------------------------------
 # Validate flexible menu
 # ---------------------------------------------------------------------------
 
@@ -438,57 +457,29 @@ class TestAdvancedSchemaSequential:
         assert CONF_MAX_PRICE_DELTA in fields
 
     @pytest.mark.asyncio
-    async def test_flexible_menu_option_present_when_not_sequential(self) -> None:
-        """Test that flexible_menu is visible in the options flow when sequential is False."""
-        config_entry = MagicMock(
-            options={CONF_SEQUENTIAL: False},
-            data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
-        )
-        flow = AIOEnergyManagementOptionsFlow(config_entry)
-        flow.async_show_menu = MagicMock()
-
-        await flow.async_step_cheapest_hours_menu()
-
-        menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
+    @pytest.mark.parametrize("sequential", [True, False])
+    async def test_flexible_menu_option_always_present(self, sequential: bool) -> None:
+        """Flexible menu option is visible regardless of the sequential setting."""
+        menu_options = await _get_cheapest_hours_menu_options(sequential)
         assert "cheapest_hours_flexible" in menu_options
-        assert "cheapest_hours_offset" not in menu_options
-        assert "cheapest_hours_finish" in menu_options
 
-    @pytest.mark.asyncio
-    async def test_flexible_menu_option_present_when_sequential(self) -> None:
-        """Test that flexible_menu is visible in the options flow when sequential is True."""
-        config_entry = MagicMock(
-            options={CONF_SEQUENTIAL: True},
-            data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
-        )
-        flow = AIOEnergyManagementOptionsFlow(config_entry)
-        flow.async_show_menu = MagicMock()
 
-        await flow.async_step_cheapest_hours_menu()
+# ---------------------------------------------------------------------------
+# Validate finish menu
+# ---------------------------------------------------------------------------
 
-        menu_options = flow.async_show_menu.call_args.kwargs["menu_options"]
-        assert "cheapest_hours_flexible" in menu_options
-        assert "cheapest_hours_offset" in menu_options
-        assert "cheapest_hours_finish" in menu_options
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sequential", [True, False])
+async def test_finish_option_always_present(sequential: bool) -> None:
+    """Finish menu option is visible regardless of the sequential setting."""
+    menu_options = await _get_cheapest_hours_menu_options(sequential)
+    assert "cheapest_hours_finish" in menu_options
 
 
 # ---------------------------------------------------------------------------
 # Validate offset menu
 # ---------------------------------------------------------------------------
-
-
-async def _get_cheapest_hours_menu_options(sequential: bool) -> list[str]:
-    """Open the cheapest hours menu in the options flow and return its options."""
-    config_entry = MagicMock(
-        options={CONF_SEQUENTIAL: sequential},
-        data={CONF_ENTRY_TYPE: ENTRY_TYPE_CHEAPEST_HOURS},
-    )
-    flow = AIOEnergyManagementOptionsFlow(config_entry)
-    flow.async_show_menu = MagicMock()
-
-    await flow.async_step_cheapest_hours_menu()
-
-    return flow.async_show_menu.call_args.kwargs["menu_options"]
 
 
 @pytest.mark.asyncio
