@@ -314,7 +314,8 @@
           "cheapest_hours_basic": "Basic settings",
           "cheapest_hours_advanced": "Advanced settings",
           "cheapest_hours_offset": "Time offset",
-          "cheapest_hours_flexible": "Flexible slots"
+          "cheapest_hours_flexible": "Flexible slots",
+          "finish": "All done"
         }
       },
       "cheapest_hours_data_provider": {
