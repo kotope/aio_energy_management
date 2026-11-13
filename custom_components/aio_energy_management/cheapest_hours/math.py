@@ -571,87 +571,74 @@ def _select_slots_with_min_seq_slot_size(
     max_seq_slots: int | None = None,
     inversed: bool = False,
 ) -> list[dict]:
-    """Select base slots with min_seq_slots, max_seq_slots, and inversed logic."""
+    """Select slots so that every consecutive block has a length within
+    [min_seq_slots, max_seq_slots], minimising total price (or maximising if inversed).
 
+    Assumes `data` is sorted chronologically and contiguous (index adjacency == time adjacency).
+    """
     # IF min_seq_slots == 1: keep original behavior
     if min_seq_slots <= 1 and max_seq_slots is None:
         sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
         return sorted_data[:number_of_slots]
 
-    # IF min_seq_slots > 1: set inversed * -1 to keep inversed functionality
+    n = len(data)
+    target = min(number_of_slots, n)
+    lo = max(min_seq_slots, 1)
+    hi = max_seq_slots if max_seq_slots is not None else n
     mult = -1 if inversed else 1
-    total_available = len(data)
-    selected_indices: set[int] = set()
-    needed = number_of_slots
 
-    # Phase A: Select blocks based on min_seq_slots (respecting max_seq_slots)
-    while needed >= min_seq_slots:
-        best_idx = -1
-        best_score = float("inf")
+    # Prefix sums of (signed) prices for O(1) block cost
+    prefix = [0.0]
+    for item in data:
+        prefix.append(prefix[-1] + item["price"] * mult)
 
-        for i in range(total_available - min_seq_slots + 1):
-            window = set(range(i, i + min_seq_slots))
-            if window & selected_indices:
-                continue  # Continue on overlapping slots which are already part of the selected_indices
+    INF = float("inf")
+    # dp[i][k]: minimal cost to pick k more slots from slots i..n-1,
+    # given slot i-1 is NOT selected (or i == 0).
+    dp = [[INF] * (target + 1) for _ in range(n + 1)]
+    choice = [
+        [0] * (target + 1) for _ in range(n + 1)
+    ]  # 0 = skip slot i, L>0 = block of length L
+    dp[n][0] = 0.0
 
-            # Check if adding this window would merge with an adjacent block and exceed max_seq_slots
-            if _would_exceed_max_seq(selected_indices, window, max_seq_slots):
-                continue
+    for i in range(n - 1, -1, -1):
+        for k in range(target + 1):
+            # Option 1: skip slot i
+            best = dp[i + 1][k]
+            best_choice = 0
 
-            avg_price = sum(data[j]["price"] for j in window) / min_seq_slots
-            score = avg_price * mult
-
-            if score < best_score:
-                best_score = score
-                best_idx = i
-
-        if best_idx == -1:
-            break
-
-        selected_indices.update(range(best_idx, best_idx + min_seq_slots))
-        needed -= min_seq_slots
-
-        # Phase B: Add remaining slots by evaluating all possible border candidates and picking the cheapest one.    while needed > 0 and len(selected_indices) < total_available:
-    while needed > 0 and len(selected_indices) < total_available:
-        candidates = []
-        for i in range(total_available):
-            if i in selected_indices:
-                continue
-
-            # Check if selected slot is next to an already chosen slot (before or after)
-            if (i - 1 in selected_indices) or (i + 1 in selected_indices):
-                # Check max_seq_slots limit before attaching to border
-                if _would_exceed_max_seq(selected_indices, {i}, max_seq_slots):
+            # Option 2: start a block of length L at i (followed by a mandatory gap)
+            for L in range(lo, min(hi, k, n - i) + 1):
+                nxt = min(i + L + 1, n)
+                rest = dp[nxt][k - L]
+                if rest == INF:
                     continue
+                cost = prefix[i + L] - prefix[i] + rest
+                if cost < best:
+                    best = cost
+                    best_choice = L
 
-                score = data[i]["price"] * mult
-                candidates.append((score, i))
+            dp[i][k] = best
+            choice[i][k] = best_choice
 
-        if not candidates:
-            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots.
-            remaining = [
-                i
-                for i in range(total_available)
-                if i not in selected_indices
-                and not _would_exceed_max_seq(selected_indices, {i}, max_seq_slots)
-            ]
-            remaining.sort(key=lambda idx: data[idx]["price"] * mult)
-            for idx in remaining:
-                if needed == 0:
-                    break
-                if not _would_exceed_max_seq(selected_indices, {idx}, max_seq_slots):
-                    selected_indices.add(idx)
-                    needed -= 1
-            break
+    if dp[0][target] == INF:
+        # Constraints cannot be satisfied (e.g. target < min_seq_slots): fall back
+        sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
+        return sorted(sorted_data[:target], key=data.index)
 
-        # Collect all border candidates, sort by price/score, and pick the cheapest one
-        candidates.sort(key=lambda x: (x[0], x[1]))
-        _, best_idx = candidates[0]
+    # Reconstruct selection
+    selected: list[int] = []
+    i, k = 0, target
+    while i < n and k > 0:
+        L = choice[i][k]
+        if L == 0:
+            i += 1
+        else:
+            selected.extend(range(i, i + L))
+            k -= L
+            i = min(i + L + 1, n)
 
-        selected_indices.add(best_idx)
-        needed -= 1
-
-    return [data[i] for i in sorted(selected_indices)]
+    return [data[idx] for idx in selected]
 
 
 def _get_average(data: list) -> float | None:
