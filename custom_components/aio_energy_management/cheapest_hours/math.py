@@ -611,31 +611,24 @@ def _select_slots_with_min_seq_slot_size(
         selected_indices.update(range(best_idx, best_idx + min_seq_slots))
         needed -= min_seq_slots
 
-    # Phase B: Add remaining slots to the current borders of selected slots to keep the min_seq_slots rule (respecting max_seq_slots).
+        # Phase B: Add remaining slots by evaluating all possible border candidates and picking the cheapest one.    while needed > 0 and len(selected_indices) < total_available:
     while needed > 0 and len(selected_indices) < total_available:
-        best_idx = -1
-        best_score = float("inf")
-
+        candidates = []
         for i in range(total_available):
             if i in selected_indices:
                 continue
 
-            # Check if selected slot is next to an already chosen slot
+            # Check if selected slot is next to an already chosen slot (before or after)
             if (i - 1 in selected_indices) or (i + 1 in selected_indices):
                 # Check max_seq_slots limit before attaching to border
                 if _would_exceed_max_seq(selected_indices, {i}, max_seq_slots):
                     continue
 
                 score = data[i]["price"] * mult
-                if score < best_score:
-                    best_score = score
-                    best_idx = i
+                candidates.append((score, i))
 
-        if best_idx != -1:
-            selected_indices.add(best_idx)
-            needed -= 1
-        else:
-            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots. This could happen when min_seq_slots is higher than number_of_slots while don't violating max_seq_slots
+        if not candidates:
+            # Failsafe: in case no match to attach remaining slots to borders, just select the cheapest slots.
             remaining = [
                 i
                 for i in range(total_available)
@@ -650,6 +643,13 @@ def _select_slots_with_min_seq_slot_size(
                     selected_indices.add(idx)
                     needed -= 1
             break
+
+        # Collect all border candidates, sort by price/score, and pick the cheapest one
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        _, best_idx = candidates[0]
+
+        selected_indices.add(best_idx)
+        needed -= 1
 
     return [data[i] for i in sorted(selected_indices)]
 
