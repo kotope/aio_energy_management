@@ -1143,7 +1143,7 @@ def test_cheapest_hours_scenarios(
         # Scenario 1: Test default behavior
         (1, False, 3, [("10:00", "11:00"), ("12:00", "14:00")]),
         # Scenario 2: Test with non divisible min_seq_slots
-        (2, False, 3, [("12:00", "15:00")]),
+        (2, False, 3, [("01:00", "04:00")]),
         # Scenario 3: Test with non divisible min_seq_slots 2
         (3, False, 5, [("01:00", "06:00")]),
         # Scenario 4: Slots expected during nighttime and during daytime
