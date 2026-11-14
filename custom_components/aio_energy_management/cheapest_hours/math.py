@@ -543,27 +543,6 @@ def _select_flexible_slots(
     return selected
 
 
-def _would_exceed_max_seq(
-    selected: set[int], new_indices: set[int], max_seq: int | None
-) -> bool:
-    """Check if adding new_indices to selected creates a contiguous block larger than max_seq."""
-    if max_seq is None:
-        return False
-
-    combined = selected | new_indices
-    for idx in new_indices:
-        left = idx
-        while (left - 1) in combined:
-            left -= 1
-        right = idx
-        while (right + 1) in combined:
-            right += 1
-
-        if (right - left + 1) > max_seq:
-            return True
-    return False
-
-
 def _select_slots_with_min_seq_slot_size(
     data: list[dict],
     number_of_slots: int,
@@ -587,11 +566,12 @@ def _select_slots_with_min_seq_slot_size(
     hi = max_seq_slots if max_seq_slots is not None else n
     mult = -1 if inversed else 1
 
-    # Prefix sums of (signed) prices for O(1) block cost
+    # Prefix sums of (signed) prices for O(1) block cost in order to calculate prices efficiently
     prefix = [0.0]
     for item in data:
         prefix.append(prefix[-1] + item["price"] * mult)
 
+    # Setup Dynamic Programming tables
     INF = float("inf")
     # dp[i][k]: minimal cost to pick k more slots from slots i..n-1,
     # given slot i-1 is NOT selected (or i == 0).
@@ -601,6 +581,7 @@ def _select_slots_with_min_seq_slot_size(
     ]  # 0 = skip slot i, L>0 = block of length L
     dp[n][0] = 0.0
 
+    # Start creating actual blocks
     for i in range(n - 1, -1, -1):
         for k in range(target + 1):
             # Option 1: skip slot i
