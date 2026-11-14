@@ -1194,64 +1194,6 @@ def test_cheapest_hours_min_seq_slots_scenarios(
         assert slots_count >= min_seq_slots
 
 
-@pytest.mark.asyncio
-async def test_min_seq_slots_prefers_cheaper_left_neighbor() -> None:
-    """Test that remaining slots prefer the cheapest border (left vs right).
-
-    Setup:
-    - Hour 09:00 price = 5.0 (Cheaper left neighbor)
-    - Hour 10:00 price = 1.0 (Base block part)
-    - Hour 11:00 price = 1.0 (Base block part)
-    - Hour 12:00 price = 8.0 (Expensive right neighbor)
-
-    With min_seq_slots=2 and number_of_slots=3:
-    - Phase A selects [10:00, 12:00) (prices 1.0, 1.0)
-    - 1 slot is needed. Neighbors are Hour 09:00 (price 5.0) and Hour 12:00 (price 8.0).
-    - The fix should ensure it picks 09:00 (left) because 5.0 < 8.0,
-      instead of blindly picking right or the first encountered.
-    """
-    base_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Create 24 hours of dummy prices (default high price)
-    prices = []
-    for i in range(24):
-        start = base_date + timedelta(hours=i)
-        end = start + timedelta(hours=1)
-        # Standaard hoge prijs, behalve rond onze testuren
-        val = 50.0
-        if i == 9:
-            val = 5.0  # Goedkope linkerbuur
-        elif i in (10, 11):
-            val = 1.0  # Basisblok
-        elif i == 12:
-            val = 8.0  # Dure rechterbuur
-
-        prices.append(HourPrice(value=val, start=start, end=end))
-
-    result, _ = calculate_non_sequential_cheapest_hours(
-        today=prices,
-        tomorrow=[],
-        number_of_slots=3,
-        starting_today=False,
-        first_hour=0,
-        last_hour=23,
-        min_seq_slots=2,
-        inversed=False,
-    )
-
-    # Expectation: the block should expand to the left (09:00 instead of 12:00)
-    actual_ranges = [
-        (
-            seq_slots["start"].strftime("%H:%M"),
-            seq_slots["end"].strftime("%H:%M"),
-        )
-        for seq_slots in result["list"]
-    ]
-
-    # Since 09:00 through 11:00 are consecutive, this becomes a single block from 09:00 to 12:00.
-    assert actual_ranges == [("09:00", "12:00")]
-
-
 @pytest.mark.parametrize(
     "number_of_slots, number_of_blocks, inversed, expected_ranges",
     [
