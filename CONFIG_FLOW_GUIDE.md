@@ -26,6 +26,7 @@ AIO Energy Management supports both:
 Every installation will have **one** `⚙️ Global Settings` identity for overarching configurations. This identity will be recreated at system startup if removed.
 - **Enable calendar** - Enable or disable the calendar feature. Disabling this will remove the calendar identity and it's functionality.
 - **Calendar name** - Provide a user-friendly name for the calendar. Defaults to `Energy Management`.
+- **Global price modifications** - Jinja2 template applied to the prices of every cheapest hours sensor whose *Price modifications source* is **Global**. Use it for tariffs and taxes that are the same for all your sensors. Same format as the per-sensor template (`price` and `time` variables). Changes don't touch plans that are already calculated: each sensor uses the new template from its next calculation, after its current plan expires.
 
 ---
 
@@ -98,7 +99,8 @@ If you would like to set Advanced Settings or Time Offset, click on `configure` 
 | Trigger hour | Static earliest hour to calculate next cheapest hours (optional) | 0–23 |
 | Price limit | Only accept prices below this value (or above if Inversed) (optional) | — |
 | Retention days | Days of calendar history to keep (1–365, default: 1) | 1–365 |
-| Price modifications | Jinja2 template for adjusting prices (tariffs, taxes, etc.) | — |
+| Price modifications source | **Global** (template from Global Settings), **Custom** (this sensor's template) or **None**. New sensors default to Global | — |
+| Price modifications | Jinja2 template for adjusting prices (tariffs, taxes, etc.). Used only when the source is Custom | Required when the source is Custom |
 | Trigger hour entity *(dynamic only)* | Entity providing the trigger hour | Mutually exclusive with static value |
 | Price limit entity *(dynamic only)* | Entity providing the price limit | Mutually exclusive with static value |
 | Flexbile: price limit (entity) | Entity to set `Flexbile: price limit` dynamically *(mutually exclusive with static)* | Mutually exclusive with static value |
@@ -236,6 +238,7 @@ The YAML configuration method is still supported. See [README.md](README.md) for
 - **Data provider**: Nord Pool official → select config entry from dropdown
 - **Name**: "Cheapest Hours with Tariffs"
 - **Number of slots**: 3
+- **Price modifications source**: Custom (or put the template in Global Settings and choose Global to share it between sensors)
 - **Price modifications**:
   ```jinja2
   {%- set as_snt = price / 10.0 %}

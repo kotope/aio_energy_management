@@ -10,6 +10,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+
 from custom_components.aio_energy_management.const import (
     CONF_ADD_FLEXIBLE,
     CONF_END,
@@ -40,6 +43,14 @@ from custom_components.aio_energy_management.const import (
     CONF_TRIGGER_HOUR,
     CONF_TRIGGER_HOUR_ENTITY,
     CONF_USE_OFFSET,
+    CONF_ENTRY_TYPE,
+    CONF_PRICE_MODIFICATIONS,
+    CONF_PRICE_MODIFICATIONS_MODE,
+    DOMAIN,
+    ENTRY_TYPE_GLOBAL_SETTINGS,
+    PRICE_MODIFICATIONS_MODE_CUSTOM,
+    PRICE_MODIFICATIONS_MODE_NONE,
+    PRICE_MODIFICATIONS_MODES,
 )
 
 
@@ -458,3 +469,55 @@ def process_offset_input(
         entities[CONF_END_MINUTES_ENTITY] = user_input[CONF_END_MINUTES_ENTITY]
 
     return offset, entities
+
+
+def get_global_settings_entry(hass: HomeAssistant) -> ConfigEntry | None:
+    """Return the Global Settings config entry, if it exists."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_GLOBAL_SETTINGS:
+            return entry
+    return None
+
+
+def get_global_price_modifications(hass: HomeAssistant) -> str | None:
+    """Return the price modifications template stored in Global Settings."""
+    entry = get_global_settings_entry(hass)
+    if entry is None:
+        return None
+    template = entry.options.get(
+        CONF_PRICE_MODIFICATIONS, entry.data.get(CONF_PRICE_MODIFICATIONS)
+    )
+    if isinstance(template, str) and template.strip():
+        return template
+    return None
+
+
+def get_price_modifications_mode(config: dict[str, Any]) -> str:
+    """Return the price modifications mode of a cheapest hours configuration.
+
+    Configurations created before modes existed have no mode stored. They keep
+    their previous behaviour: their own template if one is set, otherwise none.
+    """
+    mode = config.get(CONF_PRICE_MODIFICATIONS_MODE)
+    if mode in PRICE_MODIFICATIONS_MODES:
+        return mode
+    if config.get(CONF_PRICE_MODIFICATIONS):
+        return PRICE_MODIFICATIONS_MODE_CUSTOM
+    return PRICE_MODIFICATIONS_MODE_NONE
+
+
+def validate_price_modifications_fields(user_input: dict[str, Any]) -> dict[str, str]:
+    """Validate the price modifications mode and template of a sensor.
+
+    Template syntax is already checked by the form's TemplateSelector.
+    """
+    errors: dict[str, str] = {}
+    template = user_input.get(CONF_PRICE_MODIFICATIONS)
+    if isinstance(template, str) and not template.strip():
+        user_input[CONF_PRICE_MODIFICATIONS] = None
+        template = None
+
+    mode = user_input.get(CONF_PRICE_MODIFICATIONS_MODE)
+    if mode == PRICE_MODIFICATIONS_MODE_CUSTOM and not template:
+        errors[CONF_PRICE_MODIFICATIONS] = "custom_template_required"
+    return errors

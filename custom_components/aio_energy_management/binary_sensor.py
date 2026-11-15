@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .cheapest_hours import CheapestHoursBinarySensor
+from .cheapest_hours.helpers import get_price_modifications_mode
 from .const import (
     CONF_ADD_FLEXIBLE,
     CONF_AREA,
@@ -45,6 +46,7 @@ from .const import (
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
+    CONF_PRICE_MODIFICATIONS_MODE,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
     CONF_START,
@@ -57,6 +59,9 @@ from .const import (
     CONF_UNIQUE_ID,
     COORDINATOR,
     DOMAIN,
+    PRICE_MODIFICATIONS_MODE_CUSTOM,
+    PRICE_MODIFICATIONS_MODE_GLOBAL,
+    PRICE_MODIFICATIONS_MODES,
     YAML_EXCESS_SOLAR_INSTANCE_KEY,
 )
 from .excess_solar import ExcessSolarBinarySensor
@@ -107,6 +112,7 @@ CHEAPEST_HOURS_PLATFORM_SCHEMA = Schema(
         },
         vol.Optional(CONF_MTU): vol.Any(15, 60),
         vol.Optional(CONF_PRICE_MODIFICATIONS): cv.template,
+        vol.Optional(CONF_PRICE_MODIFICATIONS_MODE): vol.In(PRICE_MODIFICATIONS_MODES),
     },
     extra=ALLOW_EXTRA,
 )
@@ -222,7 +228,10 @@ def _create_cheapest_hours_entity(
     )
     if pl is not None:  # price_limit 0 is a valid limit
         price_limit = pl
-    if pm := discovery_info.get(CONF_PRICE_MODIFICATIONS):
+    price_modifications_mode = get_price_modifications_mode(discovery_info)
+    if price_modifications_mode == PRICE_MODIFICATIONS_MODE_CUSTOM and (
+        pm := discovery_info.get(CONF_PRICE_MODIFICATIONS)
+    ):
         price_modifications = cv.template(pm)
 
     return CheapestHoursBinarySensor(
@@ -253,6 +262,9 @@ def _create_cheapest_hours_entity(
         offset=offset,
         mtu=mtu,
         price_modifications=price_modifications,
+        use_global_price_modifications=(
+            price_modifications_mode == PRICE_MODIFICATIONS_MODE_GLOBAL
+        ),
         retention_days=retention_days,
         area=area,
     )
