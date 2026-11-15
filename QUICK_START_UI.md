@@ -19,6 +19,7 @@
 Every installation will have **one** `⚙️ Global Settings` identity for overarching configurations. This identity will be recreated at system startup if removed.
 - **Enable calendar** - Enable or disable the calendar feature. Disabling this will remove the calendar identity and it's functionality.
 - **Calendar name** - Provide a user-friendly name for the calendar. Defaults to `Energy Management`.
+- **Global price modifications** - Jinja2 template applied to the prices of every cheapest hours sensor whose *Price modifications source* is **Global**. Use it for tariffs and taxes that are the same for all your sensors. Same format as the per-sensor template (`price` and `time` variables). Changes don't touch plans that are already calculated: each sensor uses the new template from its next calculation, after its current plan expires.
 
 ---
 
@@ -99,7 +100,8 @@ Depending on the provider selected above, fill in:
 | **Minimum continuous slots** |—| Enforce a number of continuous slots |
 | **Number of time blocks** |—| Divides the number of slots over the given number of blocks in order to get multiple blocks a day |
 | **Retention days** | `1` | Days of calendar history to keep (1–365) |
-| **Price modifications** | — | Jinja2 template to adjust prices before calculation (e.g. tariffs, taxes) |
+| **Price modifications source** | `Global` for new sensors | **Global**: use the template from Global Settings. **Custom**: use this sensor's own template. **None**: use prices as they are |
+| **Price modifications** | — | Jinja2 template to adjust prices before calculation (e.g. tariffs, taxes). Used only when the source is **Custom** |
 | **Trigger hour (entity)** | — | Entity to set `trigger hour` dynamically *(mutually exclusive with static)* |
 | **Price limit (entity)** | — | Entity to set `price limit` dynamically *(mutually exclusive with static)* |
 | **Flexbile: price limit (entity)** | — | Entity to set `Flexbile: price limit` dynamically *(mutually exclusive with static)* |

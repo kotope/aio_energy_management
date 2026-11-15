@@ -25,6 +25,7 @@ from custom_components.aio_energy_management.const import (
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
+    CONF_PRICE_MODIFICATIONS_MODE,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
     CONF_START_HOURS_ENTITY,
@@ -36,6 +37,7 @@ from custom_components.aio_energy_management.const import (
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
+    PRICE_MODIFICATIONS_MODE_GLOBAL,
 )
 import voluptuous as vol
 
@@ -53,6 +55,7 @@ from .helpers import (
     validate_and_clean_offset_fields,
     validate_basic_integer_fields,
     validate_offset_integer_fields,
+    validate_price_modifications_fields,
 )
 from .schemas import (
     get_cheapest_hours_advanced_schema,
@@ -263,6 +266,10 @@ class CheapestHoursConfigFlowMixin:
                 unique_id = self._config_data[CONF_NAME].lower().replace(" ", "_")
                 self._config_data[CONF_UNIQUE_ID] = unique_id
                 self._config_data[CONF_ENTRY_TYPE] = ENTRY_TYPE_CHEAPEST_HOURS
+                # New sensors follow the Global Settings price modifications
+                self._config_data.setdefault(
+                    CONF_PRICE_MODIFICATIONS_MODE, PRICE_MODIFICATIONS_MODE_GLOBAL
+                )
                 cleaned_data = sanitize_cheapest_hours_input(self._config_data)
 
                 await self.async_set_unique_id(unique_id)
@@ -309,6 +316,7 @@ class CheapestHoursConfigFlowMixin:
                 mtu=entry_data.get(CONF_MTU) or 60,
                 config_data=self._config_data,
             )
+            errors.update(validate_price_modifications_fields(user_input))
 
             if not errors:
                 # Options flow (no config flow supported yet)
@@ -323,6 +331,7 @@ class CheapestHoursConfigFlowMixin:
                         CONF_MIN_SEQ_SLOTS,
                         CONF_NUMBER_OF_BLOCKS,
                         CONF_PRICE_MODIFICATIONS,
+                        CONF_PRICE_MODIFICATIONS_MODE,
                         CONF_RETENTION_DAYS,
                     ],
                 )

@@ -105,6 +105,7 @@ Configuration parameters are shown below:
 | offset    | no      | Possible start and end offset. Only applies to **sequential** sensors (`sequential: true`). Avg/min/max prices does not take the offset into account. See its own section below. **! Breaking change since 1.2.0: offset is no longer supported on non-sequential sensors !** |
 | mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
 | price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
+| price_modifications_mode    | no      | Which price modifications to use: `custom` (the sensor's own `price_modifications`), `global` (the template in UI Global Settings) or `none`. If omitted: `custom` when `price_modifications` is set, otherwise `none`. |
 | retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
 | area    | no    | Market area used for price date. Only effective when using Nord Pool official integration. Default area of your official Nord Pool integration configuration will be used if omitted. |
 
@@ -226,6 +227,21 @@ Note that even on sequential sensors an offset can push the end of the current t
 Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.
 
 Please note that price limit and other calculations are done **after** price modifications.
+
+#### Global price modifications
+If several sensors need the same template, define it once in **⚙️ Global Settings → Global price modifications**. Each cheapest hours sensor then picks its *Price modifications source* in its advanced settings:
+
+| Source | Effect |
+| ------ | ------ |
+| `global` | Use the template from Global Settings. If it's empty, prices are used as they are. Default for sensors created in the UI. |
+| `custom` | Use the sensor's own `price_modifications` template. |
+| `none`   | Use prices as they are. The sensor's own template is kept but not used. |
+
+Sensors configured before this option existed keep working as before: `custom` if they have a template, otherwise `none`.
+
+Changing the global template doesn't touch plans that are already calculated. Each sensor using it switches to the new template from its next calculation, after its current plan expires.
+
+YAML sensors can use the global template too, with `price_modifications_mode: global`. Global Settings exists only in the UI.
 
 `price_modifications` requires Jinja2 template with pre-defined parameters `price` and `time` used.
 
