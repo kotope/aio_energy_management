@@ -434,6 +434,7 @@ def calculate_non_sequential_cheapest_hours(
             min_seq_slots=min_seq_slots,
             max_seq_slots=max_seq_slots,
             inversed=inversed,
+            price_limit=price_limit,
         )
 
     data.sort(key=lambda x: x["start"])

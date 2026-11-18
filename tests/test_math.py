@@ -8,6 +8,7 @@ from custom_components.aio_energy_management.cheapest_hours.math import (
     ValueNotFound,
     _check_day_light_savings,
     _is_valid_data_length,
+    _select_slots_with_min_seq_slot_size,
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
 )
@@ -1192,6 +1193,48 @@ def test_cheapest_hours_min_seq_slots_scenarios(
         duration_minutes = (seq_slots["end"] - seq_slots["start"]).total_seconds() / 60
         slots_count = int(duration_minutes / 60)
         assert slots_count >= min_seq_slots
+
+
+def test_price_limit_reduces_slots_to_respect_min_seq() -> None:
+    prices = [
+        95.75,
+        96.43,
+        99.12,
+        97.17,
+        98.36,
+        88.70,
+        84.91,
+        86.20,
+        81.82,
+        78.38,
+        75.84,
+        80.45,
+        82.29,
+        82.35,
+        76.78,
+        70.47,
+        67.09,
+        67.67,
+        71.06,
+        70.55,
+        81.58,
+        82.36,
+        84.34,
+        95.94,
+        85.62,
+        99.84,
+        109.54,
+        123.34,
+        125.17,
+        124.79,
+    ]
+    data = [{"price": p} for p in prices]
+
+    result = _select_slots_with_min_seq_slot_size(
+        data, number_of_slots=8, min_seq_slots=4, price_limit=80
+    )
+
+    assert [d["price"] for d in result] == prices[14:20]  # 03:30-05:00
 
 
 @pytest.mark.parametrize(
