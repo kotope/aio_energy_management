@@ -549,22 +549,41 @@ def _select_slots_with_min_seq_slot_size(
     min_seq_slots: int = 1,
     max_seq_slots: int | None = None,
     inversed: bool = False,
+    price_limit: float | None = None,
 ) -> list[dict]:
     """Select slots so that every consecutive block has a length within
-    [min_seq_slots, max_seq_slots], minimising total price (or maximising if inversed).
+    [min_seq_slots, max_seq_slots], only using slots that satisfy price_limit.
 
-    Assumes `data` is sorted chronologically and contiguous (index adjacency == time adjacency).
+    Picks the largest feasible number of slots (<= number_of_slots) and, for that
+    number, the cheapest (or most expensive if inversed) combination.
+
+    Assumes `data` is chronological and contiguous (index adjacency == time adjacency).
     """
-    # IF min_seq_slots == 1: keep original behavior
-    if min_seq_slots <= 1 and max_seq_slots is None:
-        sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
-        return sorted_data[:number_of_slots]
-
     n = len(data)
-    target = min(number_of_slots, n)
+
+    # Eligibility per slot based on price_limit
+    if price_limit is None:
+        eligible = [True] * n
+    elif inversed:
+        eligible = [item["price"] >= price_limit for item in data]
+    else:
+        eligible = [item["price"] <= price_limit for item in data]
+
+    # Original behavior: no sequence constraints
+    if min_seq_slots <= 1 and max_seq_slots is None:
+        candidates = [item for item, ok in zip(data, eligible) if ok]
+        candidates.sort(key=lambda x: x["price"], reverse=inversed)
+        return candidates[:number_of_slots]
+
+    target = min(number_of_slots, sum(eligible))
     lo = max(min_seq_slots, 1)
     hi = max_seq_slots if max_seq_slots is not None else n
     mult = -1 if inversed else 1
+
+    # run[i] = number of consecutive eligible slots starting at i
+    run = [0] * (n + 1)
+    for i in range(n - 1, -1, -1):
+        run[i] = run[i + 1] + 1 if eligible[i] else 0
 
     # Prefix sums of (signed) prices for O(1) block cost in order to calculate prices efficiently
     prefix = [0.0]
@@ -584,14 +603,13 @@ def _select_slots_with_min_seq_slot_size(
     # Start creating actual blocks
     for i in range(n - 1, -1, -1):
         for k in range(target + 1):
-            # Option 1: skip slot i
-            best = dp[i + 1][k]
+            best = dp[i + 1][k]  # skip slot i
             best_choice = 0
 
-            # Option 2: start a block of length L at i (followed by a mandatory gap)
-            for L in range(lo, min(hi, k, n - i) + 1):
-                nxt = min(i + L + 1, n)
-                rest = dp[nxt][k - L]
+            # Start a block of length L at i (only over eligible slots),
+            # followed by a mandatory gap so blocks never merge.
+            for L in range(lo, min(hi, k, run[i]) + 1):
+                rest = dp[min(i + L + 1, n)][k - L]
                 if rest == INF:
                     continue
                 cost = prefix[i + L] - prefix[i] + rest
@@ -602,14 +620,19 @@ def _select_slots_with_min_seq_slot_size(
             dp[i][k] = best
             choice[i][k] = best_choice
 
-    if dp[0][target] == INF:
-        # Constraints cannot be satisfied (e.g. target < min_seq_slots): fall back
-        sorted_data = sorted(data, key=lambda x: x["price"], reverse=inversed)
-        return sorted(sorted_data[:target], key=data.index)
+    # Largest feasible number of slots (k > 0); cost is already minimal for that k
+    best_k = next((k for k in range(target, 0, -1) if dp[0][k] < INF), 0)
+
+    if best_k == 0:
+        # Constraints cannot be satisfied (e.g. number_of_slots < min_seq_slots):
+        # fall back to the cheapest eligible slots, in chronological order.
+        idxs = [i for i in range(n) if eligible[i]]
+        idxs.sort(key=lambda i: data[i]["price"] * mult)
+        return [data[i] for i in sorted(idxs[:target])]
 
     # Reconstruct selection
     selected: list[int] = []
-    i, k = 0, target
+    i, k = 0, best_k
     while i < n and k > 0:
         L = choice[i][k]
         if L == 0:
