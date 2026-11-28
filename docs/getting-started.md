@@ -214,3 +214,15 @@ automation:
   * Check that your grid power sensor reports **negative** values during export.
   * Ensure both the master switch and the device's enabled switch are `on`.
   * Check that **Is on schedule entity** is not currently `on`.
+
+  ### Next Steps
+
+- Read the detailed [Parameter & Configuration Reference Guide](docs/reference.md)
+- Join the discussion on [GitHub Discussion](https://github.com/kotope/aio_energy_management/discussions)
+- Star the project on [GitHub](https://github.com/kotope/aio_energy_management)
+- Check blog articles about AIO Energy Management at [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/)
+
+### Support
+
+- Report issues: [GitHub Issues](https://github.com/kotope/aio_energy_management/issues)
+- ☕ Support the developer: [Buy Me A Coffee](https://www.buymeacoffee.com/tokorhon)
