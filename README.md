@@ -1,422 +1,74 @@
 # All in One Energy Management for Home Assistant
-Purpose of this component is to provide easily configurable energy management for Home Assistant automations.
 
-* Supports finding Nord Pool / Entso-E / Strømligning cheapest hours (or most expensive) per day and automatic calendar creation.
-* Supports excess solar energy routing to selected device(s)
+All in One Energy Management (`aio_energy_management`) provides configurable energy automation helpers for Home Assistant:
 
-Read more detailed information at the [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/) blog
+* **Cheapest (or Most Expensive) Hours** — finds optimal 15-minute or hourly slots using Nord Pool (custom & official), Entso-E, or Strømligning price data.
+* **Excess Solar** — routes surplus solar export to controllable devices based on priority and power consumption.
+* **Energy Management Calendar** — automatically displays scheduled windows on a Home Assistant calendar entity.
+* **Service Utilities** — clear cached calculations or reload configuration without restarting Home Assistant.
+
+Read more background articles on [creatingsmarthome.com](https://www.creatingsmarthome.com/index.php/tag/aio-energy-management/).
+
+---
+
+## Documentation
+
+* **[Getting Started (UI Setup Guide)](docs/getting-started.md)** — step-by-step walkthrough for setting up Cheapest Hours, Excess Solar, and Global Settings through the Home Assistant UI.
+* **[Parameter & Configuration Reference](docs/reference.md)** — complete reference of all parameters, pricing rules, block options, services, and legacy YAML configuration.
+
+---
 
 ## Installation
-### Option 1: HACS
-- Follow [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration) and install it
-- Restart Home Assistant
 
-  *or*
-- Go to `HACS` -> `Integrations`,
-- Select `...` from upper right corner,
-- Select `Custom repositories`
-- Add `https://github.com/kotope/aio_energy_management` and select Type as `Integration`
-- Search for `AIO Energy Management` and select it
-- Press `Download`
-- Restart Home Assistant
+### Option 1: HACS (Recommended)
+
+1. Open HACS in Home Assistant using the button below, or add `https://github.com/kotope/aio_energy_management` as a custom repository (Type: **Integration**):
+
+   [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kotope&repository=aio_energy_management&category=integration)
+
+2. Search for **AIO Energy Management** and click **Download**.
+3. Restart Home Assistant.
 
 ### Option 2: Manual
-SSH into Home Assistant and write the following:
-```
+
+SSH into your Home Assistant instance and run:
+
+```bash
 cd /config/custom_components
 wget -O - https://raw.githubusercontent.com/kotope/aio_energy_management/master/install_to_home_assistant.sh | bash
 ```
 
-## Features
-* Cheapest Hours (or most expensive) - Nord Pool, Entso-E and Strømligning integration support
-* Excess Solar
-* Event Calendar
-* Service utility
+Restart Home Assistant after installation.
 
+---
 
-## Cheapest hours sensor (supports Nord Pool, Entso-E and Strømligning integrations)
-The cheapest hours configuration will create a binary_sensor type entity that will provide timeframe(s) containing percentually the cheapest hours per day.<br>
-Binary sensor will have the state 'on' when cheapest hours is active.<br>
-Automations can then be set to follow this sensor 'on' state.
-The feature supports failsafe to ensure critical devices to run if for some reason Nord Pool price fetch has failed!
+## Prerequisites
 
-### Nord Pool Prerequisites (if using Nord Pool custom integration)
-Installed and configured [Nord Pool integration](https://github.com/custom-components/nordpool)
+Depending on the features you want to use, configure one of the following integrations first:
 
-### Entso-E Prerequisites (if using Entso-E)
-Installed and configured [Entso-E integration](https://github.com/JaccoR/hass-entso-e)
+* **Nord Pool (custom):** [custom-components/nordpool](https://github.com/custom-components/nordpool)
+* **Nord Pool (official):** [Home Assistant Nord Pool integration](https://www.home-assistant.io/integrations/nordpool/)
+* **Entso-E:** [JaccoR/hass-entso-e](https://github.com/JaccoR/hass-entso-e)
+* **Strømligning:** [MTrab/stromligning](https://github.com/MTrab/stromligning)
+* **Excess Solar:** a grid import/export power `sensor` where **negative values represent solar export**.
 
-### Nord Pool Official integration Prerequisites (if using Nord Pool official integration)
-Installed and configured [Nord Pool official integration](https://www.home-assistant.io/integrations/nordpool/)
+---
 
-### Strømligning Prerequisites (if using Strømligning)
-Installed and configured [Strømligning integration](https://github.com/MTrab/stromligning)
-#### Getting configuration entry id (not needed for UI configuration)
-1. Go to Developer Tools > Actions.
-2. In the “Service” dropdown, select Nord Pool: Get prices.
-3. Choose your newly created config entry from the UI.
-4. Switch to YAML mode.
-5. Voila! The config_entry ID will be displayed. Copy this value for the next steps. (configuration id is something like '01JPHC0B39ST11081WFZQCKMVC')
+## Quick Start
 
-### Configuration
-**🎉 New in Version 0.8.0: UI Configuration Flow!**
-AIO Energy Management now supports **UI-based configuration** through Home Assistant's interface! You can now:
-- ✨ Configure entities through the UI (Settings → Devices & Services)
-- 🔧 Modify existing entities without editing YAML
-- 📋 Use a step-by-step wizard for easy setup
-- 🔄 Keep using YAML configuration if you prefer (fully backward compatible)
+1. Go to **Settings → Devices & Services → + Add Integration**.
+2. Search for **AIO Energy Management**.
+3. Choose **Cheapest hours sensor** or **Excess solar** and follow the setup wizard.
+4. To fine-tune advanced options (such as price limits, flexible slots, block sizes, or time offsets), open the created entry and click **Configure**.
 
-**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
+For full step-by-step instructions, see [docs/getting-started.md](docs/getting-started.md).
 
-**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
+---
 
-#### 🆕 UI Configuration (Recommended): Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
+## Support & Contributing
 
-#### Legacy YAML Configuration: Configuration can also be done through configuration.yaml (still fully supported).<br>
+* **Issues & Bug Reports:** [GitHub Issues](https://github.com/kotope/aio_energy_management/issues)
+* **Discussions:** [GitHub Discussions](https://github.com/kotope/aio_energy_management/discussions)
+* **Support the Developer:**
 
-Either nordpool_entity, entsoe_entity, or stromligning_entity must be set, depending on which integration you want to use.
-
-Configuration parameters are shown below:
-
-| Configuration    | Mandatory | Description |
-|------------------|-----------|-------------|
-| nordpool_entity  | no       | Entity id of the Nord Pool integration |
-| entsoe_entity    | no       | Entity id of the Entso-E integration. This is Entso-E **average_price** sensor that provides all extra attributes |
-| nordpool_official_config_entry  | no       | Configuration entry id of Nord Pool official integration |
-| stromligning_entity  | no       | Entity id of the Strømligning integration (today's prices sensor) |
-| stromligning_tomorrow_entity  | no       | Entity id of the Strømligning integration (tomorrow's prices sensor) |
-| unique_id        | yes       | Unique id to identify newly created entity |
-| name             | yes       | Friendly name of the created entity |
-| number_of_hours  | no       |  Number of hours required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number *deprecated: use number_of_slots instead* |
-| number_of_slots  | yes       |  Number of slots required to get. Can contain entity_id of dynamic entity to get value from e.g. input_number. This configuration will match the selected MTU |
-| first_hour       | yes       | Starting hour used by cheapest hours calculation. If used 'starting_today' as true, must be AFTER Nord Pool price publishing. |
-| last_hour        | yes       | Last hour used by cheapest hours calculation |
-| starting_today   | no       | First_hour should be already on the same day. False if next day calculations only (**depreceted** determined automatically since 0.9.0) |
-| sequential       | yes       | True if trying to calculate sequential cheapest hours timeframe. False if multiple values are acceptable. |
-| min_seq_slots    | no        | Minimum number of continuous slots for non-sequential calculations. Ensures that selected hours are grouped in blocks of at least this size (e.g., minimum 2 slots per run). Defaults to 1. Will be ignored when `number_of_blocks` is being used. |
-| number_of_blocks    | no        | Allows the creation of multiple blocks for non-sequential calculations. Divides the total number of slots into a specified number of separate continuous blocks. |
-| failsafe_starting_hour | no        | If for some reason Nord Pool prices can't be fetched before first_hour, use failsafe time to turn the sensor on. If failsafe_starting_hour is not given, the failsafe is disabled for the sensor. |
-| inversed         | no        | Want to find expensive hours to avoid? Set to True! default: false |
-| trigger_time     | no        | Earliest time to create next cheapest hours. Format: "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_time: "19:00"' **! Deprecated: use trigger_hour instead !** |
-| price_limit      | no        | Only accept prices less than given float value or more than given float value if inversed is used. *Note: given hours might be less than requested if not enough values can be found with given parameters.* Can contain entity_id of dynamic entity to get value from e.g. input_number. On sequential cheapest hours mean price is compared and all-or-nothing is returned |
-| add_flexible     | no        | Extend `number_of_slots` with additional cheap (or expensive if inversed) slots when prices are favorable. See its own section below. |
-| trigger_hour     | no        | Earliest hour to create next cheapest hours.  "HH:mm". Useful when waiting for other data to arrive before triggering event creation. Example: 'trigger_hour: 19'. Can contain entity_id of dynamic entity to get value from e.g. input_number |
-| calendar    | no        | Should the entity be added to the calendar. Defaults to true. |
-| offset    | no      | Possible start and end offset. Only applies to **sequential** sensors (`sequential: true`). Avg/min/max prices does not take the offset into account. See its own section below. **! Breaking change since 1.2.0: offset is no longer supported on non-sequential sensors !** |
-| mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
-| price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
-| price_modifications_mode    | no      | Which price modifications to use: `custom` (the sensor's own `price_modifications`), `global` (the template in UI Global Settings) or `none`. If omitted: `custom` when `price_modifications` is set, otherwise `none`. |
-| retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
-| area    | no    | Market area used for price date. Only effective when using Nord Pool official integration. Default area of your official Nord Pool integration configuration will be used if omitted. |
-
-#### Restrictions:
-* Total timespan needs to be less or equal to 24 hours - this is to prevent overlapping items.
-* last_hour is always tomorrow
-
-### Example configuration
-The example configuration presents creation of four sensors: one for **Nord Pool cheapest three hours**, one for **Nord Pool most expensive prices**, one for **Entso-E cheapest hours**, one for **Strømligning cheapest hours** and final one for **Nord Pool cheapest hours with offset**
-
-```
-aio_energy_management:
-    cheapest_hours:
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_cheapest_hours
-        name: My Cheapest Hours
-        first_hour: 21
-        last_hour: 12
-        starting_today: true
-        number_of_slots: 3
-        sequential: false
-        failsafe_starting_hour: 1
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_expensive_hours
-        name: Expensive Hours
-        first_hour: 0
-        last_hour: 22
-        starting_today: false
-        number_of_slots: 4
-        sequential: false
-        failsafe_starting_hour: 1
-        inversed: true
-      - entsoe_entity: sensor.entsoe_average_price
-        unique_id: my_entsoe_cheapest_hours
-        name: My Entso-E Cheapest Hours
-        first_hour: 21
-        last_hour: 10
-        starting_today: true
-        number_of_slots: 5
-        sequential: false
-      - stromligning_entity: sensor.stromligning_electricity_price_today
-        stromligning_tomorrow_entity: sensor.stromligning_electricity_price_tomorrow
-        unique_id: my_stromligning_cheapest_hours
-        name: My Strømligning Cheapest Hours
-        first_hour: 21
-        last_hour: 10
-        starting_today: true
-        number_of_slots: 5
-        sequential: false
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_cheapest_hours_offset
-        name: My Cheapest Hours With Offset
-        first_hour: 21
-        last_hour: 10
-        starting_today: true
-        number_of_slots: 5
-        sequential: True
-        offset:
-          start:
-            hours: 0
-            minutes: 30
-          end:
-            hours: 1
-            minutes: 15
-
-```
-
-### Flexible slots (add_flexible)
-`add_flexible` lets a sensor opportunistically grab more slots than `number_of_slots` when prices are cheap (or expensive when `inversed: true`).
-
-The base `number_of_slots` cheapest slots are always selected. After that, the next-cheapest slots are added one by one **as long as each slot's price stays below `price_limit`** (above it when `inversed: true`), up to a total of `max_number_of_slots`.
-
-| Key | Required | Description |
-|-----|----------|-------------|
-| max_number_of_slots | yes | Maximum total number of slots (matches the selected MTU, i.e. 15/60 min). Should be ≥ `number_of_slots`; a smaller value is raised to `number_of_slots` and a warning is logged. Must be within the MTU cap (24 for 60-min, 96 for 15-min). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
-| price_limit | yes¹ | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number`. Use either this or the max price difference, not both. Requires the max number of slots |
-| max_price_delta | yes¹ | Only add extra slots as long as their price is within this amount of the cheapest price (or the most expensive price when `inversed`). The cheapest (most expensive) price is taken from the whole `first_hour`/`last_hour` window, not only from the base slots. Use either this or the flexible price limit, not both. Requires the max number of slots |
-
-Notes:
-* Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
-* For `sequential: true` sensors the cheapest block of `number_of_slots` is selected first and then grown at its start or end, one slot at a time, taking the cheapest neighbouring slot (most expensive when `inversed`) while it stays within the flexible limit. The result is always one contiguous block, and it never grows outside `first_hour`/`last_hour`. The top-level `price_limit` applies to the mean price of the base block.
-* ¹Only `price_limit` **or** `max_price_delta` can be configured. When you would like to combine the best of these features, two seperate sensors need to be configured.
-* Calculation is done **after** price modifications
-
-Example: always take the 5 cheapest slots, and keep adding more (up to 21 total) while each extra slot costs less than 0.05.
-```
-aio_energy_management:
-    cheapest_hours:
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_flexible_cheapest_hours
-        name: My Flexible Cheapest Hours
-        first_hour: 21
-        last_hour: 12
-        starting_today: true
-        number_of_slots: 5
-        sequential: false
-        add_flexible:
-          max_number_of_slots: 21
-          price_limit: 0.05
-```
-
-### Minimum Sequential Slots (min_seq_slots)
-When using a **non-sequential** sensor (`sequential: false`), you might still want your devices to run in chunks rather than bouncing on and off every 15 minutes or hour, depending on your MTU. By setting `min_seq_slots`, you force the algorithm to select continuous blocks of at least this size. If `number_of_slots` is not evenly divisible by `min_seq_slots`, any remaining slots will be attached to already existing blocks to strictly maintain the minimum block size rule.
-
-*Example for 15-min MTU: If you need 4 hours in total (`number_of_slots: 16`) but want them in blocks of at least 1 hour, set `min_seq_slots: 4`. The algorithm will find the cheapest combinations of 1-hour (or larger) blocks.*
-
-### Offset (sequential only)
-`offset` shifts the start and/or the end of the calculated timeframe, for example to let a heater start half an hour later than the cheapest hours actually begin. See the *My Cheapest Hours With Offset* entry in the [example configuration](#example-configuration) above.
-
-**Offset only applies to sequential sensors (`sequential: true`).** Support for non-sequential sensors was removed in 1.2.0, because a non-sequential selection can consist of several separate blocks: the start offset was applied only to the very first slot and the end offset only to the very last one, which silently produced timeframes that did not match the selected slots and could overlap the following slot.
-
-If you have an offset configured on a non-sequential sensor:
-* In the UI, the offset step is no longer shown for non-sequential sensors, and reconfiguring such a sensor clears any previously stored offset (including dynamic hour/minute entities).
-* In YAML, the offset is ignored and an error is logged. Remove the `offset` block, or switch the sensor to `sequential: true` if you need the offset.
-
-Note that even on sequential sensors an offset can push the end of the current timeframe past the start of the next one. When that happens the sensor stays in its current state until the current timeframe expires, potentially missing *on* time for the next one, and a warning is logged.
-
-### Price modifications
-Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.
-
-Please note that price limit and other calculations are done **after** price modifications.
-
-#### Global price modifications
-If several sensors need the same template, define it once in **⚙️ Global Settings → Global price modifications**. Each cheapest hours sensor then picks its *Price modifications source* in its advanced settings:
-
-| Source | Effect |
-| ------ | ------ |
-| `global` | Use the template from Global Settings. If it's empty, prices are used as they are. Default for sensors created in the UI. |
-| `custom` | Use the sensor's own `price_modifications` template. |
-| `none`   | Use prices as they are. The sensor's own template is kept but not used. |
-
-Sensors configured before this option existed keep working as before: `custom` if they have a template, otherwise `none`.
-
-Changing the global template doesn't touch plans that are already calculated. Each sensor using it switches to the new template from its next calculation, after its current plan expires.
-
-YAML sensors can use the global template too, with `price_modifications_mode: global`. Global Settings exists only in the UI.
-
-`price_modifications` requires Jinja2 template with pre-defined parameters `price` and `time` used.
-
-Example below contains official nord pool price modification with **night tariff (22-07)**, conversion to **snt/kWh** and added electricity **tax 25.5%**
-```
-aio_energy_management:
-    cheapest_hours:
-      - nordpool_official_config_entry: 01K07FX4QRHEZW8GHSK3KT1ESY
-        unique_id: my_cheapest_hours
-        name: My Cheapest Hours
-        first_hour: 21
-        last_hour: 12
-        starting_today: true
-        number_of_slots: 3
-        sequential: false
-        failsafe_starting_hour: 1
-        price_modifications: >
-          {%- set as_snt = price / 10.0 %}
-          {%- set with_taxes = (as_snt * 1.255) | float %}
-          {%- if time.hour >= 22 or time.hour <= 7 %}
-            {{ with_taxes + 3.1 }}
-          {%- else %}
-            {{ with_taxes + 5.0 }}
-          {%- endif %}
-
-```
-
-## Excess Solar
-Excess solar feature will try to 'route' your solar energy to your own devices that can be used to store energy - like hot water heater, electric floor heating and such. This can be very useful when there's no batteries and electricity price is so cheap that it's not effective to sell it back to network.
-
-**Requirements** for this feature are: Solar panels (no measurement support needed), grid sensor entity to read grid energy and controllabled devices (as many as you want).
-
-### Configuration
-**Quick Start**: See [QUICK_START_UI.md](QUICK_START_UI.md) for a 5-minute setup guide!
-
-**Full Guide**: See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for detailed UI configuration instructions.
-
-#### 🆕 UI Configuration (Recommended): Configure through Settings → Devices & Services → Add Integration → AIO Energy Management. See [CONFIG_FLOW_GUIDE.md](CONFIG_FLOW_GUIDE.md) for details.
-
-#### Legacy YAML Configuration: Configuration can also be done through configuration.yaml (still fully supported).<br>
-
-Configuration parameters are shown below:
-
-
-| Configuration    | Mandatory | Description |
-|------------------|-----------|-------------|
-| sensor  | yes       | The required grid in/out sensor |
-| buffer    | yes     | Hystersis to prevent rapid on/off cycles |
-| power_devices | yes | list of controllable devices (see below for details) |
-
-Power device configurations
-| Configuration    | Mandatory | Description |
-|------------------|-----------|-------------|
-| name | yes | Name of the device |
-| consumption | yes | Consumption amount of the device in watts. Used to determine when the device should be turned on / off |
-| consumption_entity | no | Entity of devices live consumption data |
-| priority | yes | default priority value of the devices. Lower priority will get turned on first |
-| minumum_on_time | yes | How long the device must be on (minutes) before it can be turned off again | 
-| minumum_off_time | no | How long the device must be off (minutes) before it can be turned on again | 
-| is_on_schedule | no | When the device is on schedule, it won't be intererfered by the Excess Solar. (e.g. AIO Energy Management cheapest hours sensor) |
-
-```
-aio_energy_management:
-    excess_solar:
-      sensor: input_number.grid_power
-      buffer: 100
-      power_devices:
-        - name: Water Heater
-          consumption: 3000
-          consumption_entity: sensor.water_heather_power_consumption
-          priority: 1
-          minimum_on_time: 5
-          is_on_schedule: binary_sensor.cheapest_hours
-        - name: EV Charger
-          consumption: 1000
-          priority: 2
-          minimum_on_time: 10
-          minumum_off_time: 1
-````
-
-## Calendar
-Calendar feature will create a new calendar entity to display all upcoming scheduled energy management events.
-Also please note that the events can't be modified through the calendar, it's for displaying and automation purposes (for now at least).
-
-### Configuration
-Configuration required for energy management calendar:
-| Configuration    | Mandatory | Description |
-|------------------|-----------|-------------|
-| unique_id        | yes       | Unique id to identify newly created entity |
-| name             | yes       | Friendly name of the created entity |
-
-### Example configuration
-```
-aio_energy_management:
-  calendar:
-    name: Energy Management
-    unique_id: energy_management_calendar
-```
-
-## Service utility
-AIO Energy Management integration provides a service utility to be used alongside with other components. It supports to clear cached cheapest hours data and reloading integration confguration.
-
-Service utility is provided automatically with the integration and does not need separate configuration.
-
-### Action: Clear cached data (aio_energy_management.clear_data)
-Will clear stored data for specified cheapest hours configuration. Changes will take effect in next 30s when Home Assistant event loop is run. This is especially useful when trying different parameters for cheapest hours: No longer need to wait until next day for changes to effect.
-
-| Parameter        | Description    |
-|------------------|----------------|
-| unique_id        | unique_id of the item to be cleared. Unique_id should be the same as defined in cheapest_hours configuration entry. |
-
-### Action: Reload integration (aio_energy_management.reload_data)
-Will reload whole configuration without needing to restart the whole Home Assistant. Remember to call aio_energy_management.clear_data after changes if needed.
-
-### Example service call
-```
-service: aio_energy_management.clear_data
-data:
-  unique_id: my_cheapest_hours
-```
-
-## Full example with Nord Pool cheapest hours, expensive hours and a calendar
-```
-aio_energy_management:
-    cheapest_hours:
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_cheapest_hours
-        name: My Cheapest Hours
-        first_hour: 21
-        last_hour: 12
-        starting_today: true
-        number_of_slots: 3
-        sequential: false
-        failsafe_starting_hour: 1
-      - nordpool_entity: sensor.nordpool
-        unique_id: my_expensive_hours
-        name: Expensive Hours
-        first_hour: 0
-        last_hour: 22
-        starting_today: false
-        number_of_slots: 4
-        sequential: false
-        failsafe_starting_hour: 1
-        inversed: true
-  calendar:
-    name: Energy Management
-    unique_id: energy_management_calendar
-```
-
-## Development
-
-### Running the unit tests
-
-The tests can be run in the Home Assistant dev container, or directly on your machine without it:
-
-```bash
-scripts/test
-```
-
-The script creates a `.venv` with Python 3.14, installs `requirements.test.txt` into it and runs `pytest`. It uses [uv](https://docs.astral.sh/uv/) when it is installed and falls back to a local `python3.14` otherwise. Arguments are passed on to `pytest`:
-
-```bash
-scripts/test tests/test_math.py -x
-scripts/test -k sequential --no-cov
-```
-
-Set `REINSTALL=1` to recreate the virtual environment, for example after bumping Home Assistant.
-
-The integration supports Python 3.13 as well as 3.14, so older Home Assistant installations keep working. Avoid 3.14-only syntax such as unparenthesized `except A, B:`. To test on 3.13 (uses a separate `.venv-3.13`, and an older Home Assistant that still supports 3.13):
-
-```bash
-PYTHON_VERSION=3.13 scripts/test
-```
-
-CI runs the tests on both versions for every pull request.
-
-## Support the developer?
-[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/tokorhon)
+  [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/tokorhon)
