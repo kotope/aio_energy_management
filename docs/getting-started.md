@@ -24,7 +24,7 @@ Every installation automatically gets one **`⚙️ Global Settings`** entry for
 
 * **Enable calendar** — enable or disable the shared Energy Management calendar entity.
 * **Calendar name** — friendly name for the calendar entity (defaults to `Energy Management`).
-* **Price modifications** — optional global Jinja2 template applied to raw slot prices across all Cheapest Hours entries (useful for adding taxes, grid fees, or time-of-use tariffs in one central place instead of repeating them per sensor).
+* **Price modifications** — optional Jinja2 template applied to the prices of every cheapest hours sensor whose Price modifications source is **Global**. Use it for tariffs and taxes that are the same for all your sensors. Same format as the per-sensor template (price and time variables). Changes don't touch plans that are already calculated: each sensor uses the new template from its next calculation, after its current plan expires.
 
 > **Note:** Both the UI Global Settings and legacy YAML `calendar:` configuration manage the same underlying calendar entity.
 

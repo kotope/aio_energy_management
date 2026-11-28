@@ -54,7 +54,7 @@ A Cheapest Hours entry creates a `binary_sensor` that turns `on` during the sele
 | **Minimum continuous slots** | `min_seq_slots` | `1` | Minimum length of every selected contiguous block of slots. Ignored when `number_of_blocks` is set. |
 | **Number of time blocks** | `number_of_blocks` | — | Divides the selected slots into at most this many separate contiguous blocks. Takes precedence over `min_seq_slots`. |
 | **Retention days** | `retention_days` | Number of days of historical events to keep on the calendar (`1–365`, default: `1`). |
-| **Price modifications source** | `Global` for new sensors | **Global**: use the template from Global Settings. **Custom**: use this sensor's own template. **None**: use prices as they are |
+| **Price modifications source** | `Global` for new sensors | **Global**: use the template from Global Settings. **Custom**: use this sensor's own template. **None**: use prices as they are. New sensors default to Global |
 | **Price modifications** | `price_modifications` | Jinja2 template evaluated per slot before any limits or selection rules run. Exposes `price` (raw slot price) and `time` (slot start `datetime`). Overrides the global `price_modifications` setting when set on an individual entry. |
 
 ---
