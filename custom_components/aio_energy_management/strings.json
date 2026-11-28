@@ -139,6 +139,7 @@
           "min_seq_slots": "Minimum continuous slots",
           "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
+          "price_modifications_mode": "Price modifications source",
           "price_modifications": "Price modifications"
         },
         "data_description": {
@@ -151,7 +152,8 @@
           "min_seq_slots": "Enforce a number of continuous slots",
           "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
           "retention_days": "Number of days to keep calendar history",
-          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)"
+          "price_modifications_mode": "Global: use the template from Global Settings. Custom: use the template below. None: use prices as they are",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes). Used only when the source is Custom"
         },
         "sections": {
           "dynamic_section": {
@@ -277,6 +279,7 @@
       "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
       "device_name_required": "Device name is required",
       "number_of_blocks_out_of_range": "Number of blocks must be at least 1",
+      "custom_template_required": "Enter a template, or choose another price modifications source",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
@@ -291,6 +294,13 @@
         "cheapest_hours": "Cheapest hours sensor",
         "excess_solar": "Excess solar"
       }
+    },
+    "price_modifications_mode": {
+      "options": {
+        "global": "Global (from Global Settings)",
+        "custom": "Custom (this sensor only)",
+        "none": "None"
+      }
     }
   },
   "options": {
@@ -299,11 +309,13 @@
         "title": "Global Settings",
         "data": {
           "enable_calendar": "Enable Calendar",
-          "name": "Calendar Name"
+          "name": "Calendar Name",
+          "price_modifications": "Global price modifications"
         },
         "data_description": {
           "enable_calendar": "Create a calendar entity for planned energy slots",
-          "name": "Friendly name for the energy management calendar"
+          "name": "Friendly name for the energy management calendar",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes) used by every cheapest hours sensor whose price modifications source is Global. Variables: 'price' and 'time'"
         }
       },
       "cheapest_hours_menu": {
@@ -314,7 +326,8 @@
           "cheapest_hours_basic": "Basic settings",
           "cheapest_hours_advanced": "Advanced settings",
           "cheapest_hours_offset": "Time offset",
-          "cheapest_hours_flexible": "Flexible slots"
+          "cheapest_hours_flexible": "Flexible slots",
+          "cheapest_hours_finish": "All done"
         }
       },
       "cheapest_hours_data_provider": {
@@ -451,6 +464,7 @@
           "min_seq_slots": "Minimum continuous slots",
           "number_of_blocks": "Number of time blocks",
           "retention_days": "Retention days",
+          "price_modifications_mode": "Price modifications source",
           "price_modifications": "Price modifications"
         },
         "data_description": {
@@ -460,7 +474,8 @@
           "min_seq_slots": "Enforce a number of continuous slots",
           "number_of_blocks": "Divides the number of slots over the given number of blocks in order to get multiple blocks a day",
           "retention_days": "Number of days to keep calendar history",
-          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes)"
+          "price_modifications_mode": "Global: use the template from Global Settings. Custom: use the template below. None: use prices as they are",
+          "price_modifications": "Jinja2 template for price modifications (e.g., tariffs, taxes). Used only when the source is Custom"
         },
         "sections": {
           "dynamic_section": {
@@ -665,6 +680,37 @@
           "devices_to_remove": "Select one or more devices to remove from this excess solar entry"
         }
       }
+    },
+    "error": {
+      "no_price_source": "Please select one price source",
+      "multiple_price_sources": "Please select only one price source",
+      "both_slots_configured": "Please configure only one: either static value or entity, not both",
+      "no_slots_configured": "Please configure at least one: either static value (greater than 0) or entity",
+      "number_of_slots_negative": "Number of slots must be 0 or greater",
+      "first_hour_out_of_range": "First hour must be between 0 and 23",
+      "last_hour_out_of_range": "Last hour must be between 0 and 23",
+      "both_trigger_hour_configured": "Please configure only one: either static trigger hour or entity, not both",
+      "both_price_limit_configured": "Please configure only one: either static price limit or entity, not both",
+      "both_max_number_of_slots_configured": "Please configure only one: either static max number of slots or entity, not both",
+      "both_flexible_price_limit_configured": "Please configure only one: either static flexible price limit or entity, not both",
+      "add_flexible_incomplete": "Flexible slots require the max number of slots together with either a flexible price limit or a max price difference",
+      "flexible_limit_and_delta_exclusive": "Please configure only one: either a flexible price limit or a max price difference, not both",
+      "max_price_delta_negative": "Max price difference must be 0 or greater",
+      "max_number_of_slots_out_of_range": "Max number of slots must be between 1 and the MTU limit (24 for 60-min, 96 for 15-min)",
+      "flexible_price_limit_not_below_price_limit": "Flexible price limit must be lower than the price limit",
+      "failsafe_starting_hour_out_of_range": "Failsafe starting hour must be between 0 and 23",
+      "trigger_hour_out_of_range": "Trigger hour must be between 0 and 23",
+      "both_start_hours_configured": "Please configure only one: either static start hours or entity, not both",
+      "both_start_minutes_configured": "Please configure only one: either static start minutes or entity, not both",
+      "both_end_hours_configured": "Please configure only one: either static end hours or entity, not both",
+      "both_end_minutes_configured": "Please configure only one: either static end minutes or entity, not both",
+      "start_minutes_out_of_range": "Start offset minutes must be between 0 and 59",
+      "end_minutes_out_of_range": "End offset minutes must be between 0 and 59",
+      "both_consumption_configured": "Please configure only one: either static consumption (W) or consumption entity, not both",
+      "device_name_required": "Device name is required",
+      "number_of_blocks_out_of_range": "Number of blocks must be at least 1",
+      "custom_template_required": "Enter a template, or choose another price modifications source",
+      "unknown": "Unexpected error occurred"
     }
   }
 }

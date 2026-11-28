@@ -48,6 +48,16 @@ CONF_MINUTES = "minutes"
 CONF_TRIGGER = "trigger"
 CONF_MTU = "mtu"
 CONF_PRICE_MODIFICATIONS = "price_modifications"
+# Which price modifications a cheapest hours sensor uses
+CONF_PRICE_MODIFICATIONS_MODE = "price_modifications_mode"
+PRICE_MODIFICATIONS_MODE_GLOBAL = "global"
+PRICE_MODIFICATIONS_MODE_CUSTOM = "custom"
+PRICE_MODIFICATIONS_MODE_NONE = "none"
+PRICE_MODIFICATIONS_MODES = [
+    PRICE_MODIFICATIONS_MODE_GLOBAL,
+    PRICE_MODIFICATIONS_MODE_CUSTOM,
+    PRICE_MODIFICATIONS_MODE_NONE,
+]
 CONF_RETENTION_DAYS = "retention_days"
 CONF_AREA = "area"
 
@@ -66,6 +76,10 @@ CONF_END_MINUTES_ENTITY = "end_minutes_entity"
 CONF_ENTITY_CHEAPEST_HOURS = "cheapest_hours"
 CONF_ENTITY_CALENDAR = "calendar"
 CONF_ENTITY_EXCESS_SOLAR = "excess_solar"
+
+# Config entry types
+CONF_ENTRY_TYPE = "entry_type"
+ENTRY_TYPE_GLOBAL_SETTINGS = "global_settings"
 
 # Common
 CONF_UNIQUE_ID = "unique_id"

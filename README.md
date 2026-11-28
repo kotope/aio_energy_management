@@ -105,6 +105,7 @@ Configuration parameters are shown below:
 | offset    | no      | Possible start and end offset. Only applies to **sequential** sensors (`sequential: true`). Avg/min/max prices does not take the offset into account. See its own section below. **! Breaking change since 1.2.0: offset is no longer supported on non-sequential sensors !** |
 | mtu    | no      | Requested MTU (15 or 60min). Default 60. If data provider uses 15 mtu and 60 is request by user, the component will calculate mean price for the hour |
 | price_modifications    | no      | Adds price modifications to the prices, e.g. tariffs and/or taxes. Jinja2 template with values 'price' and 'time' available. 'time' is the start datetime of entry, 'price' is the price of entry. Example available in its own section below.  |
+| price_modifications_mode    | no      | Which price modifications to use: `custom` (the sensor's own `price_modifications`), `global` (the template in UI Global Settings) or `none`. If omitted: `custom` when `price_modifications` is set, otherwise `none`. |
 | retention_days    | no     | Number of days the calendar will show previous markings. Defaults to one if omitted. |
 | area    | no    | Market area used for price date. Only effective when using Nord Pool official integration. Default area of your official Nord Pool integration configuration will be used if omitted. |
 
@@ -181,7 +182,7 @@ The base `number_of_slots` cheapest slots are always selected. After that, the n
 |-----|----------|-------------|
 | max_number_of_slots | yes | Maximum total number of slots (matches the selected MTU, i.e. 15/60 min). Should be ≥ `number_of_slots`; a smaller value is raised to `number_of_slots` and a warning is logged. Must be within the MTU cap (24 for 60-min, 96 for 15-min). Can contain an `entity_id` of a dynamic entity, e.g. `input_number` |
 | price_limit | yes¹ | Only add extra slots whose individual price is below this value (above it when `inversed`). Can contain an `entity_id` of a dynamic entity, e.g. `input_number`. Use either this or the max price difference, not both. Requires the max number of slots |
-| max_price_delta | yes¹ | Only add extra slots as long as their price is within this amount of the cheapest price (of the most expensive price when `inversed`). The cheapest (most expensive) price is taken from the whole `first_hour`/`last_hour` window, not only from the base slots. Use either this or the flexible price limit, not both. Requires the max number of slots |
+| max_price_delta | yes¹ | Only add extra slots as long as their price is within this amount of the cheapest price (or the most expensive price when `inversed`). The cheapest (most expensive) price is taken from the whole `first_hour`/`last_hour` window, not only from the base slots. Use either this or the flexible price limit, not both. Requires the max number of slots |
 
 Notes:
 * Only the extra slots are governed by `add_flexible.price_limit`. The top-level `price_limit` (if set) keeps its own behavior on the final list and works independently.
@@ -226,6 +227,21 @@ Note that even on sequential sensors an offset can push the end of the current t
 Price modifications can be used to add additional costs, like tariffs and/or taxes, or modify existing prices. Currently official nord pool provides prices EUR/mWh rather than snt/kWh (at least in Finland), this option can be used to convert data points to snt/kWh.
 
 Please note that price limit and other calculations are done **after** price modifications.
+
+#### Global price modifications
+If several sensors need the same template, define it once in **⚙️ Global Settings → Global price modifications**. Each cheapest hours sensor then picks its *Price modifications source* in its advanced settings:
+
+| Source | Effect |
+| ------ | ------ |
+| `global` | Use the template from Global Settings. If it's empty, prices are used as they are. Default for sensors created in the UI. |
+| `custom` | Use the sensor's own `price_modifications` template. |
+| `none`   | Use prices as they are. The sensor's own template is kept but not used. |
+
+Sensors configured before this option existed keep working as before: `custom` if they have a template, otherwise `none`.
+
+Changing the global template doesn't touch plans that are already calculated. Each sensor using it switches to the new template from its next calculation, after its current plan expires.
+
+YAML sensors can use the global template too, with `price_modifications_mode: global`. Global Settings exists only in the UI.
 
 `price_modifications` requires Jinja2 template with pre-defined parameters `price` and `time` used.
 
@@ -374,6 +390,33 @@ aio_energy_management:
     name: Energy Management
     unique_id: energy_management_calendar
 ```
+
+## Development
+
+### Running the unit tests
+
+The tests can be run in the Home Assistant dev container, or directly on your machine without it:
+
+```bash
+scripts/test
+```
+
+The script creates a `.venv` with Python 3.14, installs `requirements.test.txt` into it and runs `pytest`. It uses [uv](https://docs.astral.sh/uv/) when it is installed and falls back to a local `python3.14` otherwise. Arguments are passed on to `pytest`:
+
+```bash
+scripts/test tests/test_math.py -x
+scripts/test -k sequential --no-cov
+```
+
+Set `REINSTALL=1` to recreate the virtual environment, for example after bumping Home Assistant.
+
+The integration supports Python 3.13 as well as 3.14, so older Home Assistant installations keep working. Avoid 3.14-only syntax such as unparenthesized `except A, B:`. To test on 3.13 (uses a separate `.venv-3.13`, and an older Home Assistant that still supports 3.13):
+
+```bash
+PYTHON_VERSION=3.13 scripts/test
+```
+
+CI runs the tests on both versions for every pull request.
 
 ## Support the developer?
 [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/tokorhon)

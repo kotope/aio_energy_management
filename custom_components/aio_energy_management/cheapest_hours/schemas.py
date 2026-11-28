@@ -47,6 +47,7 @@ from custom_components.aio_energy_management.const import (
     CONF_PRICE_LIMIT,
     CONF_PRICE_LIMIT_ENTITY,
     CONF_PRICE_MODIFICATIONS,
+    CONF_PRICE_MODIFICATIONS_MODE,
     CONF_RETENTION_DAYS,
     CONF_SEQUENTIAL,
     CONF_START,
@@ -60,8 +61,9 @@ from custom_components.aio_energy_management.const import (
     DATA_PROVIDER_NORDPOOL,
     DATA_PROVIDER_NORDPOOL_OFFICIAL,
     DATA_PROVIDER_STROMLIGNING,
+    PRICE_MODIFICATIONS_MODES,
 )
-from .helpers import get_val, mtu_default
+from .helpers import get_price_modifications_mode, get_val, mtu_default
 
 # Reusable selectors
 SEL_HOUR = selector.NumberSelector(
@@ -257,6 +259,16 @@ def get_cheapest_hours_advanced_schema(
             _opt(CONF_RETENTION_DAYS, data, default=1): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=1, max=365, mode=selector.NumberSelectorMode.BOX, step=1
+                )
+            ),
+            vol.Required(
+                CONF_PRICE_MODIFICATIONS_MODE,
+                default=get_price_modifications_mode(data),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=PRICE_MODIFICATIONS_MODES,
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_PRICE_MODIFICATIONS_MODE,
                 )
             ),
             _opt(CONF_PRICE_MODIFICATIONS, data): selector.TemplateSelector(),

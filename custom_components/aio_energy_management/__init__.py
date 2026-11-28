@@ -29,6 +29,7 @@ from .const import (
     CONF_ENTITY_CALENDAR,
     CONF_ENTITY_CHEAPEST_HOURS,
     CONF_ENTITY_EXCESS_SOLAR,
+    CONF_ENTRY_TYPE,
     CONF_EXCESS_SOLAR,
     CONF_GRID_POWER_SENSOR,
     CONF_IS_ON_SCHEDULE,
@@ -43,6 +44,7 @@ from .const import (
     EXCESS_SOLAR_ENABLED_SWITCHES,
     EXCESS_SOLAR_MANAGER,
     EXCESS_SOLAR_SWITCH,
+    ENTRY_TYPE_GLOBAL_SETTINGS,
     YAML_EXCESS_SOLAR_INSTANCE_KEY,
 )
 from .coordinator import EnergyManagementCoordinator
@@ -145,7 +147,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entries = hass.config_entries.async_entries(DOMAIN)
     migration_done = hass.data[DOMAIN].get("global_migration_done", False)
     has_global_settings = any(
-        e.data.get("entry_type") == "global_settings" for e in entries
+        e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_GLOBAL_SETTINGS for e in entries
     )
 
     if not has_global_settings and not migration_done:
@@ -176,7 +178,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await hass.config_entries.async_forward_entry_setups(
             entry, [Platform.BINARY_SENSOR]
         )
-    elif entry_type in (CONF_ENTITY_CALENDAR, "global_settings"):
+    elif entry_type in (CONF_ENTITY_CALENDAR, ENTRY_TYPE_GLOBAL_SETTINGS):
         if entry.options.get(CONF_CALENDAR, entry.data.get(CONF_CALENDAR, True)):
             await hass.config_entries.async_forward_entry_setups(
                 entry, [Platform.CALENDAR]
@@ -209,7 +211,7 @@ async def _async_ensure_global_settings(
         DOMAIN,
         context={"source": "user"},
         data={
-            "entry_type": "global_settings",
+            CONF_ENTRY_TYPE: ENTRY_TYPE_GLOBAL_SETTINGS,
             CONF_UNIQUE_ID: unique_id,
         },
     )
@@ -337,7 +339,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.BINARY_SENSOR]
         )
-    elif entry_type == "global_settings":
+    elif entry_type == ENTRY_TYPE_GLOBAL_SETTINGS:
         unload_ok = await hass.config_entries.async_unload_platforms(
             entry, [Platform.CALENDAR]
         )
@@ -357,8 +359,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
-    # Clear coordinator data for cheapest hours entities when config changes
-    entry_type = entry.data.get("entry_type")
+    # Clear coordinator data for cheapest hours entities when config changes.
+    # Global Settings changes never clear sensor data: sensors using the global
+    # price modifications read the template at their next calculation.
+    entry_type = entry.data.get(CONF_ENTRY_TYPE)
     if entry_type == CONF_ENTITY_CHEAPEST_HOURS:
         unique_id = entry.data.get(CONF_UNIQUE_ID)
         if unique_id and DOMAIN in hass.data:

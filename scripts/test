@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Run the unit tests locally, without the Home Assistant dev container.
+#
+# Creates (or reuses) a virtual environment in .venv with the Python version
+# Home Assistant requires, installs requirements.test.txt into it and runs
+# pytest. Any arguments are passed straight to pytest, for example:
+#
+#   scripts/test                              # run everything
+#   scripts/test tests/test_math.py -x        # one file, stop on first failure
+#   scripts/test -k sequential --no-cov       # filter by name, skip coverage
+#
+# Environment variables:
+#   PYTHON_VERSION  Python version to test with (default 3.14, 3.13 also supported)
+#   VENV            Virtual environment directory (default .venv for 3.14,
+#                   .venv-<version> otherwise, so versions don't overwrite each other)
+#   REINSTALL=1     Recreate the venv from scratch
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+PYTHON_VERSION="${PYTHON_VERSION:-3.14}"
+if [[ "$PYTHON_VERSION" == "3.14" ]]; then
+  VENV="${VENV:-.venv}"
+else
+  VENV="${VENV:-.venv-$PYTHON_VERSION}"
+fi
+STAMP="$VENV/.requirements.test.stamp"
+
+if [[ "${REINSTALL:-0}" == "1" ]]; then
+  rm -rf "$VENV"
+elif [[ -x "$VENV/bin/python" ]] && \
+  [[ "$("$VENV/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')" != "$PYTHON_VERSION" ]]; then
+  echo "$VENV uses a different Python version, recreating it for $PYTHON_VERSION"
+  rm -rf "$VENV"
+fi
+
+if [[ ! -x "$VENV/bin/python" ]]; then
+  if command -v uv >/dev/null 2>&1; then
+    # --managed-python avoids picking up a system interpreter with a
+    # mismatching architecture (e.g. x86_64 Python under Rosetta on Apple Silicon).
+    uv venv --managed-python --python "$PYTHON_VERSION" "$VENV"
+  elif command -v "python$PYTHON_VERSION" >/dev/null 2>&1; then
+    "python$PYTHON_VERSION" -m venv "$VENV"
+  else
+    echo "Python $PYTHON_VERSION not found. Install uv (https://docs.astral.sh/uv/)" >&2
+    echo "or python$PYTHON_VERSION and try again." >&2
+    exit 1
+  fi
+fi
+
+# (Re)install dependencies when requirements.test.txt has changed.
+if [[ ! -f "$STAMP" || requirements.test.txt -nt "$STAMP" ]]; then
+  if command -v uv >/dev/null 2>&1; then
+    uv pip install --python "$VENV/bin/python" -r requirements.test.txt
+  else
+    "$VENV/bin/python" -m pip install --upgrade pip
+    "$VENV/bin/python" -m pip install -r requirements.test.txt
+  fi
+  touch "$STAMP"
+fi
+
+exec "$VENV/bin/python" -m pytest "$@"

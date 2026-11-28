@@ -37,6 +37,7 @@ from ..helpers import (
     time_in_between,
 )
 from ..models import hour_price
+from .helpers import get_global_price_modifications
 from .math import (
     calculate_non_sequential_cheapest_hours,
     calculate_sequential_cheapest_hours,
@@ -78,6 +79,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         offset=None,
         mtu=60,
         price_modifications=None,
+        use_global_price_modifications=False,
         retention_days=1,
         area=None,
     ) -> None:
@@ -126,6 +128,11 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
             seconds=random.uniform(0, 300)
         )
         self._price_modifications = price_modifications
+        # When set, the Global Settings template is read at calculation time,
+        # so a changed template applies from the next calculation onwards
+        # without touching data that is already calculated.
+        self._use_global_price_modifications = use_global_price_modifications
+        self._global_price_modifications: Template | None = None
         if mtu is None:
             self._mtu = 60
         else:
@@ -340,7 +347,7 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
         cheapest = None
 
         # Apply possible price modifications from template
-        if price_modifications := self._price_modifications:
+        if price_modifications := self._get_price_modifications():
             today = self._apply_price_modifications(today, price_modifications)
             tomorrow = self._apply_price_modifications(tomorrow, price_modifications)
 
@@ -1152,6 +1159,20 @@ class CheapestHoursBinarySensor(BinarySensorEntity):
     def _is_15min_period_in_use(self, data: list) -> bool:
         """Check if data mtu is 15min."""
         return len(data) > 40
+
+    def _get_price_modifications(self) -> Template | None:
+        """Return the price modifications template to use for a calculation."""
+        if not self._use_global_price_modifications:
+            return self._price_modifications
+
+        source = get_global_price_modifications(self.hass)
+        if source is None:
+            return None
+        cached = self._global_price_modifications
+        if cached is None or cached.template != source:
+            cached = Template(source, self.hass)
+            self._global_price_modifications = cached
+        return cached
 
     def _apply_price_modifications(self, hour_prices: list, template: Template) -> list:
         """Apply price modifications to each HourPrice using a Jinja2 template.

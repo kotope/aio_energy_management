@@ -23,16 +23,15 @@ from .const import (
     CONF_DATA_PROVIDER_TYPE,
     CONF_ENABLE_CALENDAR,
     CONF_ENTITY_EXCESS_SOLAR,
-    CONF_SEQUENTIAL,
+    CONF_ENTRY_TYPE,
+    CONF_PRICE_MODIFICATIONS,
     CONF_UNIQUE_ID,
     DOMAIN,
+    ENTRY_TYPE_GLOBAL_SETTINGS,
 )
 from .excess_solar.config_flow import ExcessSolarConfigFlowMixin
 
 _LOGGER = logging.getLogger(__name__)
-
-CONF_ENTRY_TYPE = "entry_type"
-ENTRY_TYPE_GLOBAL_SETTINGS = "global_settings"
 
 
 def _get_calendar_schema(user_input: dict[str, Any] | None = None) -> vol.Schema:
@@ -146,7 +145,7 @@ class AIOEnergyManagementOptionsFlow(
         self._config_entry = config_entry
         self._entry_type = config_entry.data.get(CONF_ENTRY_TYPE)
         self._data_provider_type = config_entry.data.get(CONF_DATA_PROVIDER_TYPE)
-        self._config_data = dict(config_entry.data)
+        self._config_data = {**config_entry.data, **config_entry.options}
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -166,11 +165,16 @@ class AIOEnergyManagementOptionsFlow(
     ) -> ConfigFlowResult:
         """Manage global settings."""
         if user_input is not None:
+            # Template syntax is checked by the TemplateSelector. Store None
+            # when the field is cleared so the previous template is removed.
+            template = (user_input.get(CONF_PRICE_MODIFICATIONS) or "").strip()
+            user_input[CONF_PRICE_MODIFICATIONS] = template or None
             return self.async_create_entry(title="", data=user_input)
 
         current_options = {**self._config_entry.data, **self._config_entry.options}
         current_enable_calendar = current_options.get(CONF_ENABLE_CALENDAR, False)
         current_name = current_options.get(CONF_NAME, "Energy Management")
+        current_price_modifications = current_options.get(CONF_PRICE_MODIFICATIONS)
 
         return self.async_show_form(
             step_id="global_settings_options",
@@ -184,28 +188,14 @@ class AIOEnergyManagementOptionsFlow(
                         CONF_NAME,
                         default=current_name,
                     ): selector.TextSelector(),
+                    vol.Optional(
+                        CONF_PRICE_MODIFICATIONS,
+                        description=(
+                            {"suggested_value": current_price_modifications}
+                            if current_price_modifications
+                            else {}
+                        ),
+                    ): selector.TemplateSelector(),
                 }
             ),
-        )
-
-    async def async_step_cheapest_hours_menu(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Show the cheapest hours settings menu."""
-        menu_options = [
-            "cheapest_hours_data_provider",
-            "cheapest_hours_basic",
-            "cheapest_hours_advanced",
-            "cheapest_hours_flexible",
-        ]
-        # Retrive sequential value from sensor and add it to menu if true
-        is_sequential = self.config_entry.options.get(
-            CONF_SEQUENTIAL, self.config_entry.data.get(CONF_SEQUENTIAL, False)
-        )
-        if is_sequential is True:
-            menu_options.append("cheapest_hours_offset")
-
-        return self.async_show_menu(
-            step_id="cheapest_hours_menu",
-            menu_options=menu_options,
         )
