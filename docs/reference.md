@@ -94,10 +94,10 @@ Each field accepts either a static integer or a dynamic entity (`sensor` / `inpu
 ### Scheduling, Failsafe & Price Modifications
 
 | UI Field | YAML Key | Description |
-|---|---|---|---|
+|---|---|---|
 | **Trigger hour** *(static or entity)* | `trigger_hour` | Earliest hour (`0–23`) to calculate the next day's window. Useful when waiting for external sensors or dynamic inputs to update. *(Replaces deprecated `trigger_time`.)* |
 | **Failsafe starting hour** | `failsafe_starting_hour` | Fallback hour (`0–23`) to turn the sensor `on` if price data could not be fetched before `first_hour`. Disabled if omitted. |
-| **Price modifications** | `price_modifications` | Jinja2 template evaluated per slot before any limits or selection rules run. Exposes `price` (raw slot price) and `time` (slot start `datetime`). |
+| **Price modifications** | `price_modifications` | Jinja2 template evaluated per slot before any limits or selection rules run. Exposes `price` (raw slot price) and `time` (slot start `datetime`). Overrides the global `price_modifications` setting when set on an individual entry. |
 | **Retention days** | `retention_days` | Number of days of historical events to keep on the calendar (`1–365`, default: `1`). |
 
 ---
@@ -128,15 +128,16 @@ Excess Solar monitors a grid power sensor and controls per-device virtual `binar
 
 ---
 
-## 3. Calendar
+## 3. Global Settings & Calendar
 
-Both `⚙️ Global Settings` in the UI and `calendar:` in legacy YAML configure the same shared calendar entity.
+Both `⚙️ Global Settings` in the UI and `calendar:` in legacy YAML configure the shared calendar entity, while `⚙️ Global Settings` also lets you define default `price_modifications` across all Cheapest Hours entries.
 
-| UI Field (`⚙️ Global Settings`) | YAML Key (`calendar:`) | Description |
+| UI Field (`⚙️ Global Settings`) | YAML Key | Description |
 |---|---|---|
-| **Enable calendar** | *(presence of `calendar:`)* | Enables or disables the calendar entity. |
-| **Calendar name** | `name` | Friendly name of the calendar entity (default: `Energy Management`). |
-| *(automatic)* | `unique_id` | Unique ID for the calendar entity in YAML. |
+| **Enable calendar** | *(presence of `calendar:`)* | Enables or disables the shared calendar entity. |
+| **Calendar name** | `calendar.name` | Friendly name of the calendar entity (default: `Energy Management`). |
+| *(automatic)* | `calendar.unique_id` | Unique ID for the calendar entity in YAML. |
+| **Price modifications** | *(per entry in YAML)* | Global Jinja2 template applied to raw slot prices for all Cheapest Hours entries unless overridden on an individual entry. |
 
 ---
 

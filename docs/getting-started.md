@@ -18,14 +18,15 @@ Before adding the integration, make sure you have:
 
 ---
 
-## Global Settings (Calendar)
+## Global Settings (Calendar & Default Price Modifications)
 
-Every installation automatically gets one **`⚙️ Global Settings`** entry for overarching settings (recreated at startup if removed):
+Every installation automatically gets one **`⚙️ Global Settings`** entry for overarching settings (recreated at startup if removed). Click **Configure** on `⚙️ Global Settings` to manage:
 
 * **Enable calendar** — enable or disable the shared Energy Management calendar entity.
 * **Calendar name** — friendly name for the calendar entity (defaults to `Energy Management`).
+* **Price modifications** — optional global Jinja2 template applied to raw slot prices across all Cheapest Hours entries (useful for adding taxes, grid fees, or time-of-use tariffs in one central place instead of repeating them per sensor).
 
-> **Note:** Both the UI Global Settings and legacy YAML `calendar:` configuration manage the same underlying calendar entity.
+> **Note:** Both the UI Global Settings and legacy YAML `calendar:` configuration manage the same underlying calendar entity. If an individual Cheapest Hours entry also defines its own `price_modifications`, that sensor-specific template overrides the global setting.
 
 ---
 
@@ -53,7 +54,6 @@ Choose the integration providing your electricity prices:
 Fill in the price entity/config entry and select:
 
 * **MTU** — Market Time Unit in minutes: `15` or `60` (default: `60`). If your provider supplies 15-minute prices and you choose `60`, the integration calculates hourly averages automatically.
-* **Allow dynamic entities** — enable if you want to link `sensor` or `input_number` helpers instead of static numbers in later steps.
 
 ### Step 4: Basic Settings
 
@@ -74,25 +74,33 @@ Fill in the price entity/config entry and select:
 
 Click **Submit** to create `binary_sensor.<name>`.
 
-### Step 5: Advanced Settings & Time Offset (Optional)
+### Step 5: Fine-Tuning via Configure (Optional)
 
-Advanced settings and time offsets are configured **after** the initial wizard:
+Additional features are configured **after** the initial wizard:
 
 1. Go to **Settings → Devices & Services → AIO Energy Management**.
 2. Click **Configure** on your Cheapest Hours entry.
-3. Choose from the menu:
-   * **Price data provider** — change price source, MTU, or dynamic entity toggle.
+3. Choose from the configuration menu:
+   * **Price data provider** — change price source or MTU.
    * **Basic settings** — adjust slots, search window, sequential mode, calendar, or inversed mode.
-   * **Advanced settings** — set `price_limit`, flexible slots, `min_seq_slots`, `number_of_blocks`, `trigger_hour`, `failsafe_starting_hour`, `price_modifications`, or `retention_days`.
+   * **Flexible hours** — configure extra flexible slots (`max_number_of_slots` and `flexible_price_limit` or `max_price_delta`).
+   * **Advanced settings** — set `price_limit`, `min_seq_slots`, `number_of_blocks`, `trigger_hour`, `failsafe_starting_hour`, sensor-specific `price_modifications`, or `retention_days`.
    * **Time offset** *(only available when **Sequential** is enabled)* — shift start and/or end times.
 
-See [reference.md](reference.md) for full details on each advanced option.
+See [reference.md](reference.md) for full details on each option.
 
 ---
 
 ## Setting Up Excess Solar
 
 Excess Solar turns virtual `binary_sensor` entities `on` (one per configured device) whenever your grid power sensor shows sufficient solar export, respecting device priorities and minimum run/off times.
+
+### Typical Use Cases
+
+* **Diverting surplus PV to thermal storage:** automatically turn on a water heater, immersion heater, bathroom floor heating, or outdoor hot tub when exporting solar power instead of selling everything back to the grid.
+* **Prioritized multi-load management:** run your highest-priority appliance first (e.g., EV charger or heat pump) and automatically step down or swap to lower-priority loads as solar production fluctuates throughout the day.
+* **Coordinating with Cheapest Hours:** link a Cheapest Hours `binary_sensor` via **Is on schedule entity** so Excess Solar leaves the appliance undisturbed when it is already running on a cheap night tariff.
+* **Price-aware solar export:** combine the Excess Solar master switch with an automation that disables self-consumption during high feed-in price spikes so you sell power back when it is most profitable.
 
 ### Step 1: Add Excess Solar
 

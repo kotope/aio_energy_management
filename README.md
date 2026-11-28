@@ -13,7 +13,7 @@ Read more background articles on [creatingsmarthome.com](https://www.creatingsma
 
 ## Documentation
 
-* **[Getting Started (UI Setup Guide)](docs/getting-started.md)** — step-by-step walkthrough for setting up Cheapest Hours, Excess Solar, and Global Settings through the Home Assistant UI.
+* **[Getting Started (UI Setup Guide)](docs/getting-started.md)** — step-by-step walkthrough for setting up Global Settings, Cheapest Hours, and Excess Solar through the Home Assistant UI.
 * **[Parameter & Configuration Reference](docs/reference.md)** — complete reference of all parameters, pricing rules, block options, services, and legacy YAML configuration.
 
 ---
@@ -59,7 +59,7 @@ Depending on the features you want to use, configure one of the following integr
 1. Go to **Settings → Devices & Services → + Add Integration**.
 2. Search for **AIO Energy Management**.
 3. Choose **Cheapest hours sensor** or **Excess solar** and follow the setup wizard.
-4. To fine-tune advanced options (such as price limits, flexible slots, block sizes, or time offsets), open the created entry and click **Configure**.
+4. To fine-tune options (such as price limits, flexible slots, block sizes, or time offsets), open the created entry and click **Configure**.
 
 For full step-by-step instructions, see [docs/getting-started.md](docs/getting-started.md).
 
