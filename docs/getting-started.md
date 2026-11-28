@@ -26,7 +26,7 @@ Every installation automatically gets one **`⚙️ Global Settings`** entry for
 * **Calendar name** — friendly name for the calendar entity (defaults to `Energy Management`).
 * **Price modifications** — optional global Jinja2 template applied to raw slot prices across all Cheapest Hours entries (useful for adding taxes, grid fees, or time-of-use tariffs in one central place instead of repeating them per sensor).
 
-> **Note:** Both the UI Global Settings and legacy YAML `calendar:` configuration manage the same underlying calendar entity. If an individual Cheapest Hours entry also defines its own `price_modifications`, that sensor-specific template overrides the global setting.
+> **Note:** Both the UI Global Settings and legacy YAML `calendar:` configuration manage the same underlying calendar entity.
 
 ---
 
@@ -98,9 +98,6 @@ Excess Solar turns virtual `binary_sensor` entities `on` (one per configured dev
 ### Typical Use Cases
 
 * **Diverting surplus PV to thermal storage:** automatically turn on a water heater, immersion heater, bathroom floor heating, or outdoor hot tub when exporting solar power instead of selling everything back to the grid.
-* **Prioritized multi-load management:** run your highest-priority appliance first (e.g., EV charger or heat pump) and automatically step down or swap to lower-priority loads as solar production fluctuates throughout the day.
-* **Coordinating with Cheapest Hours:** link a Cheapest Hours `binary_sensor` via **Is on schedule entity** so Excess Solar leaves the appliance undisturbed when it is already running on a cheap night tariff.
-* **Price-aware solar export:** combine the Excess Solar master switch with an automation that disables self-consumption during high feed-in price spikes so you sell power back when it is most profitable.
 
 ### Step 1: Add Excess Solar
 
@@ -179,9 +176,9 @@ automation:
 
 ## Common Configuration Examples
 
-### Night Charging (Sequential)
+### Cheapest hours Charging (Sequential)
 * **Number of slots:** `6` (with 60-min MTU) or `24` (with 15-min MTU)
-* **First hour:** `22`, **Last hour:** `8` *(overnight)*
+* **First hour:** `22`, **Last hour:** `21` *(overnight)*
 * **Sequential:** `Yes`
 
 ### Best Scattered Slots (Non-Sequential)

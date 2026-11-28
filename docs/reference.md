@@ -16,13 +16,13 @@ A Cheapest Hours entry creates a `binary_sensor` that turns `on` during the sele
 |---|---|---|---|
 | **Nord Pool entity** | `nordpool_entity` | One provider required | Entity ID from the Nord Pool custom integration (e.g. `sensor.nordpool`). |
 | **Nord Pool official config entry** | `nordpool_official_config_entry` | One provider required | Config entry ID of the official Home Assistant Nord Pool integration. |
-| **Area** | `area` | No | Market area override for the official Nord Pool integration (defaults to the integration's configured area). |
 | **Entso-E entity** | `entsoe_entity` | One provider required | Entity ID of the Entso-E **average price** sensor. |
 | **Strømligning today entity** | `stromligning_entity` | One provider required | Entity ID of Strømligning today's prices sensor. |
 | **Strømligning tomorrow entity** | `stromligning_tomorrow_entity` | With Strømligning | Entity ID of Strømligning tomorrow's prices sensor. |
+| **Area** | `area` | No | Market area override for the official Nord Pool integration (defaults to the integration's configured area). |
 | **MTU** | `mtu` | No | Market Time Unit in minutes: `15` or `60` (default: `60`). If the provider uses 15-minute slots and `60` is requested, hourly mean prices are calculated. |
 
-### Core Selection Parameters
+### Basic Configuration Parameters
 
 | UI Field | YAML Key | Required | Description |
 |---|---|---|---|
@@ -34,8 +34,8 @@ A Cheapest Hours entry creates a `binary_sensor` that turns `on` during the sele
 | **Last hour** | `last_hour` | Yes | End hour of the search window (`0–23`). |
 | — *(automatic)* | `starting_today` | No | *Deprecated since 0.9.0:* determined automatically from `first_hour` and `last_hour`. |
 | **Sequential** | `sequential` | Yes | When `true`, selects a single contiguous block of slots. When `false`, selects individual or grouped blocks across the window. |
-| **Inversed** | `inversed` | No | When `true`, selects the **most expensive** slots instead of the cheapest (default: `false`). |
 | **Add to calendar** | `calendar` | No | Add scheduled blocks to the Energy Management calendar (default: `true`). |
+| **Inversed** | `inversed` | No | When `true`, selects the **most expensive** slots instead of the cheapest (default: `false`). |
 
 #### Search Window Rules (`first_hour` & `last_hour`)
 * When `last_hour < first_hour`, the window automatically wraps overnight (`last_hour` is on the next day).
@@ -44,33 +44,37 @@ A Cheapest Hours entry creates a `binary_sensor` that turns `on` during the sele
 
 ---
 
-### Price Limits & Flexible Slots
+### Advanced Configuration Parameters
+
+| UI Field | YAML Key | Description |
+|---|---|---|
+| **Failsafe starting hour** | `failsafe_starting_hour` | Fallback hour (`0–23`) to turn the sensor `on` if price data could not be fetched before `first_hour`. Disabled if omitted. |
+| **Trigger hour** *(static or entity)* | `trigger_hour` | Earliest hour (`0–23`) to calculate the next day's window. Useful when waiting for external sensors or dynamic inputs to update. *(Replaces deprecated `trigger_time`.)* |
+| **Price limit** *(static or entity)* | `price_limit` | No | Hard price ceiling for the base `number_of_slots` selection (slots above `price_limit`, or below when `inversed: true`, are excluded). Accepts a static float or a dynamic entity ID. |
+| **Minimum continuous slots** | `min_seq_slots` | `1` | Minimum length of every selected contiguous block of slots. Ignored when `number_of_blocks` is set. |
+| **Number of time blocks** | `number_of_blocks` | — | Divides the selected slots into at most this many separate contiguous blocks. Takes precedence over `min_seq_slots`. |
+| **Retention days** | `retention_days` | Number of days of historical events to keep on the calendar (`1–365`, default: `1`). |
+| **Price modifications source** | `Global` for new sensors | **Global**: use the template from Global Settings. **Custom**: use this sensor's own template. **None**: use prices as they are |
+| **Price modifications** | `price_modifications` | Jinja2 template evaluated per slot before any limits or selection rules run. Exposes `price` (raw slot price) and `time` (slot start `datetime`). Overrides the global `price_modifications` setting when set on an individual entry. |
+
+---
+
+### Flexible Slots
 
 All price comparisons are evaluated **after** `price_modifications` have been applied.
 
 | UI Field | YAML Key | Required | Description |
 |---|---|---|---|
-| **Price limit** *(static or entity)* | `price_limit` | No | Hard price ceiling for the base `number_of_slots` selection (slots above `price_limit`, or below when `inversed: true`, are excluded). Accepts a static float or a dynamic entity ID. |
-| **Flexible: max number of slots** *(static or entity)* | `add_flexible.max_number_of_slots` | With flex | Maximum total number of slots including the base `number_of_slots` (capped at 24 for 60-min MTU and 96 for 15-min MTU). |
 | **Flexible: price limit** *(static or entity)* | `add_flexible.price_limit` | With flex¹ | Hard price ceiling (or floor when `inversed: true`) for extra flexible slots beyond `number_of_slots`. |
 | **Flexible: max price delta** | `add_flexible.max_price_delta` | With flex¹ | Relative threshold: extra slots are allowed while their price is within `max_price_delta` of the cheapest slot (or most expensive when `inversed: true`) in the search window. |
+| **Flexible: max number of slots** *(static or entity)* | `add_flexible.max_number_of_slots` | With flex | Maximum total number of slots including the base `number_of_slots` (capped at 24 for 60-min MTU and 96 for 15-min MTU). |
 
 > ¹ Configure **either** `flexible_price_limit` **or** `max_price_delta` (not both). If both are provided in YAML, `flexible_price_limit` takes precedence.
 
 #### How `price_limit` and Flexible Slots Interact
-* **`price_limit`** applies as a hard per-slot filter on the base `number_of_slots` selection. If fewer slots meet `price_limit` than requested, fewer slots (or none) are returned.
 * **`flexible_price_limit` / `max_price_delta`** governs extra slots added on top of `number_of_slots` (up to `max_number_of_slots`). The flexible limit is enforced as a hard bound and is never exceeded.
 * **When `sequential: true`:** The cheapest contiguous block of `number_of_slots` is selected first (subject to `price_limit`), and then grown one slot at a time at its start or end edge while neighboring slots remain within the flexible limit and search window.
 * **When `sequential: false`:** All active rules (`price_limit`, flexible limit, and block size rules) are solved together so the largest feasible set of cheapest slots is chosen without violating any constraint.
-
----
-
-### Block Grouping Parameters (`sequential: false` only)
-
-| UI Field | YAML Key | Default | Description |
-|---|---|---|---|
-| **Minimum continuous slots** | `min_seq_slots` | `1` | Minimum length of every selected contiguous block of slots. Ignored when `number_of_blocks` is set. |
-| **Number of time blocks** | `number_of_blocks` | — | Divides the selected slots into at most this many separate contiguous blocks. Takes precedence over `min_seq_slots`. |
 
 ---
 
@@ -88,17 +92,6 @@ Each field accepts either a static integer or a dynamic entity (`sensor` / `inpu
 | **End offset minutes** | `offset.end.minutes` | `0–59` | Minutes added to the block end time. |
 
 * Note: `mean_price`, `min_price`, and `max_price` attributes reflect the unshifted calculated slots and do not include offset adjustments.
-
----
-
-### Scheduling, Failsafe & Price Modifications
-
-| UI Field | YAML Key | Description |
-|---|---|---|
-| **Trigger hour** *(static or entity)* | `trigger_hour` | Earliest hour (`0–23`) to calculate the next day's window. Useful when waiting for external sensors or dynamic inputs to update. *(Replaces deprecated `trigger_time`.)* |
-| **Failsafe starting hour** | `failsafe_starting_hour` | Fallback hour (`0–23`) to turn the sensor `on` if price data could not be fetched before `first_hour`. Disabled if omitted. |
-| **Price modifications** | `price_modifications` | Jinja2 template evaluated per slot before any limits or selection rules run. Exposes `price` (raw slot price) and `time` (slot start `datetime`). Overrides the global `price_modifications` setting when set on an individual entry. |
-| **Retention days** | `retention_days` | Number of days of historical events to keep on the calendar (`1–365`, default: `1`). |
 
 ---
 
